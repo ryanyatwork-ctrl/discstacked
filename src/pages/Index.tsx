@@ -278,6 +278,9 @@ export default function Index() {
         availableLetters={availableLetters}
       />
 
+      {/* Mobile Bottom Tab Bar */}
+      <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
+
       {/* Detail Drawer */}
       <DetailDrawer
         item={selectedItem}
