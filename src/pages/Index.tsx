@@ -13,6 +13,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { WelcomeSection } from "@/components/WelcomeSection";
 import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
+import { FetchArtworkButton } from "@/components/FetchArtworkButton";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -146,6 +147,7 @@ export default function Index() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
+                <FetchArtworkButton items={dbItems ?? []} />
                 <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
                 <Button
