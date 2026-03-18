@@ -14,6 +14,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { WelcomeSection } from "@/components/WelcomeSection";
 import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
+import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { FetchArtworkButton } from "@/components/FetchArtworkButton";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
     lastWatched: db.last_watched ?? undefined,
     watchNotes: db.watch_notes ?? undefined,
     mediaType: db.media_type as MediaTab,
+    barcode: (db as any).barcode ?? undefined,
   };
 }
 
@@ -154,6 +156,7 @@ export default function Index() {
           <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <>
+                <AddMovieDialog activeTab={activeTab} />
                 <FetchArtworkButton items={dbItems ?? []} />
                 <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
