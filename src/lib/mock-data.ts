@@ -22,7 +22,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       title,
       year: 1990 + Math.floor(Math.random() * 34),
       format: formats[Math.floor(Math.random() * 3)],
-      posterUrl: `https://picsum.photos/seed/${tab}${i}/300/450`,
       inPlex: Math.random() > 0.3,
       digitalCopy: Math.random() > 0.5,
       wishlist: Math.random() > 0.85,
@@ -43,7 +42,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       artist: "Various Artists",
       year: 1970 + Math.floor(Math.random() * 54),
       format: ["CD", "Vinyl", "Cassette"][Math.floor(Math.random() * 3)],
-      posterUrl: `https://picsum.photos/seed/cd${i}/300/300`,
     }));
   }
   if (tab === "books") {
@@ -57,7 +55,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       author: "Author Name",
       year: 1950 + Math.floor(Math.random() * 74),
       format: ["Hardcover", "Paperback"][Math.floor(Math.random() * 2)],
-      posterUrl: `https://picsum.photos/seed/book${i}/300/450`,
     }));
   }
   const games = [
@@ -70,6 +67,5 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
     year: 2018 + Math.floor(Math.random() * 7),
     format: ["PS5", "Xbox", "Switch", "PC"][Math.floor(Math.random() * 4)],
     platform: "PS5",
-    posterUrl: `https://picsum.photos/seed/game${i}/300/450`,
   }));
 }
