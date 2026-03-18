@@ -22,7 +22,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       title,
       year: 1990 + Math.floor(Math.random() * 34),
       format: formats[Math.floor(Math.random() * 3)],
-      posterUrl: `https://picsum.photos/seed/${tab}${i}/300/450`,
       inPlex: Math.random() > 0.3,
       digitalCopy: Math.random() > 0.5,
       wishlist: Math.random() > 0.85,
