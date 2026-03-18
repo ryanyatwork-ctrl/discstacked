@@ -75,8 +75,13 @@ export default function Index() {
     if (activeFormats.length > 0) {
       items = items.filter((i) => i.format && activeFormats.includes(i.format));
     }
+    if (statusFilter === "plex") {
+      items = items.filter((i) => i.inPlex);
+    } else if (statusFilter === "digital") {
+      items = items.filter((i) => i.digitalCopy);
+    }
     return items.sort((a, b) => a.title.localeCompare(b.title));
-  }, [allItems, searchQuery, activeFormats]);
+  }, [allItems, searchQuery, activeFormats, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
