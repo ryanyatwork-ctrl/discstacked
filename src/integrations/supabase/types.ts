@@ -17,6 +17,7 @@ export type Database = {
       media_items: {
         Row: {
           amazon_tag: string | null
+          barcode: string | null
           created_at: string
           digital_copy: boolean
           format: string | null
@@ -40,6 +41,7 @@ export type Database = {
         }
         Insert: {
           amazon_tag?: string | null
+          barcode?: string | null
           created_at?: string
           digital_copy?: boolean
           format?: string | null
@@ -63,6 +65,7 @@ export type Database = {
         }
         Update: {
           amazon_tag?: string | null
+          barcode?: string | null
           created_at?: string
           digital_copy?: boolean
           format?: string | null
