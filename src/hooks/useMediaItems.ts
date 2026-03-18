@@ -73,6 +73,7 @@ export function useImportItems() {
         user_id: user.id,
         media_type: mediaType,
         title: item.title || "Untitled",
+        formats: item.formats || (item.format ? [item.format] : []),
       }));
 
       // Batch in chunks of 500

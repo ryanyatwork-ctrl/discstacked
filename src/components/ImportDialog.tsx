@@ -137,13 +137,19 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       // Map CLZ columns to our schema
       const items = rawItems.map(mapClzRow);
 
+      // Merge duplicates by title: combine formats into array
+      const merged = mergeDuplicates(items);
+
+      // Expand box sets: keep set entry + add format to individual movies
+      const expanded = expandBoxSets(merged);
+
       await importMutation.mutateAsync({
-        items,
+        items: expanded,
         mediaType: activeTab,
         replace: true,
       });
 
-      toast({ title: "Import complete", description: `${items.length} items imported to ${TAB_LABELS[activeTab]}.` });
+      toast({ title: "Import complete", description: `${expanded.length} items imported (${items.length} rows merged) to ${TAB_LABELS[activeTab]}.` });
       setOpen(false);
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
@@ -255,4 +261,83 @@ function parseCsvRows(text: string): string[][] {
   }
 
   return rows;
+}
+
+/**
+ * Merge duplicate titles: combine formats into a formats[] array.
+ */
+function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
+  const map = new Map<string, Record<string, any>>();
+
+  for (const item of items) {
+    const key = (item.title || "").toLowerCase().trim();
+    if (!key) continue;
+
+    if (map.has(key)) {
+      const existing = map.get(key)!;
+      const fmt = item.format || "DVD";
+      if (!existing.formats.includes(fmt)) {
+        existing.formats.push(fmt);
+      }
+      if (!existing.year && item.year) existing.year = item.year;
+      if (!existing.rating && item.rating) existing.rating = item.rating;
+      if (!existing.genre && item.genre) existing.genre = item.genre;
+    } else {
+      const fmt = item.format || "DVD";
+      map.set(key, { ...item, formats: [fmt] });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * Detect box sets (titles with " / ") and expand:
+ * Keep the set entry AND add its format to each individual movie.
+ */
+function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
+  const titleMap = new Map<string, Record<string, any>>();
+  for (const item of items) {
+    titleMap.set((item.title || "").toLowerCase().trim(), item);
+  }
+
+  const toAdd: Record<string, any>[] = [];
+
+  for (const item of items) {
+    const title: string = item.title || "";
+    if (!title.includes(" / ")) continue;
+
+    let moviesPart = title;
+    const colonIdx = title.indexOf(": ");
+    if (colonIdx > -1 && title.indexOf(" / ", colonIdx) > -1) {
+      moviesPart = title.slice(colonIdx + 2);
+    }
+
+    const movieNames = moviesPart.split(" / ").map(s => s.trim()).filter(Boolean);
+    if (movieNames.length < 2) continue;
+
+    const setFormat = item.formats?.[0] || item.format || "DVD";
+    for (const name of movieNames) {
+      const key = name.toLowerCase().trim();
+      if (titleMap.has(key)) {
+        const existing = titleMap.get(key)!;
+        if (!existing.formats.includes(setFormat)) {
+          existing.formats.push(setFormat);
+        }
+        existing.metadata = { ...(existing.metadata || {}), box_set: item.title };
+      } else {
+        const newItem = {
+          title: name,
+          format: setFormat,
+          formats: [setFormat],
+          year: item.year,
+          metadata: { box_set: item.title },
+        };
+        titleMap.set(key, newItem);
+        toAdd.push(newItem);
+      }
+    }
+  }
+
+  return [...items, ...toAdd];
 }
