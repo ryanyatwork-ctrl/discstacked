@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MediaItem } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { useUpdateItem } from "@/hooks/useMediaItems";
+import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X } from "lucide-react";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 
 interface DetailDrawerProps {
@@ -14,8 +17,34 @@ interface DetailDrawerProps {
 
 export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const updateItem = useUpdateItem();
+
+  useEffect(() => {
+    if (editingTitle && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingTitle]);
 
   if (!item) return null;
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === item.title) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, title: trimmed } as any);
+      toast({ title: "Title updated!" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingTitle(false);
+  };
 
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
@@ -58,7 +87,38 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
 
             {/* Info */}
             <div className="space-y-3">
-              <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveTitle();
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="text-lg font-semibold"
+                  />
+                  <Button variant="ghost" size="icon" onClick={handleSaveTitle} className="shrink-0">
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setEditingTitle(false)} className="shrink-0">
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-7 w-7"
+                    onClick={() => { setTitleDraft(item.title); setEditingTitle(true); }}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
                 {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
                 {formats.map((f) => (
