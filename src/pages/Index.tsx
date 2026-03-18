@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import heroLogo from "@/assets/DiscStacked_16x9.png";
 import { MediaTab, MediaItem } from "@/lib/types";
 import { generateMockData } from "@/lib/mock-data";
 import { TabSwitcher } from "@/components/TabSwitcher";
