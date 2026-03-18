@@ -87,7 +87,38 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
 
             {/* Info */}
             <div className="space-y-3">
-              <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveTitle();
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="text-lg font-semibold"
+                  />
+                  <Button variant="ghost" size="icon" onClick={handleSaveTitle} className="shrink-0">
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setEditingTitle(false)} className="shrink-0">
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-7 w-7"
+                    onClick={() => { setTitleDraft(item.title); setEditingTitle(true); }}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
                 {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
                 {formats.map((f) => (
