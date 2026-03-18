@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Search, Disc, Monitor, ShoppingCart } from "lucide-react";
+import { Search, Disc, Monitor, ShoppingCart, Shuffle, Users } from "lucide-react";
 import logo from "@/assets/DiscStacked_Logo.png";
 
 const features = [
@@ -18,11 +18,26 @@ const features = [
     title: "Digital Status",
     description: "If you see the Plex or Cloud icon, a digital copy is available for streaming.",
   },
+  {
+    icon: Shuffle,
+    title: "What to Watch",
+    description: "Can't decide? Hit the randomizer to pick a movie from your collection — disc, Plex, or cloud.",
+  },
+  {
+    icon: Users,
+    title: "Connect with Friends",
+    description: "Add friends and browse their collections to discover new titles and share recommendations.",
+  },
+  {
+    icon: ShoppingCart,
+    title: "Find on Amazon",
+    description: "See something you like? Click 'Find on Amazon' on any title to grab your own copy.",
+  },
 ];
 
 const containerVariants = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.12 } },
+  visible: { transition: { staggerChildren: 0.1 } },
 };
 
 const itemVariants = {
@@ -49,7 +64,7 @@ export function WelcomeSection() {
             Welcome to <span className="text-primary">DiscStacked</span>
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground max-w-lg leading-relaxed">
-            Browse my collection of 2,400+ movies, music films, and CDs. Check formats, digital availability, and find your next watch.
+            Build and browse your own media collection. Connect with friends, explore their shelves, and let the randomizer pick your next watch.
           </p>
         </div>
       </motion.div>
@@ -71,21 +86,6 @@ export function WelcomeSection() {
             </div>
           </div>
         ))}
-      </motion.div>
-
-      {/* Amazon Callout */}
-      <motion.div variants={itemVariants}>
-        <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 backdrop-blur-md p-4">
-          <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
-            <ShoppingCart className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">Find on Amazon</p>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              See something you like? Click the "Find on Amazon" button on any title to grab your own copy.
-            </p>
-          </div>
-        </div>
       </motion.div>
     </motion.div>
   );

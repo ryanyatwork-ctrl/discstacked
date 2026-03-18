@@ -12,6 +12,7 @@ import { MobileMenu } from "@/components/MobileMenu";
 import { ImportDialog } from "@/components/ImportDialog";
 import { WelcomeSection } from "@/components/WelcomeSection";
 import { CollectionStats } from "@/components/CollectionStats";
+import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -133,6 +134,7 @@ export default function Index() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
+                <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
                 <Button
                   variant="ghost"
