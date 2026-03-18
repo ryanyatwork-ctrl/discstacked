@@ -156,6 +156,7 @@ export default function Index() {
             <MobileMenu
               isLoggedIn={!!user}
               onSignOut={signOut}
+              allItems={dbItems ?? []}
             />
             <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
           </div>
