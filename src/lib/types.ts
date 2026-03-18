@@ -6,16 +6,19 @@ export interface MediaItem {
   year?: number;
   format?: string;
   posterUrl?: string;
+  genre?: string;
+  rating?: number;
+  notes?: string;
   inPlex?: boolean;
   digitalCopy?: boolean;
   wishlist?: boolean;
   wantToWatch?: boolean;
   lastWatched?: string;
   watchNotes?: string;
+  mediaType?: MediaTab;
   artist?: string;
   author?: string;
   platform?: string;
-  genre?: string;
 }
 
 export const TABS: { id: MediaTab; label: string; icon: string }[] = [
