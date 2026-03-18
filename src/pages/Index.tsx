@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem } from "@/lib/types";
 import { generateMockData } from "@/lib/mock-data";
 import { TabSwitcher } from "@/components/TabSwitcher";
@@ -7,10 +8,33 @@ import { AlphabetRail } from "@/components/AlphabetRail";
 import { PosterCard } from "@/components/PosterCard";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
-import { Users, Upload } from "lucide-react";
-import logo from "@/assets/DiscStacked_Logo.png";
+import { ImportDialog } from "@/components/ImportDialog";
+import { Users, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
+import logo from "@/assets/DiscStacked_Logo.png";
+
+function dbToMediaItem(db: DbMediaItem): MediaItem {
+  return {
+    id: db.id,
+    title: db.title,
+    year: db.year ?? undefined,
+    format: db.format ?? undefined,
+    posterUrl: db.poster_url ?? `https://picsum.photos/seed/${db.id}/300/450`,
+    genre: db.genre ?? undefined,
+    rating: db.rating ?? undefined,
+    notes: db.notes ?? undefined,
+    inPlex: db.in_plex,
+    digitalCopy: db.digital_copy,
+    wishlist: db.wishlist,
+    wantToWatch: db.want_to_watch,
+    lastWatched: db.last_watched ?? undefined,
+    watchNotes: db.watch_notes ?? undefined,
+    mediaType: db.media_type as MediaTab,
+  };
+}
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
@@ -19,8 +43,21 @@ export default function Index() {
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  const allItems = useMemo(() => generateMockData(activeTab), [activeTab]);
+  const { user, signOut } = useAuth();
+  const { data: dbItems, isLoading } = useMediaItems(activeTab);
+
+  // Use DB items if signed in and have data, otherwise show mock data
+  const allItems = useMemo(() => {
+    if (user && dbItems && dbItems.length > 0) {
+      return dbItems.map(dbToMediaItem);
+    }
+    if (user && dbItems && dbItems.length === 0) {
+      return []; // Signed in but no items — show empty (import to populate)
+    }
+    return generateMockData(activeTab); // Not signed in — show demo
+  }, [activeTab, user, dbItems]);
 
   const filteredItems = useMemo(() => {
     let items = allItems;
@@ -82,28 +119,44 @@ export default function Index() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
+            <MobileMenu />
             <img src={logo} alt="DiscStacked" className="h-10 w-10 rounded-md object-contain" />
           </div>
           <div className="flex items-center gap-2">
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => toast({ title: "Coming soon", description: "Sign in & friends features are not yet available." })}
-            >
-              <Users className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => toast({ title: "Sign in required", description: "Sign in to import your collection." })}
-            >
-              <Upload className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <ImportDialog activeTab={activeTab} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => toast({ title: "Coming soon", description: "Friends features are not yet available." })}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => signOut()}
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary hover:text-primary/80 gap-1.5"
+                onClick={() => navigate("/auth")}
+              >
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Sign In</span>
+              </Button>
+            )}
           </div>
         </div>
         <div className="px-4 pb-3">
@@ -120,8 +173,9 @@ export default function Index() {
       {/* Collection stats */}
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          {filteredItems.length} items
+          {isLoading ? "Loading..." : `${filteredItems.length} items`}
           {activeFormats.length > 0 && ` · Filtered`}
+          {!user && " · Demo mode"}
         </p>
       </div>
 
@@ -139,10 +193,19 @@ export default function Index() {
             </div>
           </div>
         ))}
-        {filteredItems.length === 0 && (
+        {!isLoading && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-            <p className="text-sm">No items found</p>
-            <p className="text-xs mt-1">Try adjusting your search or filters</p>
+            {user ? (
+              <>
+                <p className="text-sm">Your collection is empty</p>
+                <p className="text-xs mt-1">Use the upload button to import your collection</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">No items found</p>
+                <p className="text-xs mt-1">Try adjusting your search or filters</p>
+              </>
+            )}
           </div>
         )}
       </main>
