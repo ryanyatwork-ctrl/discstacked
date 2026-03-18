@@ -14,7 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      media_items: {
+        Row: {
+          amazon_tag: string | null
+          created_at: string
+          digital_copy: boolean
+          format: string | null
+          genre: string | null
+          id: string
+          in_plex: boolean
+          last_watched: string | null
+          media_type: string
+          metadata: Json | null
+          notes: string | null
+          poster_url: string | null
+          rating: number | null
+          title: string
+          updated_at: string
+          user_id: string
+          want_to_watch: boolean
+          watch_notes: string | null
+          wishlist: boolean
+          year: number | null
+        }
+        Insert: {
+          amazon_tag?: string | null
+          created_at?: string
+          digital_copy?: boolean
+          format?: string | null
+          genre?: string | null
+          id?: string
+          in_plex?: boolean
+          last_watched?: string | null
+          media_type: string
+          metadata?: Json | null
+          notes?: string | null
+          poster_url?: string | null
+          rating?: number | null
+          title: string
+          updated_at?: string
+          user_id: string
+          want_to_watch?: boolean
+          watch_notes?: string | null
+          wishlist?: boolean
+          year?: number | null
+        }
+        Update: {
+          amazon_tag?: string | null
+          created_at?: string
+          digital_copy?: boolean
+          format?: string | null
+          genre?: string | null
+          id?: string
+          in_plex?: boolean
+          last_watched?: string | null
+          media_type?: string
+          metadata?: Json | null
+          notes?: string | null
+          poster_url?: string | null
+          rating?: number | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          want_to_watch?: boolean
+          watch_notes?: string | null
+          wishlist?: boolean
+          year?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
