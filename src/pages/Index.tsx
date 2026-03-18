@@ -14,7 +14,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { WelcomeSection } from "@/components/WelcomeSection";
 import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
-import { FetchArtworkButton } from "@/components/FetchArtworkButton";
+import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
