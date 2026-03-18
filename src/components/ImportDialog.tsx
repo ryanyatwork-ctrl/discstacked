@@ -137,13 +137,19 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       // Map CLZ columns to our schema
       const items = rawItems.map(mapClzRow);
 
+      // Merge duplicates by title: combine formats into array
+      const merged = mergeDuplicates(items);
+
+      // Expand box sets: keep set entry + add format to individual movies
+      const expanded = expandBoxSets(merged);
+
       await importMutation.mutateAsync({
-        items,
+        items: expanded,
         mediaType: activeTab,
         replace: true,
       });
 
-      toast({ title: "Import complete", description: `${items.length} items imported to ${TAB_LABELS[activeTab]}.` });
+      toast({ title: "Import complete", description: `${expanded.length} items imported (${items.length} rows merged) to ${TAB_LABELS[activeTab]}.` });
       setOpen(false);
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
