@@ -193,7 +193,7 @@ export default function Index() {
       {!user ? (
         <WelcomeSection />
       ) : (
-        <CollectionStats items={dbItems ?? []} isLoading={isLoading} />
+        <CollectionStats items={dbItems ?? []} isLoading={isLoading} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
       )}
 
       {/* Collection stats + view toggle */}
