@@ -8,6 +8,7 @@ import { PosterCard } from "@/components/PosterCard";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { Users, Upload } from "lucide-react";
+import logo from "@/assets/DiscStacked_Logo.png";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
@@ -81,7 +82,7 @@ export default function Index() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <MobileMenu />
+            <img src={logo} alt="DiscStacked" className="h-8 w-8 rounded-md object-contain" />
             <h1 className="text-lg font-semibold text-primary tracking-tight">DiscStacked</h1>
           </div>
           <div className="flex items-center gap-2">
