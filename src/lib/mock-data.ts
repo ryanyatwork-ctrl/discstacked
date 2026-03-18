@@ -55,7 +55,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       author: "Author Name",
       year: 1950 + Math.floor(Math.random() * 74),
       format: ["Hardcover", "Paperback"][Math.floor(Math.random() * 2)],
-      posterUrl: `https://picsum.photos/seed/book${i}/300/450`,
     }));
   }
   const games = [
