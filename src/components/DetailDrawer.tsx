@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MediaItem } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { useUpdateItem } from "@/hooks/useMediaItems";
+import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon } from "lucide-react";
