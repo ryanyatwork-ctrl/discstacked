@@ -339,7 +339,7 @@ function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
 function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
   const titleMap = new Map<string, Record<string, any>>();
   for (const item of items) {
-    titleMap.set((item.title || "").toLowerCase().trim(), item);
+    titleMap.set(normalizeTitle(item.title || ""), item);
   }
 
   const toAdd: Record<string, any>[] = [];
@@ -359,7 +359,7 @@ function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
 
     const setFormat = item.formats?.[0] || item.format || "DVD";
     for (const name of movieNames) {
-      const key = name.toLowerCase().trim();
+      const key = normalizeTitle(name);
       if (titleMap.has(key)) {
         const existing = titleMap.get(key)!;
         if (!existing.formats.includes(setFormat)) {
