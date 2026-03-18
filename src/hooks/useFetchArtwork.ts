@@ -20,7 +20,11 @@ export function useFetchArtwork() {
     for (let i = 0; i < missing.length; i++) {
       const item = missing[i];
       try {
-        const results = await searchTmdb(item.title, item.year ?? undefined);
+        // Search movies first, then try TV shows as fallback
+        let results = await searchTmdb(item.title, item.year ?? undefined, "movie");
+        if (results.length === 0 || !results[0].poster_url) {
+          results = await searchTmdb(item.title, item.year ?? undefined, "tv");
+        }
         if (results.length > 0 && results[0].poster_url) {
           const { error } = await supabase
             .from("media_items")
