@@ -37,6 +37,9 @@ const COLUMN_MAP: Record<string, string> = {
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
 
+const ALIEN_TITLES = ["alien", "aliens", "alien3", "alien 3", "alien resurrection", "alien³"];
+const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors edition"];
+
 /** Detect ALL physical formats from a string (edition, audio tracks, format column) */
 export function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
@@ -115,8 +118,22 @@ export function mapClzRow(raw: Record<string, string>) {
     }
   }
 
-  // Deduplicate detected formats, default to DVD
+  // Deduplicate detected formats
   const uniqueFormats = [...new Set(detectedFormats)];
+
+  // Alien format force: if title contains "Alien" and edition is special/collector's, assume Blu-ray
+  const title = (mapped.title || "").toLowerCase();
+  const edition = (metadata["edition"] || "").toLowerCase();
+  if (
+    ALIEN_TITLES.some(at => title === at || title.startsWith(at + " ")) &&
+    ALIEN_EDITIONS.some(ae => edition.includes(ae)) &&
+    !uniqueFormats.includes("DVD") &&
+    !uniqueFormats.includes("Blu-ray")
+  ) {
+    uniqueFormats.push("Blu-ray");
+  }
+
+  // Use all detected formats, default to DVD only if nothing detected
   mapped.format = uniqueFormats[0] || "DVD";
   mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
 
@@ -196,11 +213,11 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
   }
 
   const toAdd: Record<string, any>[] = [];
+  const boxSetIndices = new Set<number>(); // Track which items ARE box sets (to hide them)
 
-  for (const item of items) {
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
     const title: string = item.title || "";
-    const setFormat = item.formats?.[0] || item.format || "DVD";
-    const setBarcode = item.metadata?.barcode || item.barcode || null;
 
     // --- Strategy 1: Slash-separated multi-movie titles ---
     if (title.includes(" / ")) {
@@ -212,17 +229,13 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
 
       const movieNames = moviesPart.split(" / ").map(s => s.trim()).filter(Boolean);
       if (movieNames.length >= 2) {
-        // Store contents on the set entry
-        item.metadata = {
-          ...(item.metadata || {}),
-          is_box_set: "true",
-          contents: JSON.stringify(movieNames),
-        };
+        // Mark this box set for hiding
+        boxSetIndices.add(idx);
 
         for (const name of movieNames) {
           linkOrCreateIndividual(name, item, titleMap, toAdd);
         }
-        continue; // Don't also run keyword matching on this item
+        continue;
       }
     }
 
@@ -231,23 +244,15 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
       const normSetTitle = normalizeTitle(title);
       const matchedContents: string[] = [];
 
-      // Try to find individual movies whose normalized title is a substring of the set title,
-      // or whose normalized title starts with a significant prefix of the set title
       for (const [normKey, existingItem] of titleMap.entries()) {
-        if (normKey === normSetTitle) continue; // skip self
-        if (normKey.length < 3) continue; // skip very short titles
+        if (normKey === normSetTitle) continue;
+        if (normKey.length < 3) continue;
 
-        // Check if the individual movie's title appears within the set title
         if (normSetTitle.includes(normKey)) {
           matchedContents.push(existingItem.title);
           addBoxSetSource(existingItem, item);
-        }
-        // Check if the set title starts with the same base as the individual movie
-        // e.g., "back to the future" matches "back to the future the complete trilogy"
-        else {
-          const setWords = normSetTitle.split(" ");
+        } else {
           const movieWords = normKey.split(" ");
-          // If the movie title is at least 2 words and the set title starts with those words
           if (movieWords.length >= 2) {
             const moviePrefix = movieWords.join(" ");
             if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
@@ -258,17 +263,17 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
         }
       }
 
+      // If we matched contents, this is a confirmed box set → hide it
       if (matchedContents.length > 0) {
-        item.metadata = {
-          ...(item.metadata || {}),
-          is_box_set: "true",
-          contents: JSON.stringify(matchedContents),
-        };
+        boxSetIndices.add(idx);
       }
     }
   }
 
-  return [...items, ...toAdd];
+  // Filter out box set entries, keep only individual movies
+  const filtered = items.filter((_, idx) => !boxSetIndices.has(idx));
+
+  return [...filtered, ...toAdd];
 }
 
 /** Link an individual movie to its parent box set, or create a new entry */
