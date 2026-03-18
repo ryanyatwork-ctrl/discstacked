@@ -1,0 +1,37 @@
+export type MediaTab = "movies" | "music-films" | "cds" | "books" | "games";
+
+export interface MediaItem {
+  id: string;
+  title: string;
+  year?: number;
+  format?: string;
+  posterUrl?: string;
+  inPlex?: boolean;
+  digitalCopy?: boolean;
+  wishlist?: boolean;
+  wantToWatch?: boolean;
+  lastWatched?: string;
+  watchNotes?: string;
+  artist?: string;
+  author?: string;
+  platform?: string;
+  genre?: string;
+}
+
+export const TABS: { id: MediaTab; label: string; icon: string }[] = [
+  { id: "movies", label: "Movies", icon: "🎬" },
+  { id: "music-films", label: "Music Films", icon: "🎵" },
+  { id: "cds", label: "CDs", icon: "💿" },
+  { id: "books", label: "Books", icon: "📚" },
+  { id: "games", label: "Games", icon: "🎮" },
+];
+
+export const FORMATS: Record<MediaTab, string[]> = {
+  movies: ["4K", "Blu-ray", "DVD"],
+  "music-films": ["4K", "Blu-ray", "DVD"],
+  cds: ["CD", "Vinyl", "Cassette"],
+  books: ["Hardcover", "Paperback", "eBook"],
+  games: ["PS5", "Xbox", "Switch", "PC"],
+};
+
+export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
