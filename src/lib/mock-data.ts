@@ -42,7 +42,6 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       artist: "Various Artists",
       year: 1970 + Math.floor(Math.random() * 54),
       format: ["CD", "Vinyl", "Cassette"][Math.floor(Math.random() * 3)],
-      posterUrl: `https://picsum.photos/seed/cd${i}/300/300`,
     }));
   }
   if (tab === "books") {
