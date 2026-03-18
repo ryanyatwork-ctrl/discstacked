@@ -134,6 +134,7 @@ export default function Index() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
+                <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
                 <Button
                   variant="ghost"
