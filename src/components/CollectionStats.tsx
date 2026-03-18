@@ -2,10 +2,13 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Disc, Monitor, Download, CalendarDays } from "lucide-react";
 import { DbMediaItem } from "@/hooks/useMediaItems";
+import { cn } from "@/lib/utils";
 
 interface CollectionStatsProps {
   items: DbMediaItem[];
   isLoading: boolean;
+  onStatsClick?: (type: "plex" | "digital") => void;
+  activeStatusFilter?: "plex" | "digital" | null;
 }
 
 const containerVariants = {
@@ -18,23 +21,25 @@ const cardVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } },
 };
 
-export function CollectionStats({ items, isLoading }: CollectionStatsProps) {
+export function CollectionStats({ items, isLoading, onStatsClick, activeStatusFilter }: CollectionStatsProps) {
   const stats = useMemo(() => {
     if (!items || items.length === 0) {
-      return { total: 0, plexPct: 0, digitalPct: 0, lastImport: null };
+      return { total: 0, plexPct: 0, digitalPct: 0, plexCount: 0, digitalCount: 0, lastImport: null };
     }
 
     const total = items.length;
-    const inPlex = items.filter((i) => i.in_plex).length;
-    const digital = items.filter((i) => i.digital_copy).length;
+    const plexCount = items.filter((i) => i.in_plex).length;
+    const digitalCount = items.filter((i) => i.digital_copy).length;
 
     const dates = items.map((i) => new Date(i.created_at).getTime());
     const lastImport = new Date(Math.max(...dates));
 
     return {
       total,
-      plexPct: total > 0 ? Math.round((inPlex / total) * 100) : 0,
-      digitalPct: total > 0 ? Math.round((digital / total) * 100) : 0,
+      plexPct: total > 0 ? Math.round((plexCount / total) * 100) : 0,
+      digitalPct: total > 0 ? Math.round((digitalCount / total) * 100) : 0,
+      plexCount,
+      digitalCount,
       lastImport,
     };
   }, [items]);
@@ -43,27 +48,36 @@ export function CollectionStats({ items, isLoading }: CollectionStatsProps) {
 
   const cards = [
     {
+      id: "total" as const,
       icon: Disc,
       label: "Total Items",
       value: stats.total.toLocaleString(),
       color: "text-primary",
       bg: "bg-primary/10",
+      clickable: false,
     },
     {
+      id: "plex" as const,
       icon: Monitor,
       label: "Ripped to Plex",
       value: `${stats.plexPct}%`,
+      subtitle: `${stats.plexCount} titles`,
       color: "text-primary",
       bg: "bg-primary/10",
+      clickable: true,
     },
     {
+      id: "digital" as const,
       icon: Download,
       label: "Digital Owned",
       value: `${stats.digitalPct}%`,
+      subtitle: `${stats.digitalCount} titles`,
       color: "text-accent",
       bg: "bg-accent/10",
+      clickable: true,
     },
     {
+      id: "import" as const,
       icon: CalendarDays,
       label: "Last Import",
       value: stats.lastImport
@@ -71,6 +85,7 @@ export function CollectionStats({ items, isLoading }: CollectionStatsProps) {
         : "—",
       color: "text-muted-foreground",
       bg: "bg-secondary",
+      clickable: false,
     },
   ];
 
@@ -85,19 +100,32 @@ export function CollectionStats({ items, isLoading }: CollectionStatsProps) {
         Collection Stats
       </motion.p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {cards.map((card) => (
-          <motion.div
-            key={card.label}
-            variants={cardVariants}
-            className="relative rounded-xl p-4 border border-border/50 bg-card/40 backdrop-blur-md"
-          >
-            <div className={`w-8 h-8 rounded-lg ${card.bg} flex items-center justify-center mb-3`}>
-              <card.icon className={`w-4 h-4 ${card.color}`} />
-            </div>
-            <p className="text-xl font-bold text-foreground">{card.value}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">{card.label}</p>
-          </motion.div>
-        ))}
+        {cards.map((card) => {
+          const isActive = card.clickable && activeStatusFilter === card.id;
+          return (
+            <motion.div
+              key={card.label}
+              variants={cardVariants}
+              onClick={card.clickable && onStatsClick ? () => onStatsClick(card.id as "plex" | "digital") : undefined}
+              className={cn(
+                "relative rounded-xl p-4 border border-border/50 bg-card/40 backdrop-blur-md transition-all duration-200",
+                card.clickable && "cursor-pointer hover:bg-card/60 hover:border-primary/30",
+                isActive && "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
+              )}
+            >
+              <div className={`w-8 h-8 rounded-lg ${card.bg} flex items-center justify-center mb-3`}>
+                <card.icon className={`w-4 h-4 ${card.color}`} />
+              </div>
+              <p className="text-xl font-bold text-foreground">{card.value}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">{card.label}</p>
+              {card.clickable && (
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                  {isActive ? "Click to clear filter" : "Click to filter"}
+                </p>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
     </motion.div>
   );

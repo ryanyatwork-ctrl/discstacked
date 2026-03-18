@@ -46,6 +46,7 @@ export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"plex" | "digital" | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("covers");
@@ -74,8 +75,13 @@ export default function Index() {
     if (activeFormats.length > 0) {
       items = items.filter((i) => i.format && activeFormats.includes(i.format));
     }
+    if (statusFilter === "plex") {
+      items = items.filter((i) => i.inPlex);
+    } else if (statusFilter === "digital") {
+      items = items.filter((i) => i.digitalCopy);
+    }
     return items.sort((a, b) => a.title.localeCompare(b.title));
-  }, [allItems, searchQuery, activeFormats]);
+  }, [allItems, searchQuery, activeFormats, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
@@ -114,7 +120,13 @@ export default function Index() {
     setActiveTab(tab);
     setSearchQuery("");
     setActiveFormats([]);
+    setStatusFilter(null);
     setActiveLetter(null);
+  }, []);
+
+  const handleStatsClick = useCallback((type: "plex" | "digital") => {
+    setStatusFilter((prev) => (prev === type ? null : type));
+    setActiveFormats([]);
   }, []);
 
   const sortedLetters = Object.keys(groupedItems).sort();
@@ -126,7 +138,7 @@ export default function Index() {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <MobileMenu />
-            <img src={logo} alt="DiscStacked" className="h-10 w-10 rounded-md object-contain" />
+            <img src={logo} alt="DiscStacked" className="h-14 w-14 rounded-lg object-contain" />
           </div>
           <div className="flex items-center gap-2">
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
@@ -181,7 +193,7 @@ export default function Index() {
       {!user ? (
         <WelcomeSection />
       ) : (
-        <CollectionStats items={dbItems ?? []} isLoading={isLoading} />
+        <CollectionStats items={dbItems ?? []} isLoading={isLoading} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
       )}
 
       {/* Collection stats + view toggle */}
