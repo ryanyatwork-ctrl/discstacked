@@ -48,14 +48,21 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
 
 type ViewMode = "covers" | "list";
 
+function getStored<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch { return fallback; }
+}
+
 export default function Index() {
-  const [activeTab, setActiveTab] = useState<MediaTab>("movies");
+  const [activeTab, setActiveTab] = useState<MediaTab>(() => getStored("ds-default-tab", "movies"));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"plex" | "digital" | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("covers");
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -149,6 +156,7 @@ export default function Index() {
             <MobileMenu
               isLoggedIn={!!user}
               onSignOut={signOut}
+              allItems={dbItems ?? []}
             />
             <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
           </div>
