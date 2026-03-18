@@ -175,6 +175,13 @@ export default function Index() {
         </div>
       </header>
 
+      {/* Welcome / Stats Section */}
+      {!user ? (
+        <WelcomeSection />
+      ) : (
+        <CollectionStats items={dbItems ?? []} isLoading={isLoading} />
+      )}
+
       {/* Collection stats + view toggle */}
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
