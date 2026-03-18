@@ -39,10 +39,10 @@ export function WelcomeSection() {
       animate="visible"
     >
       {/* Hero */}
-      <motion.div variants={itemVariants} className="flex flex-col items-center text-center gap-5">
+      <motion.div variants={itemVariants} className="flex flex-col items-center text-center gap-6">
         <div className="relative">
-          <div className="absolute -inset-6 rounded-3xl bg-primary/15 blur-3xl" />
-          <img src={logo} alt="DiscStacked" className="relative h-24 w-24 rounded-2xl drop-shadow-[0_0_30px_hsl(43_88%_47%/0.35)]" />
+          <div className="absolute -inset-8 rounded-3xl bg-primary/15 blur-3xl" />
+          <img src={logo} alt="DiscStacked" className="relative w-48 sm:w-56 rounded-2xl drop-shadow-[0_0_35px_hsl(43_88%_47%/0.35)]" />
         </div>
         <div className="space-y-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
