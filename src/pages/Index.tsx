@@ -8,6 +8,7 @@ import { PosterCard } from "@/components/PosterCard";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { Users, Upload } from "lucide-react";
+import logo from "@/assets/DiscStacked_Logo.png";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
