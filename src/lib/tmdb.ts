@@ -28,3 +28,20 @@ export async function getTmdbDetails(tmdbId: number, searchType?: "movie" | "tv"
   if (error) throw new Error(error.message);
   return data || null;
 }
+
+export interface TmdbPoster {
+  poster_url: string;
+  width: number;
+  height: number;
+  language: string | null;
+  vote_average: number;
+}
+
+export async function getTmdbPosters(tmdbId: number, searchType?: "movie" | "tv"): Promise<TmdbPoster[]> {
+  const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
+    body: { tmdb_id: tmdbId, search_type: searchType, get_posters: true },
+  });
+
+  if (error) throw new Error(error.message);
+  return data?.posters || [];
+}

@@ -16,11 +16,29 @@ serve(async (req) => {
       throw new Error("TMDB_API_KEY not configured");
     }
 
-    const { query, year, tmdb_id, search_type, barcode } = await req.json();
+    const { query, year, tmdb_id, search_type, barcode, get_posters } = await req.json();
 
-    // UPC/Barcode lookup: search via UPC itemdb.com free API or direct TMDB external ID
+    // --- Get alternate posters for a specific TMDB item ---
+    if (get_posters && tmdb_id) {
+      const type = search_type === "tv" ? "tv" : "movie";
+      const imgRes = await fetch(
+        `https://api.themoviedb.org/3/${type}/${tmdb_id}/images?api_key=${TMDB_API_KEY}&include_image_language=en,null`
+      );
+      const imgData = await imgRes.json();
+      const posters = (imgData.posters || []).map((p: any) => ({
+        poster_url: `https://image.tmdb.org/t/p/w500${p.file_path}`,
+        width: p.width,
+        height: p.height,
+        language: p.iso_639_1,
+        vote_average: p.vote_average,
+      }));
+      return new Response(JSON.stringify({ posters }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // UPC/Barcode lookup
     if (barcode) {
-      // Try to find via a free UPC lookup, then search TMDB by title
       try {
         const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
         if (upcRes.ok) {
@@ -28,7 +46,6 @@ serve(async (req) => {
           if (upcData.items?.length > 0) {
             const upcItem = upcData.items[0];
             const upcTitle = upcItem.title || "";
-            // Clean up UPC title - remove format info for better TMDB matching
             const cleanTitle = upcTitle
               .replace(/\b(blu-?ray|dvd|4k|uhd|digital|hd|widescreen|fullscreen)\b/gi, "")
               .replace(/\[.*?\]/g, "")
@@ -37,7 +54,6 @@ serve(async (req) => {
               .trim();
 
             if (cleanTitle) {
-              // Search TMDB with the cleaned title
               const movieUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
               const movieRes = await fetch(movieUrl);
               const movieData = await movieRes.json();
@@ -64,7 +80,6 @@ serve(async (req) => {
                 });
               }
 
-              // Try TV if movie didn't match
               const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
               const tvRes = await fetch(tvUrl);
               const tvData = await tvRes.json();
@@ -84,7 +99,6 @@ serve(async (req) => {
                 });
               }
 
-              // Return raw UPC data if no TMDB match
               return new Response(JSON.stringify({
                 title: upcTitle,
                 barcode_title: upcTitle,
@@ -103,7 +117,7 @@ serve(async (req) => {
       });
     }
 
-    // If tmdb_id is provided, fetch details directly
+    // Fetch details by tmdb_id
     if (tmdb_id) {
       const type = search_type === "tv" ? "tv" : "movie";
       const detailRes = await fetch(
@@ -135,13 +149,13 @@ serve(async (req) => {
 
     const results: any[] = [];
 
-    // Search movies first (unless explicitly searching TV only)
+    // Search movies (return up to 10)
     if (search_type !== "tv") {
       let movieUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
       if (year) movieUrl += `&year=${year}`;
       const movieRes = await fetch(movieUrl);
       const movieData = await movieRes.json();
-      for (const m of (movieData.results || []).slice(0, 5)) {
+      for (const m of (movieData.results || []).slice(0, 10)) {
         results.push({
           tmdb_id: m.id,
           title: m.title,
@@ -154,13 +168,13 @@ serve(async (req) => {
       }
     }
 
-    // Also search TV shows
+    // Search TV shows (return up to 10)
     if (search_type !== "movie") {
       let tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
       if (year) tvUrl += `&first_air_date_year=${year}`;
       const tvRes = await fetch(tvUrl);
       const tvData = await tvRes.json();
-      for (const t of (tvData.results || []).slice(0, 5)) {
+      for (const t of (tvData.results || []).slice(0, 10)) {
         results.push({
           tmdb_id: t.id,
           title: t.name,
