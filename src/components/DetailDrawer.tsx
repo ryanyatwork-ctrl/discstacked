@@ -13,7 +13,7 @@ interface DetailDrawerProps {
 export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   if (!item) return null;
 
-  const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=discstacked-20`;
+  const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
   const formatVariant = item.format === "4K" ? "4k" as const
     : item.format === "Blu-ray" ? "bluray" as const
