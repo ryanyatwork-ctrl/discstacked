@@ -18,6 +18,64 @@ const TAB_LABELS: Record<MediaTab, string> = {
   games: "Games",
 };
 
+// Maps CLZ / common CSV headers → our DB columns
+const COLUMN_MAP: Record<string, string> = {
+  title: "title",
+  name: "title",
+  "movie title": "title",
+  "album title": "title",
+  "book title": "title",
+  "game title": "title",
+  year: "year",
+  "movie release year": "year",
+  "release year": "year",
+  format: "format",
+  edition: "format",
+  genre: "genre",
+  genres: "genre",
+  rating: "rating",
+  "my rating": "rating",
+  notes: "notes",
+  barcode: "_barcode",
+  "running time": "_running_time",
+  "no. of discs/tapes": "_disc_count",
+  "audio tracks": "_audio_tracks",
+  subtitles: "_subtitles",
+};
+
+function mapClzRow(raw: Record<string, string>) {
+  const mapped: Record<string, any> = {};
+  const metadata: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (!value) continue;
+    const normalised = key.toLowerCase().trim();
+    const dbCol = COLUMN_MAP[normalised];
+
+    if (!dbCol) {
+      // Unknown column → metadata
+      metadata[normalised] = value;
+    } else if (dbCol.startsWith("_")) {
+      // Prefixed with _ → goes into metadata under a clean name
+      metadata[dbCol.slice(1)] = value;
+    } else if (dbCol === "year") {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed)) mapped.year = parsed;
+    } else if (dbCol === "rating") {
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed)) mapped.rating = parsed;
+    } else {
+      mapped[dbCol] = value;
+    }
+  }
+
+  if (Object.keys(metadata).length > 0) {
+    mapped.metadata = metadata;
+  }
+
+  return mapped;
+}
+
 export function ImportDialog({ activeTab }: ImportDialogProps) {
   const [open, setOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -29,22 +87,25 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
 
     try {
       const text = await file.text();
-      let items: any[];
+      let rawItems: Record<string, string>[];
 
       if (file.name.endsWith(".json")) {
         const parsed = JSON.parse(text);
-        items = Array.isArray(parsed) ? parsed : [parsed];
+        rawItems = Array.isArray(parsed) ? parsed : [parsed];
       } else if (file.name.endsWith(".csv")) {
-        items = parseCsv(text);
+        rawItems = parseCsv(text);
       } else {
         toast({ title: "Invalid file", description: "Please upload a .csv or .json file.", variant: "destructive" });
         return;
       }
 
-      if (items.length === 0) {
+      if (rawItems.length === 0) {
         toast({ title: "Empty file", description: "No items found in the file.", variant: "destructive" });
         return;
       }
+
+      // Map CLZ columns to our schema
+      const items = rawItems.map(mapClzRow);
 
       await importMutation.mutateAsync({
         items,
@@ -77,7 +138,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             Upload a <strong>.csv</strong> or <strong>.json</strong> file. This will <strong>replace</strong> all existing items in {TAB_LABELS[activeTab]}.
           </p>
           <p className="text-xs text-muted-foreground">
-            Expected columns: <code className="text-accent">title</code>, <code className="text-accent">year</code>, <code className="text-accent">format</code>, <code className="text-accent">genre</code>, <code className="text-accent">rating</code>, <code className="text-accent">notes</code>
+            Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Extra columns are saved automatically.
           </p>
           <input
             ref={fileRef}
@@ -99,16 +160,69 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   );
 }
 
+/** RFC 4180-compliant CSV parser that handles quoted fields with commas, newlines, and escaped quotes */
 function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-  return lines.slice(1).map((line) => {
-    const values = line.split(",").map((v) => v.trim().replace(/^["']|["']$/g, ""));
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map((h) => h.trim().replace(/^\uFEFF/, "")); // strip BOM
+  return rows.slice(1).map((values) => {
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => {
-      if (values[i]) obj[h] = values[i];
+      const v = values[i]?.trim();
+      if (v) obj[h] = v;
     });
     return obj;
   });
+}
+
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i++; // skip escaped quote
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(field);
+        field = "";
+      } else if (ch === "\r" && next === "\n") {
+        row.push(field);
+        field = "";
+        rows.push(row);
+        row = [];
+        i++; // skip \n
+      } else if (ch === "\n") {
+        row.push(field);
+        field = "";
+        rows.push(row);
+        row = [];
+      } else {
+        field += ch;
+      }
+    }
+  }
+
+  // Last field/row
+  if (field || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
 }
