@@ -9,6 +9,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { Users, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
