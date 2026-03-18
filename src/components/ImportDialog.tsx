@@ -40,6 +40,8 @@ const COLUMN_MAP: Record<string, string> = {
   "running time": "_running_time",
   "no. of discs/tapes": "_disc_count",
   "audio tracks": "_audio_tracks",
+  quantity: "_quantity",
+  qty: "_quantity",
   subtitles: "_subtitles",
 };
 
