@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
-import logo from "@/assets/DiscStacked_Logo.png";
+import logo from "@/assets/DiscStacked_16x9.png";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   return {
@@ -139,7 +139,7 @@ export default function Index() {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <MobileMenu />
-            <img src={logo} alt="DiscStacked" className="h-14 w-14 rounded-lg object-contain" />
+            <img src={logo} alt="DiscStacked" className="h-10 w-auto rounded object-contain" />
           </div>
           <div className="flex items-center gap-2">
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
