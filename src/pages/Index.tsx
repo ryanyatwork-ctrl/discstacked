@@ -136,18 +136,22 @@ export default function Index() {
   const sortedLetters = Object.keys(groupedItems).sort();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <MobileMenu />
-            <img src={logo} alt="DiscStacked" className="h-10 w-auto rounded object-contain" />
+        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <MobileMenu
+              isLoggedIn={!!user}
+              onSignOut={signOut}
+            />
+            <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
           </div>
-          <div className="flex items-center gap-2">
+          {/* Desktop tabs */}
+          <div className="hidden md:flex items-center gap-2">
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <>
                 <FetchArtworkButton items={dbItems ?? []} />
@@ -156,7 +160,7 @@ export default function Index() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
                   onClick={() => toast({ title: "Coming soon", description: "Friends features are not yet available." })}
                 >
                   <Users className="h-4 w-4" />
@@ -164,7 +168,7 @@ export default function Index() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
                   onClick={() => signOut()}
                 >
                   <LogOut className="h-4 w-4" />
@@ -183,7 +187,7 @@ export default function Index() {
             )}
           </div>
         </div>
-        <div className="px-4 pb-3">
+        <div className="px-3 pb-2 sm:px-4 sm:pb-3">
           <FilterBar
             activeTab={activeTab}
             searchQuery={searchQuery}
