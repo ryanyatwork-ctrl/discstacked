@@ -79,7 +79,10 @@ export default function Index() {
       items = items.filter((i) => i.title.toLowerCase().includes(q));
     }
     if (activeFormats.length > 0) {
-      items = items.filter((i) => i.format && activeFormats.includes(i.format));
+      items = items.filter((i) => {
+        const itemFormats = i.formats && i.formats.length > 0 ? i.formats : i.format ? [i.format] : [];
+        return itemFormats.some((format) => activeFormats.includes(format));
+      });
     }
     if (statusFilter === "plex") {
       items = items.filter((i) => i.inPlex);
