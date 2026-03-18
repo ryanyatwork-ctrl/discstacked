@@ -8,10 +8,13 @@ interface ListRowProps {
 }
 
 export function ListRow({ item, onClick }: ListRowProps) {
-  const formatVariant = item.format === "4K" ? "4k" as const
-    : item.format === "Blu-ray" ? "bluray" as const
-    : item.format === "DVD" ? "dvd" as const
-    : item.format === "Vinyl" ? "vinyl" as const
+  const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+
+  const getFormatVariant = (format: string) =>
+    format === "4K" ? "4k" as const
+    : format === "Blu-ray" ? "bluray" as const
+    : format === "DVD" ? "dvd" as const
+    : format === "Vinyl" ? "vinyl" as const
     : "secondary" as const;
 
   return (
@@ -21,8 +24,14 @@ export function ListRow({ item, onClick }: ListRowProps) {
     >
       <span className="flex-1 text-sm font-medium text-foreground truncate">{item.title}</span>
       {item.year && <span className="text-xs text-muted-foreground shrink-0">{item.year}</span>}
-      {item.format && (
-        <Badge variant={formatVariant} className="shrink-0 text-[10px]">{item.format}</Badge>
+      {formatBadges.length > 0 && (
+        <div className="flex items-center gap-1 shrink-0 max-w-[10rem] flex-wrap justify-end">
+          {formatBadges.map((format) => (
+            <Badge key={format} variant={getFormatVariant(format)} className="text-[10px]">
+              {format}
+            </Badge>
+          ))}
+        </div>
       )}
       <div className="flex items-center gap-1 shrink-0">
         {item.inPlex && <Monitor className="w-3.5 h-3.5 text-primary" />}
