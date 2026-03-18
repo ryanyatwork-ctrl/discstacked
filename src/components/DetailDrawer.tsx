@@ -132,6 +132,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
               )}
             </div>
 
+            {/* Barcode */}
+            {item.barcode && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">UPC / Barcode</p>
+                <p className="text-sm text-foreground font-mono">{item.barcode}</p>
+              </div>
+            )}
+
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
               <StatusToggle icon={Monitor} label="In Plex" active={item.inPlex} color="primary" />

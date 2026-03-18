@@ -20,6 +20,7 @@ export interface MediaItem {
   artist?: string;
   author?: string;
   platform?: string;
+  barcode?: string;
 }
 
 export const TABS: { id: MediaTab; label: string; icon: string }[] = [
