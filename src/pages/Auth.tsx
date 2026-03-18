@@ -36,12 +36,21 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-4">
-          <img src={logo} alt="DiscStacked" className="h-20 w-20 rounded-xl" />
-          <h1 className="text-2xl font-bold text-foreground">DiscStacked</h1>
-          <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Create your account" : "Sign in to your collection"}
-          </p>
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="absolute -inset-4 rounded-3xl bg-primary/20 blur-2xl" />
+            <img
+              src={logo}
+              alt="DiscStacked"
+              className="relative h-40 w-40 rounded-2xl drop-shadow-[0_0_25px_hsl(43_88%_47%/0.4)]"
+            />
+          </div>
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">DiscStacked</h1>
+            <p className="text-sm text-muted-foreground">
+              {isSignUp ? "Create your account" : "Sign in to your collection"}
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
