@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           digital_copy: boolean
           format: string | null
+          formats: string[] | null
           genre: string | null
           id: string
           in_plex: boolean
@@ -42,6 +43,7 @@ export type Database = {
           created_at?: string
           digital_copy?: boolean
           format?: string | null
+          formats?: string[] | null
           genre?: string | null
           id?: string
           in_plex?: boolean
@@ -64,6 +66,7 @@ export type Database = {
           created_at?: string
           digital_copy?: boolean
           format?: string | null
+          formats?: string[] | null
           genre?: string | null
           id?: string
           in_plex?: boolean

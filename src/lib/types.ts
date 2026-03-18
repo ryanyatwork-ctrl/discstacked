@@ -5,6 +5,7 @@ export interface MediaItem {
   title: string;
   year?: number;
   format?: string;
+  formats?: string[];
   posterUrl?: string;
   genre?: string;
   rating?: number;

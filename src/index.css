@@ -85,8 +85,15 @@
 @layer utilities {
   .poster-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .poster-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
   }
 
   @media (min-width: 768px) {
@@ -99,5 +106,9 @@
     .poster-grid {
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     }
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }

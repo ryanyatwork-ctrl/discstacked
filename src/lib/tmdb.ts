@@ -8,20 +8,21 @@ export interface TmdbResult {
   rating: number | null;
   overview: string | null;
   genre?: string | null;
+  media_type?: string;
 }
 
-export async function searchTmdb(query: string, year?: number): Promise<TmdbResult[]> {
+export async function searchTmdb(query: string, year?: number, searchType?: "movie" | "tv"): Promise<TmdbResult[]> {
   const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-    body: { query, year },
+    body: { query, year, search_type: searchType },
   });
 
   if (error) throw new Error(error.message);
   return data.results || [];
 }
 
-export async function getTmdbDetails(tmdbId: number): Promise<TmdbResult | null> {
+export async function getTmdbDetails(tmdbId: number, searchType?: "movie" | "tv"): Promise<TmdbResult | null> {
   const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-    body: { tmdb_id: tmdbId },
+    body: { tmdb_id: tmdbId, search_type: searchType },
   });
 
   if (error) throw new Error(error.message);

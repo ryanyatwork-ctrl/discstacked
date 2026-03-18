@@ -14,10 +14,13 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
   const [errored, setErrored] = useState(false);
   const hasPoster = item.posterUrl && !errored;
 
-  const formatVariant = item.format === "4K" ? "4k" as const
-    : item.format === "Blu-ray" ? "bluray" as const
-    : item.format === "DVD" ? "dvd" as const
-    : item.format === "Vinyl" ? "vinyl" as const
+  const formatBadges = (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
+
+  const getFormatVariant = (f: string) =>
+    f === "4K" ? "4k" as const
+    : f === "Blu-ray" ? "bluray" as const
+    : f === "DVD" ? "dvd" as const
+    : f === "Vinyl" ? "vinyl" as const
     : "secondary" as const;
 
   return (
@@ -49,10 +52,12 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         </div>
       )}
 
-      {/* Format badge */}
-      {item.format && (
-        <div className="absolute top-1.5 left-1.5">
-          <Badge variant={formatVariant}>{item.format}</Badge>
+      {/* Format badges */}
+      {formatBadges.length > 0 && (
+        <div className="absolute top-1.5 left-1.5 flex flex-col gap-0.5">
+          {formatBadges.map((f) => (
+            <Badge key={f} variant={getFormatVariant(f)}>{f}</Badge>
+          ))}
         </div>
       )}
 
