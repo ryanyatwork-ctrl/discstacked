@@ -1,17 +1,25 @@
-import { Menu, Settings, User, Users, Download } from "lucide-react";
+import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
-export function MobileMenu() {
+interface MobileMenuProps {
+  onImport?: () => void;
+  onRandomize?: () => void;
+  onFetchArtwork?: () => void;
+  onSignOut?: () => void;
+  isLoggedIn?: boolean;
+}
+
+export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, isLoggedIn }: MobileMenuProps) {
   const handleComingSoon = (label: string) => {
-    toast({ title: "Coming soon", description: `${label} is not yet available. Sign in required.` });
+    toast({ title: "Coming soon", description: `${label} is not yet available.` });
   };
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
@@ -20,10 +28,30 @@ export function MobileMenu() {
           <SheetTitle className="text-foreground text-left">DiscStacked</SheetTitle>
         </SheetHeader>
         <nav className="mt-6 space-y-1">
+          {isLoggedIn && (
+            <>
+              {onFetchArtwork && (
+                <MenuLink icon={ImageIcon} label="Fetch Artwork" onClick={onFetchArtwork} />
+              )}
+              {onRandomize && (
+                <MenuLink icon={Shuffle} label="Randomizer" onClick={onRandomize} />
+              )}
+              {onImport && (
+                <MenuLink icon={Upload} label="Import Collection" onClick={onImport} />
+              )}
+              <div className="my-3 border-t border-border" />
+            </>
+          )}
           <MenuLink icon={User} label="Profile" onClick={() => handleComingSoon("Profile")} />
           <MenuLink icon={Users} label="Friends" onClick={() => handleComingSoon("Friends")} />
           <MenuLink icon={Download} label="Download for Offline" onClick={() => handleComingSoon("Download for Offline")} />
           <MenuLink icon={Settings} label="Settings" onClick={() => handleComingSoon("Settings")} />
+          {isLoggedIn && onSignOut && (
+            <>
+              <div className="my-3 border-t border-border" />
+              <MenuLink icon={LogOut} label="Sign Out" onClick={onSignOut} />
+            </>
+          )}
         </nav>
       </SheetContent>
     </Sheet>
