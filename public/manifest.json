@@ -1,0 +1,16 @@
+{
+  "name": "DiscStacked",
+  "short_name": "DiscStacked",
+  "description": "Catalog your massive physical media collection",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
