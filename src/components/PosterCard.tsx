@@ -1,3 +1,4 @@
+// PosterCard component
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
