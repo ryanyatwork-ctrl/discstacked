@@ -17,8 +17,34 @@ interface DetailDrawerProps {
 
 export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const updateItem = useUpdateItem();
+
+  useEffect(() => {
+    if (editingTitle && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingTitle]);
 
   if (!item) return null;
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === item.title) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, title: trimmed } as any);
+      toast({ title: "Title updated!" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingTitle(false);
+  };
 
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
