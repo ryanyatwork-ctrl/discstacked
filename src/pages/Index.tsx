@@ -10,6 +10,8 @@ import { ListRow } from "@/components/ListRow";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { ImportDialog } from "@/components/ImportDialog";
+import { WelcomeSection } from "@/components/WelcomeSection";
+import { CollectionStats } from "@/components/CollectionStats";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -172,6 +174,13 @@ export default function Index() {
           />
         </div>
       </header>
+
+      {/* Welcome / Stats Section */}
+      {!user ? (
+        <WelcomeSection />
+      ) : (
+        <CollectionStats items={dbItems ?? []} isLoading={isLoading} />
+      )}
 
       {/* Collection stats + view toggle */}
       <div className="px-4 py-3 flex items-center justify-between">
