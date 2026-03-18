@@ -285,21 +285,27 @@ function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
   const map = new Map<string, Record<string, any>>();
 
   for (const item of items) {
-    const key = (item.title || "").toLowerCase().trim();
-    if (!key) continue;
+    const title = (item.title || "").toLowerCase().trim();
+    if (!title) continue;
+
+    // Group by title + year for accurate dedup
+    const yearKey = item.year ? String(item.year) : "?";
+    const key = `${title}::${yearKey}`;
+
+    const rowFormats: string[] = item._rowFormats || [item.format || "DVD"];
 
     if (map.has(key)) {
       const existing = map.get(key)!;
-      const fmt = item.format || "DVD";
-      if (!existing.formats.includes(fmt)) {
-        existing.formats.push(fmt);
+      for (const fmt of rowFormats) {
+        if (!existing.formats.includes(fmt)) {
+          existing.formats.push(fmt);
+        }
       }
-      if (!existing.year && item.year) existing.year = item.year;
       if (!existing.rating && item.rating) existing.rating = item.rating;
       if (!existing.genre && item.genre) existing.genre = item.genre;
     } else {
-      const fmt = item.format || "DVD";
-      map.set(key, { ...item, formats: [fmt] });
+      const { _rowFormats, ...rest } = item;
+      map.set(key, { ...rest, formats: [...new Set(rowFormats)] });
     }
   }
 
