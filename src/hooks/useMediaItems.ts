@@ -6,6 +6,30 @@ import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 export type DbMediaItem = Tables<"media_items">;
 
+async function fetchAllItems(userId: string, mediaType: MediaTab): Promise<DbMediaItem[]> {
+  const PAGE_SIZE = 1000;
+  let allData: DbMediaItem[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("media_items")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("media_type", mediaType)
+      .order("title")
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data as DbMediaItem[]);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allData;
+}
+
 export function useMediaItems(activeTab: MediaTab) {
   const { user } = useAuth();
 
@@ -13,15 +37,7 @@ export function useMediaItems(activeTab: MediaTab) {
     queryKey: ["media_items", activeTab, user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("media_items")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("media_type", activeTab)
-        .order("title");
-
-      if (error) throw error;
-      return data as DbMediaItem[];
+      return fetchAllItems(user.id, activeTab);
     },
     enabled: !!user,
   });
@@ -43,7 +59,6 @@ export function useImportItems() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // If replacing, delete existing items for this media type
       if (replace) {
         const { error: delError } = await supabase
           .from("media_items")
@@ -53,7 +68,6 @@ export function useImportItems() {
         if (delError) throw delError;
       }
 
-      // Insert new items
       const rows = items.map((item) => ({
         ...item,
         user_id: user.id,

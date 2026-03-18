@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { Monitor, Download, Eye, Heart } from "lucide-react";
+import { Monitor, Download, Eye, Heart, Film } from "lucide-react";
 
 interface PosterCardProps {
   item: MediaItem;
@@ -11,6 +11,8 @@ interface PosterCardProps {
 
 export function PosterCard({ item, onClick }: PosterCardProps) {
   const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+  const hasPoster = item.posterUrl && !errored;
 
   const formatVariant = item.format === "4K" ? "4k" as const
     : item.format === "Blu-ray" ? "bluray" as const
@@ -25,16 +27,27 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
       transition={{ duration: 0.15 }}
       onClick={() => onClick(item)}
     >
-      {!loaded && (
-        <div className="absolute inset-0 bg-secondary animate-pulse" />
+      {hasPoster ? (
+        <>
+          {!loaded && (
+            <div className="absolute inset-0 bg-secondary animate-pulse" />
+          )}
+          <img
+            src={item.posterUrl}
+            alt={item.title}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => setErrored(true)}
+            className={`w-full h-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+          />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-secondary flex flex-col items-center justify-center p-3 text-center gap-2">
+          <Film className="w-8 h-8 text-muted-foreground/50" />
+          <p className="text-xs font-medium text-foreground leading-tight line-clamp-3">{item.title}</p>
+          {item.year && <p className="text-[10px] text-muted-foreground">{item.year}</p>}
+        </div>
       )}
-      <img
-        src={item.posterUrl}
-        alt={item.title}
-        loading="lazy"
-        onLoad={() => setLoaded(true)}
-        className={`w-full h-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
-      />
 
       {/* Format badge */}
       {item.format && (
@@ -67,13 +80,15 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         )}
       </div>
 
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end p-2">
-        <div>
-          <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{item.title}</p>
-          {item.year && <p className="text-[10px] text-muted-foreground mt-0.5">{item.year}</p>}
+      {/* Hover overlay - only on poster cards */}
+      {hasPoster && (
+        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end p-2">
+          <div>
+            <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{item.title}</p>
+            {item.year && <p className="text-[10px] text-muted-foreground mt-0.5">{item.year}</p>}
+          </div>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 }
