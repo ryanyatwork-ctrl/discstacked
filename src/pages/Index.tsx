@@ -6,10 +6,11 @@ import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
 import { PosterCard } from "@/components/PosterCard";
+import { ListRow } from "@/components/ListRow";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { ImportDialog } from "@/components/ImportDialog";
-import { Users, LogIn, LogOut } from "lucide-react";
+import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,7 +23,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
     title: db.title,
     year: db.year ?? undefined,
     format: db.format ?? undefined,
-    posterUrl: db.poster_url ?? `https://picsum.photos/seed/${db.id}/300/450`,
+    posterUrl: db.poster_url ?? undefined,
     genre: db.genre ?? undefined,
     rating: db.rating ?? undefined,
     notes: db.notes ?? undefined,
@@ -36,27 +37,29 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   };
 }
 
+type ViewMode = "covers" | "list";
+
 export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("covers");
   const gridRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const { user, signOut } = useAuth();
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
 
-  // Use DB items if signed in and have data, otherwise show mock data
   const allItems = useMemo(() => {
     if (user && dbItems && dbItems.length > 0) {
       return dbItems.map(dbToMediaItem);
     }
     if (user && dbItems && dbItems.length === 0) {
-      return []; // Signed in but no items — show empty (import to populate)
+      return [];
     }
-    return generateMockData(activeTab); // Not signed in — show demo
+    return generateMockData(activeTab);
   }, [activeTab, user, dbItems]);
 
   const filteredItems = useMemo(() => {
@@ -170,27 +173,53 @@ export default function Index() {
         </div>
       </header>
 
-      {/* Collection stats */}
+      {/* Collection stats + view toggle */}
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Loading..." : `${filteredItems.length} items`}
           {activeFormats.length > 0 && ` · Filtered`}
           {!user && " · Demo mode"}
         </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={viewMode === "covers" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("covers")}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={viewMode === "list" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("list")}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Grid */}
+      {/* Grid / List */}
       <main className="px-4 pb-8 pr-8" ref={gridRef}>
         {sortedLetters.map((letter) => (
           <div key={letter} id={`letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 sticky top-[120px] bg-background/95 backdrop-blur-sm py-1 z-10">
               {letter}
             </h2>
-            <div className="poster-grid">
-              {groupedItems[letter].map((item) => (
-                <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
-              ))}
-            </div>
+            {viewMode === "covers" ? (
+              <div className="poster-grid">
+                {groupedItems[letter].map((item) => (
+                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {groupedItems[letter].map((item) => (
+                  <ListRow key={item.id} item={item} onClick={setSelectedItem} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {!isLoading && filteredItems.length === 0 && (
