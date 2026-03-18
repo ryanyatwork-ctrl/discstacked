@@ -55,10 +55,12 @@ export function WelcomeSection() {
     >
       {/* Hero */}
       <motion.div variants={itemVariants} className="flex flex-col items-center text-center gap-6">
-        <div className="relative">
-          <div className="absolute -inset-8 rounded-3xl bg-primary/15 blur-3xl" />
-          <img src={logo} alt="DiscStacked" className="relative w-48 sm:w-56 rounded-2xl drop-shadow-[0_0_35px_hsl(43_88%_47%/0.35)]" />
-        </div>
+        <img
+          src={heroLogo}
+          alt="DiscStacked"
+          className="w-[500px] max-w-full h-auto rounded-xl"
+          style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.8)" }}
+        />
         <div className="space-y-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
             Welcome to <span className="text-primary">DiscStacked</span>
