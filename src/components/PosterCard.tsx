@@ -52,10 +52,12 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         </div>
       )}
 
-      {/* Format badge */}
-      {item.format && (
-        <div className="absolute top-1.5 left-1.5">
-          <Badge variant={formatVariant}>{item.format}</Badge>
+      {/* Format badges */}
+      {formatBadges.length > 0 && (
+        <div className="absolute top-1.5 left-1.5 flex flex-col gap-0.5">
+          {formatBadges.map((f) => (
+            <Badge key={f} variant={getFormatVariant(f)}>{f}</Badge>
+          ))}
         </div>
       )}
 
