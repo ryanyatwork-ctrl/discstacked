@@ -120,7 +120,13 @@ export default function Index() {
     setActiveTab(tab);
     setSearchQuery("");
     setActiveFormats([]);
+    setStatusFilter(null);
     setActiveLetter(null);
+  }, []);
+
+  const handleStatsClick = useCallback((type: "plex" | "digital") => {
+    setStatusFilter((prev) => (prev === type ? null : type));
+    setActiveFormats([]);
   }, []);
 
   const sortedLetters = Object.keys(groupedItems).sort();
