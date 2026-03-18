@@ -118,8 +118,22 @@ export function mapClzRow(raw: Record<string, string>) {
     }
   }
 
-  // Deduplicate detected formats, default to DVD
+  // Deduplicate detected formats
   const uniqueFormats = [...new Set(detectedFormats)];
+
+  // Alien format force: if title contains "Alien" and edition is special/collector's, assume Blu-ray
+  const title = (mapped.title || "").toLowerCase();
+  const edition = (metadata["edition"] || "").toLowerCase();
+  if (
+    ALIEN_TITLES.some(at => title === at || title.startsWith(at + " ")) &&
+    ALIEN_EDITIONS.some(ae => edition.includes(ae)) &&
+    !uniqueFormats.includes("DVD") &&
+    !uniqueFormats.includes("Blu-ray")
+  ) {
+    uniqueFormats.push("Blu-ray");
+  }
+
+  // Use all detected formats, default to DVD only if nothing detected
   mapped.format = uniqueFormats[0] || "DVD";
   mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
 
