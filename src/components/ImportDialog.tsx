@@ -40,6 +40,8 @@ const COLUMN_MAP: Record<string, string> = {
   "running time": "_running_time",
   "no. of discs/tapes": "_disc_count",
   "audio tracks": "_audio_tracks",
+  quantity: "_quantity",
+  qty: "_quantity",
   subtitles: "_subtitles",
 };
 
@@ -82,9 +84,12 @@ function mapClzRow(raw: Record<string, string>) {
     } else if (dbCol.startsWith("_")) {
       const metaKey = dbCol.slice(1);
       metadata[metaKey] = cleanString(value);
-      // Check audio_tracks for format hints
       if (metaKey === "audio_tracks") {
         detectedFormats.push(...detectFormats(value));
+      }
+      if (metaKey === "quantity") {
+        const q = parseInt(value, 10);
+        if (!isNaN(q) && q > 0) mapped._quantity = q;
       }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
@@ -281,18 +286,27 @@ function parseCsvRows(text: string): string[][] {
 /**
  * Merge duplicate titles: combine formats into a formats[] array.
  */
+/** Normalize a title for grouping: lowercase, strip punctuation, collapse whitespace */
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")  // strip colons, dashes, apostrophes, etc.
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
   const map = new Map<string, Record<string, any>>();
 
   for (const item of items) {
-    const title = (item.title || "").toLowerCase().trim();
-    if (!title) continue;
+    const normTitle = normalizeTitle(item.title || "");
+    if (!normTitle) continue;
 
-    // Group by title + year for accurate dedup
     const yearKey = item.year ? String(item.year) : "?";
-    const key = `${title}::${yearKey}`;
+    const key = `${normTitle}::${yearKey}`;
 
     const rowFormats: string[] = item._rowFormats || [item.format || "DVD"];
+    const rowQty = item._quantity || 1;
 
     if (map.has(key)) {
       const existing = map.get(key)!;
@@ -301,15 +315,26 @@ function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
           existing.formats.push(fmt);
         }
       }
+      existing._totalQty = (existing._totalQty || 1) + rowQty;
       if (!existing.rating && item.rating) existing.rating = item.rating;
       if (!existing.genre && item.genre) existing.genre = item.genre;
+      // Keep the longer/better title (with proper punctuation)
+      if ((item.title || "").length > (existing.title || "").length) {
+        existing.title = item.title;
+      }
     } else {
       const { _rowFormats, ...rest } = item;
-      map.set(key, { ...rest, formats: [...new Set(rowFormats)] });
+      map.set(key, { ...rest, formats: [...new Set(rowFormats)], _totalQty: rowQty });
     }
   }
 
-  return Array.from(map.values());
+  // Store total quantity in metadata, then clean up temp field
+  return Array.from(map.values()).map(({ _totalQty, _quantity, ...item }) => {
+    if (_totalQty && _totalQty > 1) {
+      item.metadata = { ...(item.metadata || {}), total_copies: String(_totalQty) };
+    }
+    return item;
+  });
 }
 
 /**
@@ -319,7 +344,7 @@ function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
 function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
   const titleMap = new Map<string, Record<string, any>>();
   for (const item of items) {
-    titleMap.set((item.title || "").toLowerCase().trim(), item);
+    titleMap.set(normalizeTitle(item.title || ""), item);
   }
 
   const toAdd: Record<string, any>[] = [];
@@ -339,7 +364,7 @@ function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
 
     const setFormat = item.formats?.[0] || item.format || "DVD";
     for (const name of movieNames) {
-      const key = name.toLowerCase().trim();
+      const key = normalizeTitle(name);
       if (titleMap.has(key)) {
         const existing = titleMap.get(key)!;
         if (!existing.formats.includes(setFormat)) {
