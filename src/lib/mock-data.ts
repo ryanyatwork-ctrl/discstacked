@@ -67,6 +67,5 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
     year: 2018 + Math.floor(Math.random() * 7),
     format: ["PS5", "Xbox", "Switch", "PC"][Math.floor(Math.random() * 4)],
     platform: "PS5",
-    posterUrl: `https://picsum.photos/seed/game${i}/300/450`,
   }));
 }
