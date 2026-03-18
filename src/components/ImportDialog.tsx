@@ -43,6 +43,20 @@ const COLUMN_MAP: Record<string, string> = {
   subtitles: "_subtitles",
 };
 
+/** Detect physical format (4K, Blu-ray, DVD) from an edition/format string */
+function detectFormat(value: string): string | null {
+  const v = value.toLowerCase();
+  if (v.includes("4k") || v.includes("uhd")) return "4K";
+  if (v.includes("blu-ray") || v.includes("blu ray") || v.includes("bluray")) return "Blu-ray";
+  if (v.includes("dvd")) return "DVD";
+  return null;
+}
+
+/** Strip escaped characters like \' from strings */
+function cleanString(s: string): string {
+  return s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
 function mapClzRow(raw: Record<string, string>) {
   const mapped: Record<string, any> = {};
   const metadata: Record<string, string> = {};
@@ -53,20 +67,36 @@ function mapClzRow(raw: Record<string, string>) {
     const dbCol = COLUMN_MAP[normalised];
 
     if (!dbCol) {
-      // Unknown column → metadata
-      metadata[normalised] = value;
+      metadata[normalised] = cleanString(value);
     } else if (dbCol.startsWith("_")) {
-      // Prefixed with _ → goes into metadata under a clean name
-      metadata[dbCol.slice(1)] = value;
+      metadata[dbCol.slice(1)] = cleanString(value);
+    } else if (dbCol === "edition") {
+      // Store full edition name in metadata, extract format
+      metadata["edition"] = cleanString(value);
+      const detected = detectFormat(value);
+      if (detected && !mapped.format) {
+        mapped.format = detected;
+      }
     } else if (dbCol === "year") {
       const parsed = parseInt(value, 10);
       if (!isNaN(parsed)) mapped.year = parsed;
     } else if (dbCol === "rating") {
       const parsed = parseFloat(value);
       if (!isNaN(parsed)) mapped.rating = parsed;
+    } else if (dbCol === "format") {
+      // Direct format column — also try to detect clean format
+      const detected = detectFormat(value);
+      mapped.format = detected || cleanString(value);
+    } else if (dbCol === "title") {
+      mapped[dbCol] = cleanString(value);
     } else {
-      mapped[dbCol] = value;
+      mapped[dbCol] = cleanString(value);
     }
+  }
+
+  // If no format was detected yet, default to DVD
+  if (!mapped.format) {
+    mapped.format = "DVD";
   }
 
   if (Object.keys(metadata).length > 0) {
