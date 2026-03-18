@@ -281,18 +281,27 @@ function parseCsvRows(text: string): string[][] {
 /**
  * Merge duplicate titles: combine formats into a formats[] array.
  */
+/** Normalize a title for grouping: lowercase, strip punctuation, collapse whitespace */
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")  // strip colons, dashes, apostrophes, etc.
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
   const map = new Map<string, Record<string, any>>();
 
   for (const item of items) {
-    const title = (item.title || "").toLowerCase().trim();
-    if (!title) continue;
+    const normTitle = normalizeTitle(item.title || "");
+    if (!normTitle) continue;
 
-    // Group by title + year for accurate dedup
     const yearKey = item.year ? String(item.year) : "?";
-    const key = `${title}::${yearKey}`;
+    const key = `${normTitle}::${yearKey}`;
 
     const rowFormats: string[] = item._rowFormats || [item.format || "DVD"];
+    const rowQty = item._quantity || 1;
 
     if (map.has(key)) {
       const existing = map.get(key)!;
@@ -301,15 +310,26 @@ function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
           existing.formats.push(fmt);
         }
       }
+      existing._totalQty = (existing._totalQty || 1) + rowQty;
       if (!existing.rating && item.rating) existing.rating = item.rating;
       if (!existing.genre && item.genre) existing.genre = item.genre;
+      // Keep the longer/better title (with proper punctuation)
+      if ((item.title || "").length > (existing.title || "").length) {
+        existing.title = item.title;
+      }
     } else {
       const { _rowFormats, ...rest } = item;
-      map.set(key, { ...rest, formats: [...new Set(rowFormats)] });
+      map.set(key, { ...rest, formats: [...new Set(rowFormats)], _totalQty: rowQty });
     }
   }
 
-  return Array.from(map.values());
+  // Store total quantity in metadata, then clean up temp field
+  return Array.from(map.values()).map(({ _totalQty, _quantity, ...item }) => {
+    if (_totalQty && _totalQty > 1) {
+      item.metadata = { ...(item.metadata || {}), total_copies: String(_totalQty) };
+    }
+    return item;
+  });
 }
 
 /**
