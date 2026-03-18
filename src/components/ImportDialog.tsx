@@ -84,9 +84,12 @@ function mapClzRow(raw: Record<string, string>) {
     } else if (dbCol.startsWith("_")) {
       const metaKey = dbCol.slice(1);
       metadata[metaKey] = cleanString(value);
-      // Check audio_tracks for format hints
       if (metaKey === "audio_tracks") {
         detectedFormats.push(...detectFormats(value));
+      }
+      if (metaKey === "quantity") {
+        const q = parseInt(value, 10);
+        if (!isNaN(q) && q > 0) mapped._quantity = q;
       }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
