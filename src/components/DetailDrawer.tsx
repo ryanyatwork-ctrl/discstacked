@@ -132,6 +132,9 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
               )}
             </div>
 
+            {/* Box Set Sources */}
+            <BoxSetSources item={item} />
+
             {/* Barcode */}
             {item.barcode && (
               <div className="space-y-1">
