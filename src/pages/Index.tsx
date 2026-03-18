@@ -10,6 +10,8 @@ import { ListRow } from "@/components/ListRow";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { ImportDialog } from "@/components/ImportDialog";
+import { WelcomeSection } from "@/components/WelcomeSection";
+import { CollectionStats } from "@/components/CollectionStats";
 import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
