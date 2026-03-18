@@ -192,3 +192,67 @@ function StatusToggle({ icon: Icon, label, active, color }: { icon: any; label: 
     </div>
   );
 }
+
+function BoxSetSources({ item }: { item: MediaItem }) {
+  const metadata = (item as any).metadata || {};
+  let boxSets: { title: string; format: string }[] = [];
+  try {
+    boxSets = JSON.parse(metadata.box_sets || "[]");
+  } catch {
+    return null;
+  }
+
+  const totalCopies = parseInt(metadata.total_copies || "0", 10);
+  const isSet = metadata.is_box_set === "true";
+  let contents: string[] = [];
+  try {
+    contents = JSON.parse(metadata.contents || "[]");
+  } catch {}
+
+  if (boxSets.length === 0 && !isSet && totalCopies <= 1) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+        Physical Copies
+      </p>
+
+      {totalCopies > 1 && (
+        <p className="text-sm text-foreground">
+          You own <strong>{totalCopies}</strong> physical copies of this title
+        </p>
+      )}
+
+      {/* Standalone ownership */}
+      {boxSets.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
+            <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-xs text-foreground">Standalone copy</span>
+          </div>
+          {boxSets.map((bs, i) => (
+            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
+              <Package className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <span className="text-xs text-foreground block truncate">Part of: {bs.title}</span>
+                <span className="text-[10px] text-muted-foreground">{bs.format}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Box set contents */}
+      {isSet && contents.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Contains {contents.length} titles:</p>
+          <div className="flex flex-wrap gap-1">
+            {contents.map((c, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px]">{c}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
