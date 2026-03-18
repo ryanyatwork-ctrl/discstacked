@@ -154,6 +154,7 @@ export default function Index() {
           <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <>
+                <AddMovieDialog activeTab={activeTab} />
                 <FetchArtworkButton items={dbItems ?? []} />
                 <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
