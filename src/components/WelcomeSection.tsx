@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Search, Disc, Monitor, ShoppingCart, Shuffle, Users } from "lucide-react";
-import logo from "@/assets/DiscStacked_Logo.png";
+import heroLogo from "@/assets/DiscStacked_16x9.png";
 
 const features = [
   {
