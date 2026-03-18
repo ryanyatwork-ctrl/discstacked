@@ -9,6 +9,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { Users, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
@@ -87,10 +88,20 @@ export default function Index() {
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
           </div>
           <div className="hidden md:flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => toast({ title: "Coming soon", description: "Sign in & friends features are not yet available." })}
+            >
               <Users className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => toast({ title: "Sign in required", description: "Sign in to import your collection." })}
+            >
               <Upload className="h-4 w-4" />
             </Button>
           </div>
