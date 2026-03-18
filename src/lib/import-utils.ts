@@ -37,6 +37,9 @@ const COLUMN_MAP: Record<string, string> = {
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
 
+const ALIEN_TITLES = ["alien", "aliens", "alien3", "alien 3", "alien resurrection", "alien³"];
+const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors edition"];
+
 /** Detect ALL physical formats from a string (edition, audio tracks, format column) */
 export function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
