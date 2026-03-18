@@ -126,7 +126,7 @@ export default function Index() {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <MobileMenu />
-            <img src={logo} alt="DiscStacked" className="h-10 w-10 rounded-md object-contain" />
+            <img src={logo} alt="DiscStacked" className="h-14 w-14 rounded-lg object-contain" />
           </div>
           <div className="flex items-center gap-2">
             <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
