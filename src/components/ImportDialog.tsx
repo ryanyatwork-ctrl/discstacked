@@ -43,13 +43,23 @@ const COLUMN_MAP: Record<string, string> = {
   subtitles: "_subtitles",
 };
 
-/** Detect physical format (4K, Blu-ray, DVD) from an edition/format string */
-function detectFormat(value: string): string | null {
+/** Detect ALL physical formats from a string (edition, audio tracks, format column) */
+function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
-  if (v.includes("4k") || v.includes("uhd")) return "4K";
-  if (v.includes("blu-ray") || v.includes("blu ray") || v.includes("bluray")) return "Blu-ray";
-  if (v.includes("dvd")) return "DVD";
-  return null;
+  const found: string[] = [];
+  if (v.includes("4k") || v.includes("uhd") || v.includes("atmos")) {
+    found.push("4K");
+  }
+  if (
+    v.includes("blu-ray") || v.includes("blu ray") || v.includes("bluray") ||
+    v.includes("dts-hd") || v.includes("truehd") || v.includes("true hd")
+  ) {
+    found.push("Blu-ray");
+  }
+  if (v.includes("dvd")) {
+    found.push("DVD");
+  }
+  return found;
 }
 
 /** Strip escaped characters like \' from strings */
@@ -60,6 +70,7 @@ function cleanString(s: string): string {
 function mapClzRow(raw: Record<string, string>) {
   const mapped: Record<string, any> = {};
   const metadata: Record<string, string> = {};
+  const detectedFormats: string[] = [];
 
   for (const [key, value] of Object.entries(raw)) {
     if (!value) continue;
@@ -69,14 +80,15 @@ function mapClzRow(raw: Record<string, string>) {
     if (!dbCol) {
       metadata[normalised] = cleanString(value);
     } else if (dbCol.startsWith("_")) {
-      metadata[dbCol.slice(1)] = cleanString(value);
-    } else if (dbCol === "edition") {
-      // Store full edition name in metadata, extract format
-      metadata["edition"] = cleanString(value);
-      const detected = detectFormat(value);
-      if (detected && !mapped.format) {
-        mapped.format = detected;
+      const metaKey = dbCol.slice(1);
+      metadata[metaKey] = cleanString(value);
+      // Check audio_tracks for format hints
+      if (metaKey === "audio_tracks") {
+        detectedFormats.push(...detectFormats(value));
       }
+    } else if (dbCol === "edition") {
+      metadata["edition"] = cleanString(value);
+      detectedFormats.push(...detectFormats(value));
     } else if (dbCol === "year") {
       const parsed = parseInt(value, 10);
       if (!isNaN(parsed)) mapped.year = parsed;
@@ -84,9 +96,12 @@ function mapClzRow(raw: Record<string, string>) {
       const parsed = parseFloat(value);
       if (!isNaN(parsed)) mapped.rating = parsed;
     } else if (dbCol === "format") {
-      // Direct format column — also try to detect clean format
-      const detected = detectFormat(value);
-      mapped.format = detected || cleanString(value);
+      const fmts = detectFormats(value);
+      if (fmts.length > 0) {
+        detectedFormats.push(...fmts);
+      } else {
+        detectedFormats.push(cleanString(value));
+      }
     } else if (dbCol === "title") {
       mapped[dbCol] = cleanString(value);
     } else {
@@ -94,10 +109,10 @@ function mapClzRow(raw: Record<string, string>) {
     }
   }
 
-  // If no format was detected yet, default to DVD
-  if (!mapped.format) {
-    mapped.format = "DVD";
-  }
+  // Deduplicate detected formats, default to DVD
+  const uniqueFormats = [...new Set(detectedFormats)];
+  mapped.format = uniqueFormats[0] || "DVD";
+  mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
 
   if (Object.keys(metadata).length > 0) {
     mapped.metadata = metadata;
