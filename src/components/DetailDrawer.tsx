@@ -6,7 +6,7 @@ import { useUpdateItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package } from "lucide-react";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 
 interface DetailDrawerProps {
