@@ -22,11 +22,13 @@ import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
+  const formats = (db as any).formats as string[] | null;
   return {
     id: db.id,
     title: db.title,
     year: db.year ?? undefined,
     format: db.format ?? undefined,
+    formats: formats && formats.length > 0 ? formats : db.format ? [db.format] : undefined,
     posterUrl: db.poster_url ?? undefined,
     genre: db.genre ?? undefined,
     rating: db.rating ?? undefined,
