@@ -107,8 +107,8 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 group">
-                  <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
+                <div className="flex items-start gap-2 group">
+                  <h2 className="text-xl font-semibold text-foreground break-words min-w-0">{item.title}</h2>
                   <Button
                     variant="ghost"
                     size="icon"
