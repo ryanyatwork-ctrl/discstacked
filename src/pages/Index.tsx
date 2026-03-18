@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
-import logo from "@/assets/DiscStacked_Logo.png";
+import logo from "@/assets/DiscStacked_16x9.png";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   return {
