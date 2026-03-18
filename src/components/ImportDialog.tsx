@@ -30,7 +30,7 @@ const COLUMN_MAP: Record<string, string> = {
   "movie release year": "year",
   "release year": "year",
   format: "format",
-  edition: "format",
+  edition: "edition",
   genre: "genre",
   genres: "genre",
   rating: "rating",
