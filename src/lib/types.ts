@@ -32,11 +32,11 @@ export const TABS: { id: MediaTab; label: string; icon: string }[] = [
 ];
 
 export const FORMATS: Record<MediaTab, string[]> = {
-  movies: ["4K", "Blu-ray", "DVD", "VHS"],
-  "music-films": ["4K", "Blu-ray", "DVD", "VHS"],
-  cds: ["CD", "Vinyl", "Cassette"],
+  movies: ["4K", "Blu-ray", "DVD", "Digital", "VHS"],
+  "music-films": ["4K", "Blu-ray", "DVD", "Digital", "VHS"],
+  cds: ["CD", "Vinyl", "Cassette", "Digital"],
   books: ["Hardcover", "Paperback", "eBook"],
-  games: ["PS5", "Xbox", "Switch", "PC"],
+  games: ["PS5", "Xbox", "Switch", "PC", "Digital"],
 };
 
 export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");

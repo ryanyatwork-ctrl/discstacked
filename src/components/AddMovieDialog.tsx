@@ -289,14 +289,18 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
               <Label className="text-foreground">Format</Label>
               <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="None (watchlist only)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">None (watchlist only)</SelectItem>
                   {(FORMATS[activeTab] || []).map((f) => (
                     <SelectItem key={f} value={f}>{f}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!format && (
+                <p className="text-[10px] text-muted-foreground">No format will auto-add to Want to Watch</p>
+              )}
             </div>
           </div>
 
