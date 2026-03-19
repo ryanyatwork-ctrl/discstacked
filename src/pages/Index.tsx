@@ -96,7 +96,7 @@ export default function Index() {
     } else if (statusFilter === "digital") {
       items = items.filter((i) => i.digitalCopy);
     }
-    return items.sort((a, b) => a.title.localeCompare(b.title));
+    return items.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
   }, [allItems, searchQuery, activeFormats, statusFilter]);
 
   const availableLetters = useMemo(() => {
