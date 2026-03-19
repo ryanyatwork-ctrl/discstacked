@@ -13,6 +13,21 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+// Apply persisted theme on load
+(() => {
+  try {
+    const stored = localStorage.getItem("ds-theme");
+    const theme = stored ? JSON.parse(stored) : "dark";
+    if (theme === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+  } catch {
+    // default dark
+  }
+})();
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
