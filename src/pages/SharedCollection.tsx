@@ -4,6 +4,7 @@ import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
 import { MediaItem, MediaTab, FORMATS, TABS } from "@/lib/types";
+import { AlphabetRail } from "@/components/AlphabetRail";
 import { groupLetter, sortTitle, cn } from "@/lib/utils";
 import logo from "@/assets/DiscStacked_16x9.png";
 
@@ -61,6 +62,20 @@ export default function SharedCollection() {
     return groups;
   }, [filteredItems]);
 
+  const availableLetters = useMemo(() => {
+    const letters = new Set<string>();
+    filteredItems.forEach((item) => letters.add(groupLetter(item.title)));
+    return letters;
+  }, [filteredItems]);
+
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+
+  const handleLetterClick = useCallback((letter: string) => {
+    setActiveLetter(letter);
+    const el = document.getElementById(`share-letter-${letter}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const handleFormatToggle = useCallback((format: string) => {
     setActiveFormats((prev) =>
       prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
@@ -76,6 +91,7 @@ export default function SharedCollection() {
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
     setActiveFormats([]);
+    setActiveLetter(null);
   }, []);
 
   if (profileLoading || itemsLoading) {
@@ -156,13 +172,13 @@ export default function SharedCollection() {
         )}
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="max-w-5xl mx-auto px-4 py-4 pr-8">
         <p className="text-xs text-muted-foreground mb-4">
           {filteredItems.length} items
           {activeFormats.length > 0 && ` · Filtered`}
         </p>
         {Object.keys(grouped).sort().map((letter) => (
-          <div key={letter} className="mb-6">
+          <div key={letter} id={`share-letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{letter}</h2>
             <div className="poster-grid">
               {grouped[letter].map((item) => (
@@ -172,6 +188,12 @@ export default function SharedCollection() {
           </div>
         ))}
       </div>
+
+      <AlphabetRail
+        activeLetter={activeLetter}
+        onLetterClick={handleLetterClick}
+        availableLetters={availableLetters}
+      />
     </div>
   );
 }
