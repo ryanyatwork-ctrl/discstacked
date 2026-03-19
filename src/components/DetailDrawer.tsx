@@ -46,6 +46,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
     setEditingTitle(false);
   };
 
+  const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
+    try {
+      await updateItem.mutateAsync({ id: item.id, [field]: value } as any);
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
   const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
@@ -145,10 +153,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
 
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
-              <StatusToggle icon={Monitor} label="In Plex" active={item.inPlex} color="primary" />
-              <StatusToggle icon={Download} label="Digital Copy" active={item.digitalCopy} color="success" />
-              <StatusToggle icon={Heart} label="Wishlist" active={item.wishlist} color="destructive" />
-              <StatusToggle icon={Eye} label="Want to Watch" active={item.wantToWatch} color="accent" />
+              <StatusToggle icon={Monitor} label="In Plex" active={item.inPlex} color="primary"
+                onToggle={() => handleToggle("in_plex", !item.inPlex)} />
+              <StatusToggle icon={Download} label="Digital Copy" active={item.digitalCopy} color="success"
+                onToggle={() => handleToggle("digital_copy", !item.digitalCopy)} />
+              <StatusToggle icon={Heart} label="Wishlist" active={item.wishlist} color="destructive"
+                onToggle={() => handleToggle("wishlist", !item.wishlist)} />
+              <StatusToggle icon={Eye} label="Want to Watch" active={item.wantToWatch} color="accent"
+                onToggle={() => handleToggle("want_to_watch", !item.wantToWatch)} />
             </div>
 
             {/* Watch History */}
@@ -183,13 +195,18 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   );
 }
 
-function StatusToggle({ icon: Icon, label, active, color }: { icon: any; label: string; active?: boolean; color: string }) {
+function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: { icon: any; label: string; active?: boolean; color: string; onToggle?: () => void; readOnly?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${active ? "border-border bg-secondary" : "border-border/50 bg-card"}`}>
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={readOnly}
+      className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${active ? "border-border bg-secondary" : "border-border/50 bg-card"} ${readOnly ? "cursor-default" : "cursor-pointer hover:bg-secondary/80"}`}
+    >
       <Icon className={`w-4 h-4 ${active ? `text-${color}` : "text-muted-foreground"}`} />
       <span className="text-xs text-foreground">{label}</span>
       <div className={`ml-auto w-2 h-2 rounded-full ${active ? "bg-success" : "bg-muted-foreground/30"}`} />
-    </div>
+    </button>
   );
 }
 
