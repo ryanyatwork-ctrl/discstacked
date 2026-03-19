@@ -3,16 +3,20 @@ import { useParams } from "react-router-dom";
 import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
+import { ListRow } from "@/components/ListRow";
 import { MediaItem, MediaTab, FORMATS, TABS } from "@/lib/types";
 import { AlphabetRail } from "@/components/AlphabetRail";
 import { groupLetter, sortTitle, cn } from "@/lib/utils";
+import { Search, X, LayoutGrid, List } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import logo from "@/assets/DiscStacked_16x9.png";
+
+type ViewMode = "covers" | "list";
 
 export default function SharedCollection() {
   const { token } = useParams<{ token: string }>();
   const { data: profile, isLoading: profileLoading } = usePublicProfile(token);
 
-  // Determine which tabs are shared
   const sharedTabs = useMemo(() => {
     if (!profile?.shared_tabs || profile.shared_tabs.length === 0) return ["movies"];
     return profile.shared_tabs;
@@ -23,6 +27,9 @@ export default function SharedCollection() {
 
   const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id, currentTab);
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("covers");
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const mediaItems = useMemo(() => {
     if (!items) return [];
@@ -44,17 +51,23 @@ export default function SharedCollection() {
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    if (activeFormats.length === 0) return mediaItems;
-    return mediaItems.filter((item) => {
-      const itemFormats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
-      return itemFormats.some((f) => activeFormats.includes(f));
-    });
-  }, [mediaItems, activeFormats]);
+    let result = mediaItems;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((i) => i.title.toLowerCase().includes(q));
+    }
+    if (activeFormats.length > 0) {
+      result = result.filter((item) => {
+        const itemFormats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+        return itemFormats.some((f) => activeFormats.includes(f));
+      });
+    }
+    return result.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
+  }, [mediaItems, activeFormats, searchQuery]);
 
   const grouped = useMemo(() => {
-    const sorted = [...filteredItems].sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
     const groups: Record<string, MediaItem[]> = {};
-    sorted.forEach((item) => {
+    filteredItems.forEach((item) => {
       const key = groupLetter(item.title);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
@@ -68,8 +81,6 @@ export default function SharedCollection() {
     return letters;
   }, [filteredItems]);
 
-  const [activeLetter, setActiveLetter] = useState<string | null>(null);
-
   const handleLetterClick = useCallback((letter: string) => {
     setActiveLetter(letter);
     const el = document.getElementById(`share-letter-${letter}`);
@@ -82,7 +93,6 @@ export default function SharedCollection() {
     );
   }, []);
 
-  // Available formats for the current tab
   const availableFormats = useMemo(() => {
     const tabKey = currentTab as MediaTab;
     return FORMATS[tabKey] || [];
@@ -92,6 +102,7 @@ export default function SharedCollection() {
     setActiveTab(tab);
     setActiveFormats([]);
     setActiveLetter(null);
+    setSearchQuery("");
   }, []);
 
   if (profileLoading || itemsLoading) {
@@ -128,7 +139,7 @@ export default function SharedCollection() {
           </div>
         </div>
 
-        {/* Tab switcher - only show if more than one shared tab */}
+        {/* Tab switcher */}
         {visibleTabs.length > 1 && (
           <div className="flex items-center gap-1 mt-2 max-w-5xl mx-auto overflow-x-auto">
             {visibleTabs.map((tab) => (
@@ -149,9 +160,24 @@ export default function SharedCollection() {
           </div>
         )}
 
-        {/* Format filter toggles */}
-        {availableFormats.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-2 max-w-5xl mx-auto">
+        {/* Search + format filters */}
+        <div className="flex items-center gap-3 flex-wrap mt-2 max-w-5xl mx-auto">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search collection..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-8 rounded-md bg-secondary border-none text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
             {availableFormats.map((format) => (
               <button
                 key={format}
@@ -169,25 +195,63 @@ export default function SharedCollection() {
               </button>
             ))}
           </div>
-        )}
+        </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-4 pr-8">
-        <p className="text-xs text-muted-foreground mb-4">
+      {/* Item count + view toggle */}
+      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
           {filteredItems.length} items
           {activeFormats.length > 0 && ` · Filtered`}
+          {searchQuery && ` · "${searchQuery}"`}
         </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={viewMode === "covers" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("covers")}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={viewMode === "list" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("list")}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Grid / List */}
+      <main className="max-w-5xl mx-auto px-4 pb-8 pr-8">
         {Object.keys(grouped).sort().map((letter) => (
           <div key={letter} id={`share-letter-${letter}`} className="mb-6">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{letter}</h2>
-            <div className="poster-grid">
-              {grouped[letter].map((item) => (
-                <PosterCard key={item.id} item={item} onClick={() => {}} />
-              ))}
-            </div>
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 sticky top-[120px] bg-background/95 backdrop-blur-sm py-1 z-10">{letter}</h2>
+            {viewMode === "covers" ? (
+              <div className="poster-grid">
+                {grouped[letter].map((item) => (
+                  <PosterCard key={item.id} item={item} onClick={() => {}} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {grouped[letter].map((item) => (
+                  <ListRow key={item.id} item={item} onClick={() => {}} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
-      </div>
+        {filteredItems.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+            <p className="text-sm">No items found</p>
+            <p className="text-xs mt-1">Try adjusting your search or filters</p>
+          </div>
+        )}
+      </main>
 
       <AlphabetRail
         activeLetter={activeLetter}
