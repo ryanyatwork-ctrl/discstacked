@@ -253,34 +253,33 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
       const normSetTitle = normalizeTitle(title);
       const matchedContents: string[] = [];
 
-      for (const [normKey, existingItem] of titleMap.entries()) {
-        if (normKey === normSetTitle) continue;
-        if (normKey.length < 3) continue;
+      for (const [normTitleOnly, candidates] of titleOnlyMap.entries()) {
+        if (normTitleOnly === normSetTitle) continue;
+        if (normTitleOnly.length < 3) continue;
 
-        // Skip if the candidate is clearly a different movie (colon subtitle + different year)
-        if (existingItem.year && item.year && existingItem.year !== item.year) {
-          // Check if one title is just the other with a colon-subtitle appended
-          const baseNorm = normKey;
-          const setNorm = normSetTitle;
-          if (
-            setNorm.startsWith(baseNorm) &&
-            !BOX_SET_KEYWORDS.some(kw => setNorm.includes(kw))
-          ) {
-            // This looks like "Title" vs "Title: Subtitle" with different years — skip
-            continue;
+        for (const existingItem of candidates) {
+          // Skip if the candidate is clearly a different movie (colon subtitle + different year)
+          if (existingItem.year && item.year && existingItem.year !== item.year) {
+            const baseNorm = normalizeTitle(existingItem.title || "");
+            if (
+              normSetTitle.startsWith(baseNorm) &&
+              !BOX_SET_KEYWORDS.some(kw => normSetTitle.includes(kw))
+            ) {
+              continue;
+            }
           }
-        }
 
-        if (normSetTitle.includes(normKey)) {
-          matchedContents.push(existingItem.title);
-          addBoxSetSource(existingItem, item);
-        } else {
-          const movieWords = normKey.split(" ");
-          if (movieWords.length >= 2) {
-            const moviePrefix = movieWords.join(" ");
-            if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
-              matchedContents.push(existingItem.title);
-              addBoxSetSource(existingItem, item);
+          if (normSetTitle.includes(normTitleOnly)) {
+            matchedContents.push(existingItem.title);
+            addBoxSetSource(existingItem, item);
+          } else {
+            const movieWords = normTitleOnly.split(" ");
+            if (movieWords.length >= 2) {
+              const moviePrefix = movieWords.join(" ");
+              if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
+                matchedContents.push(existingItem.title);
+                addBoxSetSource(existingItem, item);
+              }
             }
           }
         }
