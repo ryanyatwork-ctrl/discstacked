@@ -44,7 +44,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const resetForm = () => {
     setTitle("");
     setYear("");
-    setFormat(FORMATS[activeTab]?.[0] || "DVD");
+    setFormat("");
     setBarcode("");
     setGenre("");
     setNotes("");
