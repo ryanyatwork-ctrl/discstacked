@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 interface CollectionStatsProps {
   items: DbMediaItem[];
   isLoading: boolean;
-  onStatsClick?: (type: "plex" | "digital") => void;
+  onStatsClick?: (type: "plex" | "digital" | "total") => void;
   activeStatusFilter?: "plex" | "digital" | null;
 }
 
