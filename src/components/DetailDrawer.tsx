@@ -145,10 +145,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
 
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
-              <StatusToggle icon={Monitor} label="In Plex" active={item.inPlex} color="primary" />
-              <StatusToggle icon={Download} label="Digital Copy" active={item.digitalCopy} color="success" />
-              <StatusToggle icon={Heart} label="Wishlist" active={item.wishlist} color="destructive" />
-              <StatusToggle icon={Eye} label="Want to Watch" active={item.wantToWatch} color="accent" />
+              <StatusToggle icon={Monitor} label="In Plex" active={item.inPlex} color="primary"
+                onToggle={() => handleToggle("in_plex", !item.inPlex)} />
+              <StatusToggle icon={Download} label="Digital Copy" active={item.digitalCopy} color="success"
+                onToggle={() => handleToggle("digital_copy", !item.digitalCopy)} />
+              <StatusToggle icon={Heart} label="Wishlist" active={item.wishlist} color="destructive"
+                onToggle={() => handleToggle("wishlist", !item.wishlist)} />
+              <StatusToggle icon={Eye} label="Want to Watch" active={item.wantToWatch} color="accent"
+                onToggle={() => handleToggle("want_to_watch", !item.wantToWatch)} />
             </div>
 
             {/* Watch History */}
