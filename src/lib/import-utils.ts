@@ -248,6 +248,20 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
         if (normKey === normSetTitle) continue;
         if (normKey.length < 3) continue;
 
+        // Skip if the candidate is clearly a different movie (colon subtitle + different year)
+        if (existingItem.year && item.year && existingItem.year !== item.year) {
+          // Check if one title is just the other with a colon-subtitle appended
+          const baseNorm = normKey;
+          const setNorm = normSetTitle;
+          if (
+            setNorm.startsWith(baseNorm) &&
+            !BOX_SET_KEYWORDS.some(kw => setNorm.includes(kw))
+          ) {
+            // This looks like "Title" vs "Title: Subtitle" with different years — skip
+            continue;
+          }
+        }
+
         if (normSetTitle.includes(normKey)) {
           matchedContents.push(existingItem.title);
           addBoxSetSource(existingItem, item);
