@@ -74,12 +74,53 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
 
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
-  const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+  const formats = localFormats ?? (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
 
-  const getFormatVariant = (f: string) =>
-    f === "4K" ? "4k" as const
-    : f === "Blu-ray" ? "bluray" as const
-    : "secondary" as const;
+  const mediaType = (item.mediaType || "movies") as MediaTab;
+
+  const handleFormatToggle = async (format: string) => {
+    const current = [...formats];
+    const next = current.includes(format)
+      ? current.filter((f) => f !== format)
+      : [...current, format];
+    if (next.length === 0) return; // must have at least one format
+    setLocalFormats(next);
+    try {
+      await updateItem.mutateAsync({ id: item.id, formats: next, format: next[0] } as any);
+    } catch {
+      setLocalFormats(current);
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  const handleDuplicate = async () => {
+    try {
+      // Build a raw DB-shaped object from the MediaItem
+      const dbItem: any = {
+        title: item.title,
+        year: item.year ?? null,
+        format: item.format ?? null,
+        formats: formats,
+        poster_url: item.posterUrl ?? null,
+        genre: item.genre ?? null,
+        rating: item.rating ?? null,
+        notes: item.notes ?? null,
+        in_plex: item.inPlex ?? false,
+        digital_copy: item.digitalCopy ?? false,
+        wishlist: item.wishlist ?? false,
+        want_to_watch: item.wantToWatch ?? false,
+        last_watched: item.lastWatched ?? null,
+        watch_notes: item.watchNotes ?? null,
+        media_type: item.mediaType ?? "movies",
+        barcode: item.barcode ?? null,
+      };
+      await duplicateItem.mutateAsync(dbItem);
+      toast({ title: "Item duplicated", description: "Edit the copy to set the correct title and year." });
+      onDuplicated?.();
+    } catch {
+      toast({ title: "Duplicate failed", variant: "destructive" });
+    }
+  };
 
   return (
     <>
@@ -145,18 +186,15 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
                   </Button>
                 </div>
               )}
-              <div className="flex items-center gap-2 flex-wrap">
-                {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
-                {formats.map((f) => (
-                  <Badge key={f} variant={getFormatVariant(f)}>{f}</Badge>
-                ))}
-              </div>
-              {formats.length > 1 && (
-                <p className="text-xs text-muted-foreground">
-                  You own {formats.length} copies in different formats
-                </p>
-              )}
+              {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
             </div>
+
+            {/* Format Editor */}
+            <FormatEditor
+              formats={formats}
+              mediaType={mediaType}
+              onToggle={handleFormatToggle}
+            />
 
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
