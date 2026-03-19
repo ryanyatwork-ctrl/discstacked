@@ -16,6 +16,7 @@ export function RandomizerDialog({ items }: RandomizerDialogProps) {
   const [open, setOpen] = useState(false);
   const [pick, setPick] = useState<MediaItem | null>(null);
   const [spinning, setSpinning] = useState(false);
+  const updateItem = useUpdateItem();
 
   const rollRandom = useCallback(() => {
     if (items.length === 0) return;
