@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { TABS } from "@/lib/types";
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
