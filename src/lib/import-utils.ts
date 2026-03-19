@@ -206,10 +206,18 @@ function isBoxSet(item: Record<string, any>): boolean {
  * 4. The box set entry itself is preserved with a contents[] in metadata
  */
 export function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
-  // Build a lookup of normalized title → item for existing individual movies
+  // Build a lookup of normalized title+year → item for existing individual movies
   const titleMap = new Map<string, Record<string, any>>();
   for (const item of items) {
-    titleMap.set(normalizeTitle(item.title || ""), item);
+    const key = normalizeTitle(item.title || "") + "::" + (item.year || "?");
+    titleMap.set(key, item);
+  }
+  // Also build a title-only map for fallback matching (box set contents often lack years)
+  const titleOnlyMap = new Map<string, Record<string, any>[]>();
+  for (const item of items) {
+    const normT = normalizeTitle(item.title || "");
+    if (!titleOnlyMap.has(normT)) titleOnlyMap.set(normT, []);
+    titleOnlyMap.get(normT)!.push(item);
   }
 
   const toAdd: Record<string, any>[] = [];
@@ -220,20 +228,21 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
     const title: string = item.title || "";
 
     // --- Strategy 1: Slash-separated multi-movie titles ---
-    if (title.includes(" / ")) {
+    // Handle both " / " and "/ " separators
+    if (title.includes(" / ") || title.includes("/ ")) {
       let moviesPart = title;
       const colonIdx = title.indexOf(": ");
-      if (colonIdx > -1 && title.indexOf(" / ", colonIdx) > -1) {
+      if (colonIdx > -1 && (title.indexOf(" / ", colonIdx) > -1 || title.indexOf("/ ", colonIdx) > -1)) {
         moviesPart = title.slice(colonIdx + 2);
       }
 
-      const movieNames = moviesPart.split(" / ").map(s => s.trim()).filter(Boolean);
+      const movieNames = moviesPart.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
       if (movieNames.length >= 2) {
         // Mark this box set for hiding
         boxSetIndices.add(idx);
 
         for (const name of movieNames) {
-          linkOrCreateIndividual(name, item, titleMap, toAdd);
+          linkOrCreateIndividual(name, item, titleMap, titleOnlyMap, toAdd);
         }
         continue;
       }
@@ -244,34 +253,33 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
       const normSetTitle = normalizeTitle(title);
       const matchedContents: string[] = [];
 
-      for (const [normKey, existingItem] of titleMap.entries()) {
-        if (normKey === normSetTitle) continue;
-        if (normKey.length < 3) continue;
+      for (const [normTitleOnly, candidates] of titleOnlyMap.entries()) {
+        if (normTitleOnly === normSetTitle) continue;
+        if (normTitleOnly.length < 3) continue;
 
-        // Skip if the candidate is clearly a different movie (colon subtitle + different year)
-        if (existingItem.year && item.year && existingItem.year !== item.year) {
-          // Check if one title is just the other with a colon-subtitle appended
-          const baseNorm = normKey;
-          const setNorm = normSetTitle;
-          if (
-            setNorm.startsWith(baseNorm) &&
-            !BOX_SET_KEYWORDS.some(kw => setNorm.includes(kw))
-          ) {
-            // This looks like "Title" vs "Title: Subtitle" with different years — skip
-            continue;
+        for (const existingItem of candidates) {
+          // Skip if the candidate is clearly a different movie (colon subtitle + different year)
+          if (existingItem.year && item.year && existingItem.year !== item.year) {
+            const baseNorm = normalizeTitle(existingItem.title || "");
+            if (
+              normSetTitle.startsWith(baseNorm) &&
+              !BOX_SET_KEYWORDS.some(kw => normSetTitle.includes(kw))
+            ) {
+              continue;
+            }
           }
-        }
 
-        if (normSetTitle.includes(normKey)) {
-          matchedContents.push(existingItem.title);
-          addBoxSetSource(existingItem, item);
-        } else {
-          const movieWords = normKey.split(" ");
-          if (movieWords.length >= 2) {
-            const moviePrefix = movieWords.join(" ");
-            if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
-              matchedContents.push(existingItem.title);
-              addBoxSetSource(existingItem, item);
+          if (normSetTitle.includes(normTitleOnly)) {
+            matchedContents.push(existingItem.title);
+            addBoxSetSource(existingItem, item);
+          } else {
+            const movieWords = normTitleOnly.split(" ");
+            if (movieWords.length >= 2) {
+              const moviePrefix = movieWords.join(" ");
+              if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
+                matchedContents.push(existingItem.title);
+                addBoxSetSource(existingItem, item);
+              }
             }
           }
         }
@@ -295,14 +303,17 @@ function linkOrCreateIndividual(
   movieName: string,
   setItem: Record<string, any>,
   titleMap: Map<string, Record<string, any>>,
+  titleOnlyMap: Map<string, Record<string, any>[]>,
   toAdd: Record<string, any>[],
 ) {
   const normKey = normalizeTitle(movieName);
   const setFormat = setItem.formats?.[0] || setItem.format || "DVD";
 
-  if (titleMap.has(normKey)) {
-    const existing = titleMap.get(normKey)!;
-    addBoxSetSource(existing, setItem);
+  // Try to find an existing entry by title (any year)
+  const candidates = titleOnlyMap.get(normKey);
+  if (candidates && candidates.length > 0) {
+    // Link to the first matching candidate
+    addBoxSetSource(candidates[0], setItem);
   } else {
     const newItem: Record<string, any> = {
       title: movieName,
@@ -316,7 +327,10 @@ function linkOrCreateIndividual(
         }]),
       },
     };
-    titleMap.set(normKey, newItem);
+    const yearKey = newItem.year || "?";
+    titleMap.set(normKey + "::" + yearKey, newItem);
+    if (!titleOnlyMap.has(normKey)) titleOnlyMap.set(normKey, []);
+    titleOnlyMap.get(normKey)!.push(newItem);
     toAdd.push(newItem);
   }
 }
