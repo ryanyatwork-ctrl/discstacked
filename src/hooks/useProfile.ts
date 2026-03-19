@@ -87,17 +87,29 @@ export function usePublicCollection(userId: string | undefined, mediaType?: stri
     queryKey: ["public-collection", userId, mediaType],
     queryFn: async () => {
       if (!userId) return null;
-      let query = supabase
-        .from("media_items")
-        .select("*")
-        .eq("user_id", userId)
-        .order("title");
-      if (mediaType) {
-        query = query.eq("media_type", mediaType);
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+
+      while (true) {
+        let query = supabase
+          .from("media_items")
+          .select("*")
+          .eq("user_id", userId)
+          .order("title")
+          .range(from, from + PAGE_SIZE - 1);
+        if (mediaType) {
+          query = query.eq("media_type", mediaType);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+
+      return allData;
     },
     enabled: !!userId,
   });
