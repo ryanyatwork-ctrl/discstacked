@@ -3,7 +3,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { Monitor, Download, Eye, Heart, Disc, Disc3 } from "lucide-react";
+import { Monitor, Download, Eye, Heart, Disc, Disc3, Cloud } from "lucide-react";
 
 interface PosterCardProps {
   item: MediaItem;
@@ -16,12 +16,15 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
   const hasPoster = item.posterUrl && !errored;
 
   const formatBadges = (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
+  const physicalFormats = formatBadges.filter(f => f !== "Digital");
+  const isDigitalOnly = formatBadges.length > 0 && physicalFormats.length === 0;
 
   const getFormatVariant = (f: string) =>
     f === "4K" ? "4k" as const
     : f === "Blu-ray" ? "bluray" as const
     : f === "DVD" ? "dvd" as const
     : f === "Vinyl" ? "vinyl" as const
+    : f === "Digital" ? "digital" as const
     : "secondary" as const;
 
   return (
@@ -47,7 +50,9 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         </>
       ) : (
         <div className="absolute inset-0 bg-secondary flex flex-col items-center justify-center p-3 text-center gap-2">
-          {formatBadges.some(f => f === "Blu-ray" || f === "4K") ? (
+          {isDigitalOnly ? (
+            <Cloud className="w-10 h-10 text-muted-foreground/40" />
+          ) : formatBadges.some(f => f === "Blu-ray" || f === "4K") ? (
             <Disc3 className="w-10 h-10 text-muted-foreground/40" />
           ) : (
             <Disc className="w-10 h-10 text-muted-foreground/40" />
