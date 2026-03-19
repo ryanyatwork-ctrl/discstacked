@@ -8,6 +8,7 @@ export interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   share_token: string | null;
+  shared_tabs: string[];
   created_at: string;
   updated_at: string;
 }
