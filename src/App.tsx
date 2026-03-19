@@ -10,6 +10,7 @@ import Profile from "./pages/Profile.tsx";
 import Settings from "./pages/Settings.tsx";
 import SharedCollection from "./pages/SharedCollection.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Analytics from "./components/Analytics.tsx";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <Analytics />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
