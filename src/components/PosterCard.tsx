@@ -50,7 +50,9 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         </>
       ) : (
         <div className="absolute inset-0 bg-secondary flex flex-col items-center justify-center p-3 text-center gap-2">
-          {formatBadges.some(f => f === "Blu-ray" || f === "4K") ? (
+          {isDigitalOnly ? (
+            <Cloud className="w-10 h-10 text-muted-foreground/40" />
+          ) : formatBadges.some(f => f === "Blu-ray" || f === "4K") ? (
             <Disc3 className="w-10 h-10 text-muted-foreground/40" />
           ) : (
             <Disc className="w-10 h-10 text-muted-foreground/40" />
