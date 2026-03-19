@@ -139,12 +139,48 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(false);
   };
 
+  const toggleMultiSelect = (result: TmdbResult) => {
+    setMultiSelect((prev) => {
+      const exists = prev.some((r) => r.tmdb_id === result.tmdb_id && r.media_type === result.media_type);
+      if (exists) return prev.filter((r) => !(r.tmdb_id === result.tmdb_id && r.media_type === result.media_type));
+      return [...prev, result];
+    });
+  };
+
   const selectTmdbResult = (result: TmdbResult) => {
     setTitle(result.title);
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
     setTmdbResults([]);
+    setMultiSelect([]);
+  };
+
+  const handleBatchAdd = async () => {
+    if (multiSelect.length === 0 || !user) return;
+    setSaving(true);
+    try {
+      const rows = multiSelect.map((r) => ({
+        user_id: user.id,
+        title: r.title,
+        year: r.year ?? null,
+        format: null,
+        formats: [] as string[],
+        genre: r.genre ?? null,
+        poster_url: r.poster_url ?? null,
+        want_to_watch: true,
+        media_type: activeTab,
+      }));
+      const { error } = await supabase.from("media_items").insert(rows);
+      if (error) throw error;
+      toast({ title: "Added!", description: `${multiSelect.length} titles added to Want to Watch.` });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      resetForm();
+      setOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add", description: err.message, variant: "destructive" });
+    }
+    setSaving(false);
   };
 
   // Auto-set want_to_watch when no format is selected
