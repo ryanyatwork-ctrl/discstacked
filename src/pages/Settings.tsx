@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { TABS } from "@/lib/types";
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
@@ -30,9 +32,31 @@ export default function Settings() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
+  const { profile, updateProfile } = useProfile();
+
   const [theme, setTheme] = useState<Theme>(() => getStoredSetting("ds-theme", "dark"));
   const [defaultView, setDefaultView] = useState<ViewMode>(() => getStoredSetting("ds-default-view", "covers"));
   const [defaultTab, setDefaultTab] = useState<DefaultTab>(() => getStoredSetting("ds-default-tab", "movies"));
+
+  // Shared tabs state
+  const [sharedTabs, setSharedTabs] = useState<string[]>([]);
+  useEffect(() => {
+    if (profile?.shared_tabs) {
+      setSharedTabs(profile.shared_tabs);
+    }
+  }, [profile]);
+
+  const handleSharedTabToggle = async (tabId: string, checked: boolean) => {
+    const next = checked ? [...sharedTabs, tabId] : sharedTabs.filter((t) => t !== tabId);
+    setSharedTabs(next);
+    try {
+      await updateProfile.mutateAsync({ shared_tabs: next } as any);
+      toast({ title: checked ? `${tabId} collection shared` : `${tabId} collection hidden` });
+    } catch {
+      setSharedTabs(sharedTabs); // revert
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+  };
 
   // Password change
   const [newPassword, setNewPassword] = useState("");
@@ -159,6 +183,29 @@ export default function Settings() {
               ))}
             </SelectContent>
           </Select>
+        </section>
+
+        {/* Shared Collections */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Share2 className="h-4 w-4" />
+            Shared Collections
+          </h2>
+          <p className="text-xs text-muted-foreground">Choose which collections are visible when you share your link with friends.</p>
+          <div className="space-y-1">
+            {TABS.map((tab) => (
+              <div key={tab.id} className="flex items-center justify-between p-3 rounded-lg bg-card">
+                <div className="flex items-center gap-3">
+                  <span className="text-base">{tab.icon}</span>
+                  <span className="text-sm text-foreground">{tab.label}</span>
+                </div>
+                <Switch
+                  checked={sharedTabs.includes(tab.id)}
+                  onCheckedChange={(checked) => handleSharedTabToggle(tab.id, checked)}
+                />
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Change Password */}

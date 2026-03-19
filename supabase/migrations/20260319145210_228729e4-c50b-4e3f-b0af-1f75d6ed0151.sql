@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN shared_tabs text[] NOT NULL DEFAULT ARRAY['movies', 'music-films', 'cds', 'books', 'games'];

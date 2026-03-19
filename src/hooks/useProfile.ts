@@ -8,6 +8,7 @@ export interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   share_token: string | null;
+  shared_tabs: string[];
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +34,7 @@ export function useProfile() {
   const queryClient = useQueryClient();
 
   const updateProfile = useMutation({
-    mutationFn: async (updates: { display_name?: string; avatar_url?: string }) => {
+    mutationFn: async (updates: { display_name?: string; avatar_url?: string; shared_tabs?: string[] }) => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("profiles")
@@ -81,16 +82,20 @@ export function usePublicProfile(shareToken: string | undefined) {
   });
 }
 
-export function usePublicCollection(userId: string | undefined) {
+export function usePublicCollection(userId: string | undefined, mediaType?: string) {
   return useQuery({
-    queryKey: ["public-collection", userId],
+    queryKey: ["public-collection", userId, mediaType],
     queryFn: async () => {
       if (!userId) return null;
-      const { data, error } = await supabase
+      let query = supabase
         .from("media_items")
         .select("*")
         .eq("user_id", userId)
         .order("title");
+      if (mediaType) {
+        query = query.eq("media_type", mediaType);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
