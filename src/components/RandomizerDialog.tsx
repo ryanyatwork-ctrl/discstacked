@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shuffle, Film, Disc, Monitor, Download, RefreshCw } from "lucide-react";
+import { Shuffle, Film, Disc, Monitor, Download, RefreshCw, CalendarCheck } from "lucide-react";
 import { MediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUpdateItem } from "@/hooks/useMediaItems";
+import { toast } from "@/hooks/use-toast";
 
 interface RandomizerDialogProps {
   items: MediaItem[];
@@ -14,6 +16,7 @@ export function RandomizerDialog({ items }: RandomizerDialogProps) {
   const [open, setOpen] = useState(false);
   const [pick, setPick] = useState<MediaItem | null>(null);
   const [spinning, setSpinning] = useState(false);
+  const updateItem = useUpdateItem();
 
   const rollRandom = useCallback(() => {
     if (items.length === 0) return;
@@ -119,7 +122,7 @@ export function RandomizerDialog({ items }: RandomizerDialogProps) {
 
           {/* Re-roll button */}
           {items.length > 0 && (
-            <div className="flex justify-center mt-6">
+            <div className="flex justify-center gap-2 mt-6">
               <Button
                 onClick={rollRandom}
                 disabled={spinning}
@@ -128,6 +131,25 @@ export function RandomizerDialog({ items }: RandomizerDialogProps) {
                 <RefreshCw className={`w-4 h-4 ${spinning ? "animate-spin" : ""}`} />
                 {spinning ? "Picking..." : "Pick Again"}
               </Button>
+              {pick && !spinning && (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                  disabled={updateItem.isPending}
+                  onClick={async () => {
+                    const today = new Date().toISOString().split("T")[0];
+                    try {
+                      await updateItem.mutateAsync({ id: pick.id, last_watched: today, want_to_watch: false } as any);
+                      toast({ title: "Marked as watched!", description: pick.title });
+                    } catch {
+                      toast({ title: "Update failed", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <CalendarCheck className="w-4 h-4" />
+                  Watched it!
+                </Button>
+              )}
             </div>
           )}
         </div>
