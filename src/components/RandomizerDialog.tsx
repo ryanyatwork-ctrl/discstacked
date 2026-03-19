@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shuffle, Film, Disc, Monitor, Download, RefreshCw } from "lucide-react";
+import { Shuffle, Film, Disc, Monitor, Download, RefreshCw, CalendarCheck } from "lucide-react";
 import { MediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUpdateItem } from "@/hooks/useMediaItems";
+import { toast } from "@/hooks/use-toast";
 
 interface RandomizerDialogProps {
   items: MediaItem[];
