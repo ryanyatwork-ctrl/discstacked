@@ -228,6 +228,17 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               </div>
             )}
 
+            {/* Duplicate / Split */}
+            <Button
+              variant="outline"
+              className="w-full border-border text-foreground hover:bg-secondary"
+              onClick={handleDuplicate}
+              disabled={duplicateItem.isPending}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              {duplicateItem.isPending ? "Duplicating..." : "Duplicate as Separate Item"}
+            </Button>
+
             {/* Amazon */}
             <Button
               variant="outline"
