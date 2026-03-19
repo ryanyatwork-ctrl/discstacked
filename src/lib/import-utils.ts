@@ -303,14 +303,17 @@ function linkOrCreateIndividual(
   movieName: string,
   setItem: Record<string, any>,
   titleMap: Map<string, Record<string, any>>,
+  titleOnlyMap: Map<string, Record<string, any>[]>,
   toAdd: Record<string, any>[],
 ) {
   const normKey = normalizeTitle(movieName);
   const setFormat = setItem.formats?.[0] || setItem.format || "DVD";
 
-  if (titleMap.has(normKey)) {
-    const existing = titleMap.get(normKey)!;
-    addBoxSetSource(existing, setItem);
+  // Try to find an existing entry by title (any year)
+  const candidates = titleOnlyMap.get(normKey);
+  if (candidates && candidates.length > 0) {
+    // Link to the first matching candidate
+    addBoxSetSource(candidates[0], setItem);
   } else {
     const newItem: Record<string, any> = {
       title: movieName,
@@ -324,7 +327,10 @@ function linkOrCreateIndividual(
         }]),
       },
     };
-    titleMap.set(normKey, newItem);
+    const yearKey = newItem.year || "?";
+    titleMap.set(normKey + "::" + yearKey, newItem);
+    if (!titleOnlyMap.has(normKey)) titleOnlyMap.set(normKey, []);
+    titleOnlyMap.get(normKey)!.push(newItem);
     toAdd.push(newItem);
   }
 }
