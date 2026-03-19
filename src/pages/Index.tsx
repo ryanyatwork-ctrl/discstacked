@@ -102,9 +102,7 @@ export default function Index() {
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      const first = item.title[0]?.toUpperCase();
-      if (first && /[A-Z]/.test(first)) letters.add(first);
-      else letters.add("#");
+      letters.add(groupLetter(item.title));
     });
     return letters;
   }, [filteredItems]);
