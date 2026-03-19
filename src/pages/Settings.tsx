@@ -32,9 +32,31 @@ export default function Settings() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
+  const { profile, updateProfile } = useProfile();
+
   const [theme, setTheme] = useState<Theme>(() => getStoredSetting("ds-theme", "dark"));
   const [defaultView, setDefaultView] = useState<ViewMode>(() => getStoredSetting("ds-default-view", "covers"));
   const [defaultTab, setDefaultTab] = useState<DefaultTab>(() => getStoredSetting("ds-default-tab", "movies"));
+
+  // Shared tabs state
+  const [sharedTabs, setSharedTabs] = useState<string[]>([]);
+  useEffect(() => {
+    if (profile?.shared_tabs) {
+      setSharedTabs(profile.shared_tabs);
+    }
+  }, [profile]);
+
+  const handleSharedTabToggle = async (tabId: string, checked: boolean) => {
+    const next = checked ? [...sharedTabs, tabId] : sharedTabs.filter((t) => t !== tabId);
+    setSharedTabs(next);
+    try {
+      await updateProfile.mutateAsync({ shared_tabs: next } as any);
+      toast({ title: checked ? `${tabId} collection shared` : `${tabId} collection hidden` });
+    } catch {
+      setSharedTabs(sharedTabs); // revert
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+  };
 
   // Password change
   const [newPassword, setNewPassword] = useState("");
