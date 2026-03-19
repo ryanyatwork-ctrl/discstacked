@@ -62,6 +62,20 @@ export default function SharedCollection() {
     return groups;
   }, [filteredItems]);
 
+  const availableLetters = useMemo(() => {
+    const letters = new Set<string>();
+    filteredItems.forEach((item) => letters.add(groupLetter(item.title)));
+    return letters;
+  }, [filteredItems]);
+
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+
+  const handleLetterClick = useCallback((letter: string) => {
+    setActiveLetter(letter);
+    const el = document.getElementById(`share-letter-${letter}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const handleFormatToggle = useCallback((format: string) => {
     setActiveFormats((prev) =>
       prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
@@ -77,6 +91,7 @@ export default function SharedCollection() {
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
     setActiveFormats([]);
+    setActiveLetter(null);
   }, []);
 
   if (profileLoading || itemsLoading) {
