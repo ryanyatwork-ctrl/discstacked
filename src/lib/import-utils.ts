@@ -2,7 +2,7 @@ import { MediaTab } from "@/lib/types";
 
 export const TAB_LABELS: Record<MediaTab, string> = {
   movies: "Movies",
-  "music-films": "Music Films",
+  "music-films": "Music Media",
   cds: "CDs",
   books: "Books",
   games: "Games",
