@@ -1,0 +1,1 @@
+UPDATE media_items SET media_type = 'music-films' WHERE id = 'd9fa48cb-6865-49d2-90c1-5ce1c54a5838';
