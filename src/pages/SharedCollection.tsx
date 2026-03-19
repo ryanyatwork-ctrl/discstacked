@@ -1,16 +1,17 @@
-import { useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
-import { MediaItem, MediaTab } from "@/lib/types";
-import { groupLetter, sortTitle } from "@/lib/utils";
+import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
+import { groupLetter, sortTitle, cn } from "@/lib/utils";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 export default function SharedCollection() {
   const { token } = useParams<{ token: string }>();
   const { data: profile, isLoading: profileLoading } = usePublicProfile(token);
   const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id);
+  const [activeFormats, setActiveFormats] = useState<string[]>([]);
 
   const mediaItems = useMemo(() => {
     if (!items) return [];
@@ -31,8 +32,16 @@ export default function SharedCollection() {
     }));
   }, [items]);
 
+  const filteredItems = useMemo(() => {
+    if (activeFormats.length === 0) return mediaItems;
+    return mediaItems.filter((item) => {
+      const itemFormats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+      return itemFormats.some((f) => activeFormats.includes(f));
+    });
+  }, [mediaItems, activeFormats]);
+
   const grouped = useMemo(() => {
-    const sorted = [...mediaItems].sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
+    const sorted = [...filteredItems].sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
     const groups: Record<string, MediaItem[]> = {};
     sorted.forEach((item) => {
       const key = groupLetter(item.title);
@@ -40,6 +49,25 @@ export default function SharedCollection() {
       groups[key].push(item);
     });
     return groups;
+  }, [filteredItems]);
+
+  const handleFormatToggle = useCallback((format: string) => {
+    setActiveFormats((prev) =>
+      prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
+    );
+  }, []);
+
+  // Collect all unique formats across the collection
+  const availableFormats = useMemo(() => {
+    const allFormats = new Set<string>();
+    mediaItems.forEach((item) => {
+      const fmts = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+      fmts.forEach((f) => allFormats.add(f));
+    });
+    // Return in canonical order from FORMATS.movies, then any extras
+    const ordered = FORMATS.movies.filter((f) => allFormats.has(f));
+    allFormats.forEach((f) => { if (!ordered.includes(f)) ordered.push(f); });
+    return ordered;
   }, [mediaItems]);
 
   if (profileLoading || itemsLoading) {
@@ -63,7 +91,7 @@ export default function SharedCollection() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-4 py-3">
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
         <div className="flex items-center gap-3 max-w-5xl mx-auto">
           <img src={logo} alt="DiscStacked" className="h-8 w-auto rounded object-contain" />
           <div className="flex items-center gap-2 ml-auto">
@@ -74,10 +102,34 @@ export default function SharedCollection() {
             <span className="text-sm font-medium text-foreground">{name}'s Collection</span>
           </div>
         </div>
+        {/* Format filter toggles */}
+        {availableFormats.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-2 max-w-5xl mx-auto">
+            {availableFormats.map((format) => (
+              <button
+                key={format}
+                onClick={() => handleFormatToggle(format)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
+                  activeFormats.includes(format)
+                    ? format === "4K" ? "bg-primary text-primary-foreground"
+                    : format === "Blu-ray" ? "bg-accent text-accent-foreground"
+                    : "bg-secondary text-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {format}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-4">
-        <p className="text-xs text-muted-foreground mb-4">{mediaItems.length} items</p>
+        <p className="text-xs text-muted-foreground mb-4">
+          {filteredItems.length} items
+          {activeFormats.length > 0 && ` · Filtered`}
+        </p>
         {Object.keys(grouped).sort().map((letter) => (
           <div key={letter} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{letter}</h2>
