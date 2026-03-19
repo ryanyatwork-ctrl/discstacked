@@ -145,6 +145,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setTmdbResults([]);
   };
 
+  // Auto-set want_to_watch when no format is selected
+  const effectiveWantToWatch = !format ? true : wantToWatch;
+
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
@@ -153,16 +156,16 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         user_id: user.id,
         title: title.trim(),
         year: year ? parseInt(year) : null,
-        format,
-        formats: [format],
+        format: format || null,
+        formats: format ? [format] : [],
         barcode: barcode || null,
         genre: genre || null,
         notes: notes || null,
         poster_url: selectedPoster || null,
         in_plex: inPlex,
-        digital_copy: digitalCopy,
+        digital_copy: format === "Digital" ? true : digitalCopy,
         wishlist,
-        want_to_watch: wantToWatch,
+        want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
       });
       if (error) throw error;
