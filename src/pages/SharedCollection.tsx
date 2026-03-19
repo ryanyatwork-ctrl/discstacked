@@ -4,6 +4,7 @@ import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
 import { MediaItem, MediaTab } from "@/lib/types";
+import { groupLetter, sortTitle } from "@/lib/utils";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 export default function SharedCollection() {
@@ -31,10 +32,10 @@ export default function SharedCollection() {
   }, [items]);
 
   const grouped = useMemo(() => {
+    const sorted = [...mediaItems].sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
     const groups: Record<string, MediaItem[]> = {};
-    mediaItems.forEach((item) => {
-      const first = item.title[0]?.toUpperCase();
-      const key = first && /[A-Z]/.test(first) ? first : "#";
+    sorted.forEach((item) => {
+      const key = groupLetter(item.title);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });

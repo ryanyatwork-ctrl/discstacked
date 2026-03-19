@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem } from "@/lib/types";
 import { generateMockData } from "@/lib/mock-data";
+import { sortTitle, groupLetter } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -96,15 +97,13 @@ export default function Index() {
     } else if (statusFilter === "digital") {
       items = items.filter((i) => i.digitalCopy);
     }
-    return items.sort((a, b) => a.title.localeCompare(b.title));
+    return items.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
   }, [allItems, searchQuery, activeFormats, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      const first = item.title[0]?.toUpperCase();
-      if (first && /[A-Z]/.test(first)) letters.add(first);
-      else letters.add("#");
+      letters.add(groupLetter(item.title));
     });
     return letters;
   }, [filteredItems]);
@@ -112,8 +111,7 @@ export default function Index() {
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const first = item.title[0]?.toUpperCase();
-      const key = first && /[A-Z]/.test(first) ? first : "#";
+      const key = groupLetter(item.title);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });

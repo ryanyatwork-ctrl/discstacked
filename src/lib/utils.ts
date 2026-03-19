@@ -4,3 +4,15 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Strip leading articles (A, An, The) for sorting/grouping purposes */
+export function sortTitle(title: string): string {
+  return title.replace(/^(the|a|an)\s+/i, "");
+}
+
+/** Get the grouping letter for a title (ignoring leading articles) */
+export function groupLetter(title: string): string {
+  const stripped = sortTitle(title);
+  const first = stripped[0]?.toUpperCase();
+  return first && /[A-Z]/.test(first) ? first : "#";
+}
