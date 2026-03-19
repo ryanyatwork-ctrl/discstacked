@@ -53,10 +53,10 @@ export function RandomizerDialog({ items }: RandomizerDialogProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="text-muted-foreground hover:text-foreground"
-          title="What to Watch"
+          className="text-primary hover:text-primary/80"
+          title="What to Watch – Randomizer"
         >
-          <Shuffle className="h-4 w-4" />
+          <Shuffle className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="bg-card border-border max-w-sm">
