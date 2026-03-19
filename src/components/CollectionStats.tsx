@@ -46,6 +46,13 @@ export function CollectionStats({ items, isLoading, onStatsClick, activeStatusFi
 
   if (isLoading) return null;
 
+  const fmtPct = (count: number, total: number) => {
+    if (total === 0) return "0%";
+    const pct = (count / total) * 100;
+    if (pct > 0 && pct < 1) return "<1%";
+    return `${Math.round(pct)}%`;
+  };
+
   const cards = [
     {
       id: "total" as const,
@@ -54,13 +61,13 @@ export function CollectionStats({ items, isLoading, onStatsClick, activeStatusFi
       value: stats.total.toLocaleString(),
       color: "text-primary",
       bg: "bg-primary/10",
-      clickable: false,
+      clickable: true,
     },
     {
       id: "plex" as const,
       icon: Monitor,
       label: "Ripped to Plex",
-      value: `${stats.plexPct}%`,
+      value: fmtPct(stats.plexCount, stats.total),
       subtitle: `${stats.plexCount} titles`,
       color: "text-primary",
       bg: "bg-primary/10",
@@ -70,7 +77,7 @@ export function CollectionStats({ items, isLoading, onStatsClick, activeStatusFi
       id: "digital" as const,
       icon: Download,
       label: "Digital Owned",
-      value: `${stats.digitalPct}%`,
+      value: fmtPct(stats.digitalCount, stats.total),
       subtitle: `${stats.digitalCount} titles`,
       color: "text-accent",
       bg: "bg-accent/10",
