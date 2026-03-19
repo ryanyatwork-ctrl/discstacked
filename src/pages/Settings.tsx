@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2 } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,45 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { TABS } from "@/lib/types";
+
+const PASSWORD_RULES = [
+  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+  { label: "Uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "Lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { label: "Number", test: (p: string) => /\d/.test(p) },
+  { label: "Special character", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function getStrength(password: string) {
+  const passed = PASSWORD_RULES.filter((r) => r.test(password)).length;
+  if (passed <= 1) return { level: "Weak", color: "bg-destructive", pct: 20 };
+  if (passed <= 2) return { level: "Fair", color: "bg-orange-500", pct: 40 };
+  if (passed <= 3) return { level: "Good", color: "bg-yellow-500", pct: 60 };
+  if (passed <= 4) return { level: "Strong", color: "bg-emerald-500", pct: 80 };
+  return { level: "Very Strong", color: "bg-emerald-400", pct: 100 };
+}
+
+function generateStrongPassword(): string {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const special = "!@#$%&*?";
+  const all = upper + lower + digits + special;
+  const pw = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    special[Math.floor(Math.random() * special.length)],
+  ];
+  for (let i = pw.length; i < 16; i++) {
+    pw.push(all[Math.floor(Math.random() * all.length)]);
+  }
+  for (let i = pw.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pw[i], pw[j]] = [pw[j], pw[i]];
+  }
+  return pw.join("");
+}
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
