@@ -57,6 +57,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setTmdbResults([]);
     setSelectedPoster(null);
     setMultiSelect([]);
+    setMultiSelectMode(false);
   };
 
   const stopScanner = async () => {
