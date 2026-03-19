@@ -46,6 +46,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
     setEditingTitle(false);
   };
 
+  const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
+    try {
+      await updateItem.mutateAsync({ id: item.id, [field]: value } as any);
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
   const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
