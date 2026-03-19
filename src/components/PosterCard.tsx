@@ -16,12 +16,15 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
   const hasPoster = item.posterUrl && !errored;
 
   const formatBadges = (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
+  const physicalFormats = formatBadges.filter(f => f !== "Digital");
+  const isDigitalOnly = formatBadges.length > 0 && physicalFormats.length === 0;
 
   const getFormatVariant = (f: string) =>
     f === "4K" ? "4k" as const
     : f === "Blu-ray" ? "bluray" as const
     : f === "DVD" ? "dvd" as const
     : f === "Vinyl" ? "vinyl" as const
+    : f === "Digital" ? "digital" as const
     : "secondary" as const;
 
   return (
