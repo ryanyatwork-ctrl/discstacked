@@ -101,6 +101,19 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const strength = useMemo(() => getStrength(newPassword), [newPassword]);
+
+  const handleGeneratePassword = () => {
+    const pw = generateStrongPassword();
+    setNewPassword(pw);
+    setConfirmPassword(pw);
+    setShowNewPassword(true);
+    setShowConfirmPassword(true);
+    toast({ title: "Strong password generated", description: "Make sure to save it somewhere safe!" });
+  };
 
   const handleThemeToggle = (checked: boolean) => {
     const newTheme: Theme = checked ? "dark" : "light";
