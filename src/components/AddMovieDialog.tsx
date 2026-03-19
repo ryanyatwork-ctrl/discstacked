@@ -37,6 +37,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
   const [multiSelect, setMultiSelect] = useState<TmdbResult[]>([]);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
