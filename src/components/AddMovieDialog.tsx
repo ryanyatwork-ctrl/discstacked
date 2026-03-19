@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Camera, Loader2, Search } from "lucide-react";
+import { Plus, Camera, Loader2, Search, Check, Eye } from "lucide-react";
 import { useImportItems } from "@/hooks/useMediaItems";
 import { searchTmdb, TmdbResult } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
