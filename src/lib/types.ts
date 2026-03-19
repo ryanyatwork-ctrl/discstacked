@@ -25,7 +25,7 @@ export interface MediaItem {
 
 export const TABS: { id: MediaTab; label: string; icon: string }[] = [
   { id: "movies", label: "Movies", icon: "🎬" },
-  { id: "music-films", label: "Music Films", icon: "🎵" },
+  { id: "music-films", label: "Music Media", icon: "🎵" },
   { id: "cds", label: "CDs", icon: "💿" },
   { id: "books", label: "Books", icon: "📚" },
   { id: "games", label: "Games", icon: "🎮" },
