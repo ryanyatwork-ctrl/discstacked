@@ -272,18 +272,85 @@ export default function Settings() {
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Account</h2>
           <div className="space-y-3 p-3 rounded-lg bg-card">
-            <Input
-              type="password"
-              placeholder="New password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                type={showNewPassword ? "text" : "password"}
+                placeholder="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {newPassword.length > 0 && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+                      style={{ width: `${strength.pct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium min-w-[70px] text-right">
+                    {strength.level}
+                  </span>
+                </div>
+                <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                  {PASSWORD_RULES.map((rule) => {
+                    const passed = rule.test(newPassword);
+                    return (
+                      <li key={rule.label} className="flex items-center gap-1.5 text-xs">
+                        {passed ? (
+                          <Check className="h-3 w-3 text-emerald-500 shrink-0" />
+                        ) : (
+                          <X className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                        )}
+                        <span className={passed ? "text-muted-foreground" : "text-muted-foreground/50"}>
+                          {rule.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            <div className="relative">
+              <Input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={handleGeneratePassword}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Suggest Strong Password
+            </Button>
+
             <Button
               onClick={handlePasswordChange}
               disabled={!newPassword || changingPassword}
