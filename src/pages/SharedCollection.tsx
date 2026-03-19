@@ -172,13 +172,13 @@ export default function SharedCollection() {
         )}
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="max-w-5xl mx-auto px-4 py-4 pr-8">
         <p className="text-xs text-muted-foreground mb-4">
           {filteredItems.length} items
           {activeFormats.length > 0 && ` · Filtered`}
         </p>
         {Object.keys(grouped).sort().map((letter) => (
-          <div key={letter} className="mb-6">
+          <div key={letter} id={`share-letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{letter}</h2>
             <div className="poster-grid">
               {grouped[letter].map((item) => (
@@ -188,6 +188,12 @@ export default function SharedCollection() {
           </div>
         ))}
       </div>
+
+      <AlphabetRail
+        activeLetter={activeLetter}
+        onLetterClick={handleLetterClick}
+        availableLetters={availableLetters}
+      />
     </div>
   );
 }
