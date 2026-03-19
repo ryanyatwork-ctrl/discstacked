@@ -23,7 +23,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
-  const [format, setFormat] = useState(FORMATS[activeTab]?.[0] || "DVD");
+  const [format, setFormat] = useState("");
   const [barcode, setBarcode] = useState("");
   const [genre, setGenre] = useState("");
   const [notes, setNotes] = useState("");
@@ -44,7 +44,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const resetForm = () => {
     setTitle("");
     setYear("");
-    setFormat(FORMATS[activeTab]?.[0] || "DVD");
+    setFormat("");
     setBarcode("");
     setGenre("");
     setNotes("");
@@ -145,6 +145,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setTmdbResults([]);
   };
 
+  // Auto-set want_to_watch when no format is selected
+  const effectiveWantToWatch = !format ? true : wantToWatch;
+
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
@@ -153,16 +156,16 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         user_id: user.id,
         title: title.trim(),
         year: year ? parseInt(year) : null,
-        format,
-        formats: [format],
+        format: format || null,
+        formats: format ? [format] : [],
         barcode: barcode || null,
         genre: genre || null,
         notes: notes || null,
         poster_url: selectedPoster || null,
         in_plex: inPlex,
-        digital_copy: digitalCopy,
+        digital_copy: format === "Digital" ? true : digitalCopy,
         wishlist,
-        want_to_watch: wantToWatch,
+        want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
       });
       if (error) throw error;
@@ -284,16 +287,20 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
-              <Select value={format} onValueChange={setFormat}>
+              <Select value={format || "none"} onValueChange={(v) => setFormat(v === "none" ? "" : v)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="None (watchlist only)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">None (watchlist only)</SelectItem>
                   {(FORMATS[activeTab] || []).map((f) => (
                     <SelectItem key={f} value={f}>{f}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!format && (
+                <p className="text-[10px] text-muted-foreground">No format will auto-add to Want to Watch</p>
+              )}
             </div>
           </div>
 
