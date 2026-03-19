@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2 } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,45 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { TABS } from "@/lib/types";
+
+const PASSWORD_RULES = [
+  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+  { label: "Uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "Lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { label: "Number", test: (p: string) => /\d/.test(p) },
+  { label: "Special character", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function getStrength(password: string) {
+  const passed = PASSWORD_RULES.filter((r) => r.test(password)).length;
+  if (passed <= 1) return { level: "Weak", color: "bg-destructive", pct: 20 };
+  if (passed <= 2) return { level: "Fair", color: "bg-orange-500", pct: 40 };
+  if (passed <= 3) return { level: "Good", color: "bg-yellow-500", pct: 60 };
+  if (passed <= 4) return { level: "Strong", color: "bg-emerald-500", pct: 80 };
+  return { level: "Very Strong", color: "bg-emerald-400", pct: 100 };
+}
+
+function generateStrongPassword(): string {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const special = "!@#$%&*?";
+  const all = upper + lower + digits + special;
+  const pw = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    special[Math.floor(Math.random() * special.length)],
+  ];
+  for (let i = pw.length; i < 16; i++) {
+    pw.push(all[Math.floor(Math.random() * all.length)]);
+  }
+  for (let i = pw.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pw[i], pw[j]] = [pw[j], pw[i]];
+  }
+  return pw.join("");
+}
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
@@ -62,6 +101,19 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const strength = useMemo(() => getStrength(newPassword), [newPassword]);
+
+  const handleGeneratePassword = () => {
+    const pw = generateStrongPassword();
+    setNewPassword(pw);
+    setConfirmPassword(pw);
+    setShowNewPassword(true);
+    setShowConfirmPassword(true);
+    toast({ title: "Strong password generated", description: "Make sure to save it somewhere safe!" });
+  };
 
   const handleThemeToggle = (checked: boolean) => {
     const newTheme: Theme = checked ? "dark" : "light";
@@ -87,12 +139,17 @@ export default function Settings() {
   };
 
   const handlePasswordChange = async () => {
-    if (newPassword.length < 6) {
-      toast({ title: "Password too short", description: "Minimum 6 characters", variant: "destructive" });
+    if (newPassword.length < 8) {
+      toast({ title: "Password too short", description: "Minimum 8 characters", variant: "destructive" });
       return;
     }
     if (newPassword !== confirmPassword) {
       toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    const allPassed = PASSWORD_RULES.every((r) => r.test(newPassword));
+    if (!allPassed) {
+      toast({ title: "Password too weak", description: "Please meet all requirements", variant: "destructive" });
       return;
     }
     setChangingPassword(true);
@@ -101,9 +158,12 @@ export default function Settings() {
       if (error) throw error;
       setNewPassword("");
       setConfirmPassword("");
-      toast({ title: "Password updated" });
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+      toast({ title: "Password updated successfully" });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("Password update error:", err);
+      toast({ title: "Error updating password", description: err.message, variant: "destructive" });
     } finally {
       setChangingPassword(false);
     }
@@ -212,18 +272,85 @@ export default function Settings() {
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Account</h2>
           <div className="space-y-3 p-3 rounded-lg bg-card">
-            <Input
-              type="password"
-              placeholder="New password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                type={showNewPassword ? "text" : "password"}
+                placeholder="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {newPassword.length > 0 && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+                      style={{ width: `${strength.pct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium min-w-[70px] text-right">
+                    {strength.level}
+                  </span>
+                </div>
+                <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                  {PASSWORD_RULES.map((rule) => {
+                    const passed = rule.test(newPassword);
+                    return (
+                      <li key={rule.label} className="flex items-center gap-1.5 text-xs">
+                        {passed ? (
+                          <Check className="h-3 w-3 text-emerald-500 shrink-0" />
+                        ) : (
+                          <X className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                        )}
+                        <span className={passed ? "text-muted-foreground" : "text-muted-foreground/50"}>
+                          {rule.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            <div className="relative">
+              <Input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={handleGeneratePassword}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Suggest Strong Password
+            </Button>
+
             <Button
               onClick={handlePasswordChange}
               disabled={!newPassword || changingPassword}
