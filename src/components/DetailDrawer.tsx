@@ -17,13 +17,15 @@ interface DetailDrawerProps {
   onDuplicated?: () => void;
 }
 
-export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
+export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
+  const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
+  const duplicateItem = useDuplicateItem();
 
   // Reset local overrides when item changes
   useEffect(() => {
