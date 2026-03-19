@@ -138,7 +138,12 @@ export default function Index() {
     setActiveLetter(null);
   }, []);
 
-  const handleStatsClick = useCallback((type: "plex" | "digital") => {
+  const handleStatsClick = useCallback((type: "plex" | "digital" | "total") => {
+    if (type === "total") {
+      setStatusFilter(null);
+      setActiveFormats([]);
+      return;
+    }
     setStatusFilter((prev) => (prev === type ? null : type));
     setActiveFormats([]);
   }, []);
