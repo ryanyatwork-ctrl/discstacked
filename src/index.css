@@ -52,6 +52,7 @@
     --sidebar-border: 0 0% 16%;
     --sidebar-ring: 43 88% 47%;
 
+  }
 
   .light {
     --background: 0 0% 98%;
@@ -87,7 +88,6 @@
     --sidebar-border: 0 0% 88%;
     --sidebar-ring: 43 88% 42%;
   }
-}
 }
 
 @layer base {
