@@ -206,10 +206,18 @@ function isBoxSet(item: Record<string, any>): boolean {
  * 4. The box set entry itself is preserved with a contents[] in metadata
  */
 export function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
-  // Build a lookup of normalized title → item for existing individual movies
+  // Build a lookup of normalized title+year → item for existing individual movies
   const titleMap = new Map<string, Record<string, any>>();
   for (const item of items) {
-    titleMap.set(normalizeTitle(item.title || ""), item);
+    const key = normalizeTitle(item.title || "") + "::" + (item.year || "?");
+    titleMap.set(key, item);
+  }
+  // Also build a title-only map for fallback matching (box set contents often lack years)
+  const titleOnlyMap = new Map<string, Record<string, any>[]>();
+  for (const item of items) {
+    const normT = normalizeTitle(item.title || "");
+    if (!titleOnlyMap.has(normT)) titleOnlyMap.set(normT, []);
+    titleOnlyMap.get(normT)!.push(item);
   }
 
   const toAdd: Record<string, any>[] = [];
@@ -220,20 +228,21 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
     const title: string = item.title || "";
 
     // --- Strategy 1: Slash-separated multi-movie titles ---
-    if (title.includes(" / ")) {
+    // Handle both " / " and "/ " separators
+    if (title.includes(" / ") || title.includes("/ ")) {
       let moviesPart = title;
       const colonIdx = title.indexOf(": ");
-      if (colonIdx > -1 && title.indexOf(" / ", colonIdx) > -1) {
+      if (colonIdx > -1 && (title.indexOf(" / ", colonIdx) > -1 || title.indexOf("/ ", colonIdx) > -1)) {
         moviesPart = title.slice(colonIdx + 2);
       }
 
-      const movieNames = moviesPart.split(" / ").map(s => s.trim()).filter(Boolean);
+      const movieNames = moviesPart.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
       if (movieNames.length >= 2) {
         // Mark this box set for hiding
         boxSetIndices.add(idx);
 
         for (const name of movieNames) {
-          linkOrCreateIndividual(name, item, titleMap, toAdd);
+          linkOrCreateIndividual(name, item, titleMap, titleOnlyMap, toAdd);
         }
         continue;
       }
