@@ -34,7 +34,7 @@ export function useProfile() {
   const queryClient = useQueryClient();
 
   const updateProfile = useMutation({
-    mutationFn: async (updates: { display_name?: string; avatar_url?: string }) => {
+    mutationFn: async (updates: { display_name?: string; avatar_url?: string; shared_tabs?: string[] }) => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("profiles")
