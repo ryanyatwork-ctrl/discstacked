@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem } from "@/lib/types";
 import { generateMockData } from "@/lib/mock-data";
+import { sortTitle, groupLetter } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
