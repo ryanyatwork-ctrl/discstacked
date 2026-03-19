@@ -14,6 +14,7 @@ interface DetailDrawerProps {
   item: MediaItem | null;
   open: boolean;
   onClose: () => void;
+  onDuplicated?: () => void;
 }
 
 export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
