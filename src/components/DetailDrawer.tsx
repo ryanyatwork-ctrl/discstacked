@@ -272,6 +272,72 @@ function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: 
   );
 }
 
+function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnType<typeof useUpdateItem> }) {
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [watchNote, setWatchNote] = useState("");
+
+  const handleMarkWatched = async (note?: string) => {
+    const today = new Date().toISOString().split("T")[0];
+    try {
+      const updates: any = { id: item.id, last_watched: today, want_to_watch: false };
+      if (note?.trim()) updates.watch_notes = note.trim();
+      await onUpdate.mutateAsync(updates);
+      toast({ title: "Marked as watched!", description: `${item.title} — ${today}` });
+      setShowNoteInput(false);
+      setWatchNote("");
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Watch History</p>
+      {item.lastWatched ? (
+        <div className="space-y-1">
+          <p className="text-sm text-foreground flex items-center gap-1.5">
+            <CalendarCheck className="w-3.5 h-3.5 text-primary" />
+            Last watched: {item.lastWatched}
+          </p>
+          {item.watchNotes && <p className="text-sm text-muted-foreground italic">"{item.watchNotes}"</p>}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Not yet watched</p>
+      )}
+      {showNoteInput ? (
+        <div className="space-y-2">
+          <Textarea
+            value={watchNote}
+            onChange={(e) => setWatchNote(e.target.value)}
+            placeholder="Any thoughts? (optional)"
+            rows={2}
+            className="text-sm"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => handleMarkWatched(watchNote)} disabled={onUpdate.isPending} className="gap-1.5">
+              <CalendarCheck className="w-3.5 h-3.5" />
+              Save
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setShowNoteInput(false); setWatchNote(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowNoteInput(true)}
+          className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+        >
+          <CalendarCheck className="w-3.5 h-3.5" />
+          {item.lastWatched ? "Watched Again" : "Mark as Watched"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function BoxSetSources({ item }: { item: MediaItem }) {
   const metadata = (item as any).metadata || {};
   let boxSets: { title: string; format: string }[] = [];
