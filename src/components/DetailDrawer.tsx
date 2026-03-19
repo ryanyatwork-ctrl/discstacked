@@ -1,31 +1,36 @@
 import { useState, useRef, useEffect } from "react";
-import { MediaItem } from "@/lib/types";
+import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { useUpdateItem } from "@/hooks/useMediaItems";
+import { useUpdateItem, useDuplicateItem, DbMediaItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy } from "lucide-react";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
+import { FormatEditor } from "@/components/FormatEditor";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
   open: boolean;
   onClose: () => void;
+  onDuplicated?: () => void;
 }
 
-export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
+export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
+  const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
+  const duplicateItem = useDuplicateItem();
 
   // Reset local overrides when item changes
   useEffect(() => {
     setLocalFlags({});
+    setLocalFormats(null);
   }, [item?.id]);
 
   useEffect(() => {
@@ -69,12 +74,53 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
 
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
-  const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+  const formats = localFormats ?? (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
 
-  const getFormatVariant = (f: string) =>
-    f === "4K" ? "4k" as const
-    : f === "Blu-ray" ? "bluray" as const
-    : "secondary" as const;
+  const mediaType = (item.mediaType || "movies") as MediaTab;
+
+  const handleFormatToggle = async (format: string) => {
+    const current = [...formats];
+    const next = current.includes(format)
+      ? current.filter((f) => f !== format)
+      : [...current, format];
+    if (next.length === 0) return; // must have at least one format
+    setLocalFormats(next);
+    try {
+      await updateItem.mutateAsync({ id: item.id, formats: next, format: next[0] } as any);
+    } catch {
+      setLocalFormats(current);
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  const handleDuplicate = async () => {
+    try {
+      // Build a raw DB-shaped object from the MediaItem
+      const dbItem: any = {
+        title: item.title,
+        year: item.year ?? null,
+        format: item.format ?? null,
+        formats: formats,
+        poster_url: item.posterUrl ?? null,
+        genre: item.genre ?? null,
+        rating: item.rating ?? null,
+        notes: item.notes ?? null,
+        in_plex: item.inPlex ?? false,
+        digital_copy: item.digitalCopy ?? false,
+        wishlist: item.wishlist ?? false,
+        want_to_watch: item.wantToWatch ?? false,
+        last_watched: item.lastWatched ?? null,
+        watch_notes: item.watchNotes ?? null,
+        media_type: item.mediaType ?? "movies",
+        barcode: item.barcode ?? null,
+      };
+      await duplicateItem.mutateAsync(dbItem);
+      toast({ title: "Item duplicated", description: "Edit the copy to set the correct title and year." });
+      onDuplicated?.();
+    } catch {
+      toast({ title: "Duplicate failed", variant: "destructive" });
+    }
+  };
 
   return (
     <>
@@ -140,18 +186,15 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
                   </Button>
                 </div>
               )}
-              <div className="flex items-center gap-2 flex-wrap">
-                {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
-                {formats.map((f) => (
-                  <Badge key={f} variant={getFormatVariant(f)}>{f}</Badge>
-                ))}
-              </div>
-              {formats.length > 1 && (
-                <p className="text-xs text-muted-foreground">
-                  You own {formats.length} copies in different formats
-                </p>
-              )}
+              {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
             </div>
+
+            {/* Format Editor */}
+            <FormatEditor
+              formats={formats}
+              mediaType={mediaType}
+              onToggle={handleFormatToggle}
+            />
 
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
@@ -184,6 +227,17 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
                 {item.watchNotes && <p className="text-sm text-muted-foreground">{item.watchNotes}</p>}
               </div>
             )}
+
+            {/* Duplicate / Split */}
+            <Button
+              variant="outline"
+              className="w-full border-border text-foreground hover:bg-secondary"
+              onClick={handleDuplicate}
+              disabled={duplicateItem.isPending}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              {duplicateItem.isPending ? "Duplicating..." : "Duplicate as Separate Item"}
+            </Button>
 
             {/* Amazon */}
             <Button

@@ -107,3 +107,25 @@ export function useUpdateItem() {
     },
   });
 }
+
+export function useDuplicateItem() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (sourceItem: DbMediaItem) => {
+      if (!user) throw new Error("Not authenticated");
+      const { id, created_at, updated_at, ...rest } = sourceItem;
+      const { data, error } = await supabase
+        .from("media_items")
+        .insert({ ...rest, user_id: user.id })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+    },
+  });
+}
