@@ -195,13 +195,18 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   );
 }
 
-function StatusToggle({ icon: Icon, label, active, color }: { icon: any; label: string; active?: boolean; color: string }) {
+function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: { icon: any; label: string; active?: boolean; color: string; onToggle?: () => void; readOnly?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${active ? "border-border bg-secondary" : "border-border/50 bg-card"}`}>
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={readOnly}
+      className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${active ? "border-border bg-secondary" : "border-border/50 bg-card"} ${readOnly ? "cursor-default" : "cursor-pointer hover:bg-secondary/80"}`}
+    >
       <Icon className={`w-4 h-4 ${active ? `text-${color}` : "text-muted-foreground"}`} />
       <span className="text-xs text-foreground">{label}</span>
       <div className={`ml-auto w-2 h-2 rounded-full ${active ? "bg-success" : "bg-muted-foreground/30"}`} />
-    </div>
+    </button>
   );
 }
 
