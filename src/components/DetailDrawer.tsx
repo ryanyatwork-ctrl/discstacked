@@ -19,8 +19,14 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
+
+  // Reset local overrides when item changes
+  useEffect(() => {
+    setLocalFlags({});
+  }, [item?.id]);
 
   useEffect(() => {
     if (editingTitle && inputRef.current) {
@@ -30,6 +36,11 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   }, [editingTitle]);
 
   if (!item) return null;
+
+  const inPlex = localFlags.in_plex ?? item.inPlex;
+  const digitalCopy = localFlags.digital_copy ?? item.digitalCopy;
+  const wishlist = localFlags.wishlist ?? item.wishlist;
+  const wantToWatch = localFlags.want_to_watch ?? item.wantToWatch;
 
   const handleSaveTitle = async () => {
     const trimmed = titleDraft.trim();
@@ -47,9 +58,11 @@ export function DetailDrawer({ item, open, onClose }: DetailDrawerProps) {
   };
 
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
+    setLocalFlags((prev) => ({ ...prev, [field]: value }));
     try {
       await updateItem.mutateAsync({ id: item.id, [field]: value } as any);
     } catch {
+      setLocalFlags((prev) => ({ ...prev, [field]: !value }));
       toast({ title: "Update failed", variant: "destructive" });
     }
   };
