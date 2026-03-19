@@ -185,6 +185,29 @@ export default function Settings() {
           </Select>
         </section>
 
+        {/* Shared Collections */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Share2 className="h-4 w-4" />
+            Shared Collections
+          </h2>
+          <p className="text-xs text-muted-foreground">Choose which collections are visible when you share your link with friends.</p>
+          <div className="space-y-1">
+            {TABS.map((tab) => (
+              <div key={tab.id} className="flex items-center justify-between p-3 rounded-lg bg-card">
+                <div className="flex items-center gap-3">
+                  <span className="text-base">{tab.icon}</span>
+                  <span className="text-sm text-foreground">{tab.label}</span>
+                </div>
+                <Switch
+                  checked={sharedTabs.includes(tab.id)}
+                  onCheckedChange={(checked) => handleSharedTabToggle(tab.id, checked)}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Change Password */}
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Account</h2>
