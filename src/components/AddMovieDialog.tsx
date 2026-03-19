@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Camera, Loader2, Search } from "lucide-react";
+import { Plus, Camera, Loader2, Search, Check, Eye } from "lucide-react";
 import { useImportItems } from "@/hooks/useMediaItems";
 import { searchTmdb, TmdbResult } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [lookingUp, setLookingUp] = useState(false);
   const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
+  const [multiSelect, setMultiSelect] = useState<TmdbResult[]>([]);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
@@ -54,6 +55,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setWantToWatch(false);
     setTmdbResults([]);
     setSelectedPoster(null);
+    setMultiSelect([]);
   };
 
   const stopScanner = async () => {
@@ -137,12 +139,48 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(false);
   };
 
+  const toggleMultiSelect = (result: TmdbResult) => {
+    setMultiSelect((prev) => {
+      const exists = prev.some((r) => r.tmdb_id === result.tmdb_id && r.media_type === result.media_type);
+      if (exists) return prev.filter((r) => !(r.tmdb_id === result.tmdb_id && r.media_type === result.media_type));
+      return [...prev, result];
+    });
+  };
+
   const selectTmdbResult = (result: TmdbResult) => {
     setTitle(result.title);
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
     setTmdbResults([]);
+    setMultiSelect([]);
+  };
+
+  const handleBatchAdd = async () => {
+    if (multiSelect.length === 0 || !user) return;
+    setSaving(true);
+    try {
+      const rows = multiSelect.map((r) => ({
+        user_id: user.id,
+        title: r.title,
+        year: r.year ?? null,
+        format: null,
+        formats: [] as string[],
+        genre: r.genre ?? null,
+        poster_url: r.poster_url ?? null,
+        want_to_watch: true,
+        media_type: activeTab,
+      }));
+      const { error } = await supabase.from("media_items").insert(rows);
+      if (error) throw error;
+      toast({ title: "Added!", description: `${multiSelect.length} titles added to Want to Watch.` });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      resetForm();
+      setOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add", description: err.message, variant: "destructive" });
+    }
+    setSaving(false);
   };
 
   // Auto-set want_to_watch when no format is selected
@@ -244,26 +282,44 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
           {/* TMDB results */}
           {tmdbResults.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
-              {tmdbResults.slice(0, 8).map((r) => (
-                <button
-                  key={`${r.media_type}-${r.tmdb_id}`}
-                  onClick={() => selectTmdbResult(r)}
-                  className="relative rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
-                >
-                  {r.poster_url ? (
-                    <img src={r.poster_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
-                  ) : (
-                    <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
-                      <p className="text-[9px] text-muted-foreground p-1 text-center">{r.title}</p>
-                    </div>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1">
-                    <p className="text-[9px] font-medium text-foreground truncate">{r.title}</p>
-                    <p className="text-[8px] text-muted-foreground">{r.year}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="space-y-2">
+              <p className="text-[10px] text-muted-foreground">Tap to fill form · Long-press or right-click to multi-select for Want to Watch</p>
+              <div className="grid grid-cols-4 gap-2">
+                {tmdbResults.slice(0, 8).map((r) => {
+                  const isSelected = multiSelect.some((s) => s.tmdb_id === r.tmdb_id && s.media_type === r.media_type);
+                  return (
+                    <button
+                      key={`${r.media_type}-${r.tmdb_id}`}
+                      onClick={() => multiSelect.length > 0 ? toggleMultiSelect(r) : selectTmdbResult(r)}
+                      onContextMenu={(e) => { e.preventDefault(); toggleMultiSelect(r); }}
+                      className={`relative rounded-md overflow-hidden border-2 transition-colors ${isSelected ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary"}`}
+                    >
+                      {r.poster_url ? (
+                        <img src={r.poster_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
+                      ) : (
+                        <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
+                          <p className="text-[9px] text-muted-foreground p-1 text-center">{r.title}</p>
+                        </div>
+                      )}
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-primary-foreground" />
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1">
+                        <p className="text-[9px] font-medium text-foreground truncate">{r.title}</p>
+                        <p className="text-[8px] text-muted-foreground">{r.year}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {multiSelect.length > 0 && (
+                <Button onClick={handleBatchAdd} disabled={saving} className="w-full gap-2">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                  Add {multiSelect.length} to Want to Watch
+                </Button>
+              )}
             </div>
           )}
 
