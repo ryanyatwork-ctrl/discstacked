@@ -221,13 +221,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             </div>
 
             {/* Watch History */}
-            {item.lastWatched && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Last Watched</p>
-                <p className="text-sm text-foreground">{item.lastWatched}</p>
-                {item.watchNotes && <p className="text-sm text-muted-foreground">{item.watchNotes}</p>}
-              </div>
-            )}
+            <WatchHistory item={item} onUpdate={updateItem} />
 
             {/* Duplicate / Split */}
             <Button
