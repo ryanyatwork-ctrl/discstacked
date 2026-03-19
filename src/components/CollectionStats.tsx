@@ -108,12 +108,12 @@ export function CollectionStats({ items, isLoading, onStatsClick, activeStatusFi
       </motion.p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {cards.map((card) => {
-          const isActive = card.clickable && activeStatusFilter === card.id;
+          const isActive = card.id === "total" ? !activeStatusFilter : (card.clickable && activeStatusFilter === card.id);
           return (
             <motion.div
               key={card.label}
               variants={cardVariants}
-              onClick={card.clickable && onStatsClick ? () => onStatsClick(card.id as "plex" | "digital") : undefined}
+              onClick={card.clickable && onStatsClick ? () => onStatsClick(card.id as "plex" | "digital" | "total") : undefined}
               className={cn(
                 "relative rounded-xl p-4 border border-border/50 bg-card/40 backdrop-blur-md transition-all duration-200",
                 card.clickable && "cursor-pointer hover:bg-card/60 hover:border-primary/30",
