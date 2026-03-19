@@ -285,15 +285,30 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           {/* TMDB results */}
           {tmdbResults.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] text-muted-foreground">Tap to fill form · Long-press or right-click to multi-select for Want to Watch</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">
+                  {multiSelectMode ? "Tap to select/deselect titles" : "Tap to fill form"}
+                </p>
+                <Button
+                  variant={multiSelectMode ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 text-[10px] gap-1"
+                  onClick={() => {
+                    setMultiSelectMode(!multiSelectMode);
+                    if (multiSelectMode) setMultiSelect([]);
+                  }}
+                >
+                  <Check className="h-3 w-3" />
+                  Multi-select
+                </Button>
+              </div>
               <div className="grid grid-cols-4 gap-2">
                 {tmdbResults.slice(0, 8).map((r) => {
                   const isSelected = multiSelect.some((s) => s.tmdb_id === r.tmdb_id && s.media_type === r.media_type);
                   return (
                     <button
                       key={`${r.media_type}-${r.tmdb_id}`}
-                      onClick={() => multiSelect.length > 0 ? toggleMultiSelect(r) : selectTmdbResult(r)}
-                      onContextMenu={(e) => { e.preventDefault(); toggleMultiSelect(r); }}
+                      onClick={() => multiSelectMode ? toggleMultiSelect(r) : selectTmdbResult(r)}
                       className={`relative rounded-md overflow-hidden border-2 transition-colors ${isSelected ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary"}`}
                     >
                       {r.poster_url ? (
