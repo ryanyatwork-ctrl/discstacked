@@ -82,16 +82,20 @@ export function usePublicProfile(shareToken: string | undefined) {
   });
 }
 
-export function usePublicCollection(userId: string | undefined) {
+export function usePublicCollection(userId: string | undefined, mediaType?: string) {
   return useQuery({
-    queryKey: ["public-collection", userId],
+    queryKey: ["public-collection", userId, mediaType],
     queryFn: async () => {
       if (!userId) return null;
-      const { data, error } = await supabase
+      let query = supabase
         .from("media_items")
         .select("*")
         .eq("user_id", userId)
         .order("title");
+      if (mediaType) {
+        query = query.eq("media_type", mediaType);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
