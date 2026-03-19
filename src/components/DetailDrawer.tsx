@@ -30,6 +30,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   // Reset local overrides when item changes
   useEffect(() => {
     setLocalFlags({});
+    setLocalFormats(null);
   }, [item?.id]);
 
   useEffect(() => {
