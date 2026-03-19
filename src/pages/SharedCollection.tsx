@@ -4,6 +4,7 @@ import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
 import { MediaItem, MediaTab } from "@/lib/types";
+import { groupLetter, sortTitle } from "@/lib/utils";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 export default function SharedCollection() {
