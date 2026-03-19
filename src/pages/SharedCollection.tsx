@@ -7,11 +7,14 @@ import { ListRow } from "@/components/ListRow";
 import { MediaItem, MediaTab, FORMATS, TABS } from "@/lib/types";
 import { AlphabetRail } from "@/components/AlphabetRail";
 import { groupLetter, sortTitle, cn } from "@/lib/utils";
-import { Search, X, LayoutGrid, List } from "lucide-react";
+import { Search, X, LayoutGrid, List, Heart, Eye, ExternalLink, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 type ViewMode = "covers" | "list";
+type StatusFilter = "wishlist" | "wantToWatch" | null;
 
 export default function SharedCollection() {
   const { token } = useParams<{ token: string }>();
@@ -30,6 +33,8 @@ export default function SharedCollection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("covers");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
+  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
 
   const mediaItems = useMemo(() => {
     if (!items) return [];
@@ -62,8 +67,13 @@ export default function SharedCollection() {
         return itemFormats.some((f) => activeFormats.includes(f));
       });
     }
+    if (statusFilter === "wishlist") {
+      result = result.filter((i) => i.wishlist);
+    } else if (statusFilter === "wantToWatch") {
+      result = result.filter((i) => i.wantToWatch);
+    }
     return result.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
-  }, [mediaItems, activeFormats, searchQuery]);
+  }, [mediaItems, activeFormats, searchQuery, statusFilter]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
@@ -103,7 +113,11 @@ export default function SharedCollection() {
     setActiveFormats([]);
     setActiveLetter(null);
     setSearchQuery("");
+    setStatusFilter(null);
   }, []);
+
+  const wishlistCount = useMemo(() => mediaItems.filter((i) => i.wishlist).length, [mediaItems]);
+  const wantToWatchCount = useMemo(() => mediaItems.filter((i) => i.wantToWatch).length, [mediaItems]);
 
   if (profileLoading || itemsLoading) {
     return (
@@ -160,7 +174,7 @@ export default function SharedCollection() {
           </div>
         )}
 
-        {/* Search + format filters */}
+        {/* Search + format + status filters */}
         <div className="flex items-center gap-3 flex-wrap mt-2 max-w-5xl mx-auto">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -177,7 +191,7 @@ export default function SharedCollection() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {availableFormats.map((format) => (
               <button
                 key={format}
@@ -194,6 +208,34 @@ export default function SharedCollection() {
                 {format}
               </button>
             ))}
+            {wishlistCount > 0 && (
+              <button
+                onClick={() => setStatusFilter((prev) => prev === "wishlist" ? null : "wishlist")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 flex items-center gap-1",
+                  statusFilter === "wishlist"
+                    ? "bg-destructive text-destructive-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <Heart className="h-3 w-3" />
+                Wishlist ({wishlistCount})
+              </button>
+            )}
+            {wantToWatchCount > 0 && (
+              <button
+                onClick={() => setStatusFilter((prev) => prev === "wantToWatch" ? null : "wantToWatch")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 flex items-center gap-1",
+                  statusFilter === "wantToWatch"
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <Eye className="h-3 w-3" />
+                Want to Watch ({wantToWatchCount})
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -204,6 +246,8 @@ export default function SharedCollection() {
           {filteredItems.length} items
           {activeFormats.length > 0 && ` · Filtered`}
           {searchQuery && ` · "${searchQuery}"`}
+          {statusFilter === "wishlist" && ` · Wishlist`}
+          {statusFilter === "wantToWatch" && ` · Want to Watch`}
         </p>
         <div className="flex items-center gap-1">
           <Button
@@ -233,13 +277,13 @@ export default function SharedCollection() {
             {viewMode === "covers" ? (
               <div className="poster-grid">
                 {grouped[letter].map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={() => {}} />
+                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
                 ))}
               </div>
             ) : (
               <div className="flex flex-col">
                 {grouped[letter].map((item) => (
-                  <ListRow key={item.id} item={item} onClick={() => {}} />
+                  <ListRow key={item.id} item={item} onClick={setSelectedItem} />
                 ))}
               </div>
             )}
@@ -258,6 +302,86 @@ export default function SharedCollection() {
         onLetterClick={handleLetterClick}
         availableLetters={availableLetters}
       />
+
+      {/* Shared Detail Drawer (read-only) */}
+      <SharedDetailDrawer
+        item={selectedItem}
+        open={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
     </div>
+  );
+}
+
+function SharedDetailDrawer({ item, open, onClose }: { item: MediaItem | null; open: boolean; onClose: () => void }) {
+  if (!item) return null;
+
+  const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+  const getFormatVariant = (f: string) =>
+    f === "4K" ? "4k" as const
+    : f === "Blu-ray" ? "bluray" as const
+    : "secondary" as const;
+
+  const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-lg bg-card border-border overflow-y-auto">
+        <SheetHeader className="sr-only">
+          <SheetTitle>{item.title}</SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-6 pt-2">
+          {/* Poster */}
+          <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
+            {item.posterUrl ? (
+              <img src={item.posterUrl} alt={item.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
+                <ImageIcon className="w-12 h-12 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No cover art</p>
+              </div>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="space-y-3">
+            <h2 className="text-xl font-semibold text-foreground break-words">{item.title}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
+              {formats.map((f) => (
+                <Badge key={f} variant={getFormatVariant(f)}>{f}</Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Status badges */}
+          <div className="flex flex-wrap gap-2">
+            {item.wishlist && (
+              <Badge variant="destructive" className="gap-1">
+                <Heart className="w-3 h-3" /> Wishlist
+              </Badge>
+            )}
+            {item.wantToWatch && (
+              <Badge variant="secondary" className="gap-1">
+                <Eye className="w-3 h-3" /> Want to Watch
+              </Badge>
+            )}
+          </div>
+
+          {/* Amazon link for wishlist items */}
+          {item.wishlist && (
+            <Button
+              variant="outline"
+              className="w-full border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => window.open(amazonUrl, "_blank")}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Buy on Amazon
+            </Button>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
