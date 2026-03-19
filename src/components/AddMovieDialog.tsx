@@ -287,7 +287,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
-              <Select value={format} onValueChange={setFormat}>
+              <Select value={format || "none"} onValueChange={(v) => setFormat(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="None (watchlist only)" />
                 </SelectTrigger>
