@@ -139,12 +139,17 @@ export default function Settings() {
   };
 
   const handlePasswordChange = async () => {
-    if (newPassword.length < 6) {
-      toast({ title: "Password too short", description: "Minimum 6 characters", variant: "destructive" });
+    if (newPassword.length < 8) {
+      toast({ title: "Password too short", description: "Minimum 8 characters", variant: "destructive" });
       return;
     }
     if (newPassword !== confirmPassword) {
       toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    const allPassed = PASSWORD_RULES.every((r) => r.test(newPassword));
+    if (!allPassed) {
+      toast({ title: "Password too weak", description: "Please meet all requirements", variant: "destructive" });
       return;
     }
     setChangingPassword(true);
@@ -153,9 +158,12 @@ export default function Settings() {
       if (error) throw error;
       setNewPassword("");
       setConfirmPassword("");
-      toast({ title: "Password updated" });
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+      toast({ title: "Password updated successfully" });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("Password update error:", err);
+      toast({ title: "Error updating password", description: err.message, variant: "destructive" });
     } finally {
       setChangingPassword(false);
     }
