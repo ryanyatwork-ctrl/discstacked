@@ -3,14 +3,24 @@ import { useParams } from "react-router-dom";
 import { usePublicProfile, usePublicCollection } from "@/hooks/useProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PosterCard } from "@/components/PosterCard";
-import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
+import { MediaItem, MediaTab, FORMATS, TABS } from "@/lib/types";
 import { groupLetter, sortTitle, cn } from "@/lib/utils";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 export default function SharedCollection() {
   const { token } = useParams<{ token: string }>();
   const { data: profile, isLoading: profileLoading } = usePublicProfile(token);
-  const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id);
+
+  // Determine which tabs are shared
+  const sharedTabs = useMemo(() => {
+    if (!profile?.shared_tabs || profile.shared_tabs.length === 0) return ["movies"];
+    return profile.shared_tabs;
+  }, [profile]);
+
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const currentTab = activeTab && sharedTabs.includes(activeTab) ? activeTab : sharedTabs[0];
+
+  const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id, currentTab);
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
 
   const mediaItems = useMemo(() => {
@@ -57,18 +67,16 @@ export default function SharedCollection() {
     );
   }, []);
 
-  // Collect all unique formats across the collection
+  // Available formats for the current tab
   const availableFormats = useMemo(() => {
-    const allFormats = new Set<string>();
-    mediaItems.forEach((item) => {
-      const fmts = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
-      fmts.forEach((f) => allFormats.add(f));
-    });
-    // Return in canonical order from FORMATS.movies, then any extras
-    const ordered = FORMATS.movies.filter((f) => allFormats.has(f));
-    allFormats.forEach((f) => { if (!ordered.includes(f)) ordered.push(f); });
-    return ordered;
-  }, [mediaItems]);
+    const tabKey = currentTab as MediaTab;
+    return FORMATS[tabKey] || [];
+  }, [currentTab]);
+
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setActiveFormats([]);
+  }, []);
 
   if (profileLoading || itemsLoading) {
     return (
@@ -88,6 +96,7 @@ export default function SharedCollection() {
 
   const name = profile.display_name || "Someone";
   const initials = name.slice(0, 2).toUpperCase();
+  const visibleTabs = TABS.filter((t) => sharedTabs.includes(t.id));
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,6 +111,28 @@ export default function SharedCollection() {
             <span className="text-sm font-medium text-foreground">{name}'s Collection</span>
           </div>
         </div>
+
+        {/* Tab switcher - only show if more than one shared tab */}
+        {visibleTabs.length > 1 && (
+          <div className="flex items-center gap-1 mt-2 max-w-5xl mx-auto overflow-x-auto">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 whitespace-nowrap flex items-center gap-1.5",
+                  currentTab === tab.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Format filter toggles */}
         {availableFormats.length > 0 && (
           <div className="flex items-center gap-1.5 mt-2 max-w-5xl mx-auto">
