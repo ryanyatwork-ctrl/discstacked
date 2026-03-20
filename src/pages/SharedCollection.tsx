@@ -73,7 +73,7 @@ export default function SharedCollection() {
     } else if (statusFilter === "wantToWatch") {
       result = result.filter((i) => i.wantToWatch);
     }
-    return result.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
+    return result.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
   }, [mediaItems, activeFormats, searchQuery, statusFilter]);
 
   const grouped = useMemo(() => {
