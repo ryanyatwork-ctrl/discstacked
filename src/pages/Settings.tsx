@@ -363,6 +363,18 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* Data Tools */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Disc className="h-4 w-4" />
+            Data Tools
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Auto-populate disc entries from your imported data. This uses your existing format and disc count information to create individual disc records without re-importing.
+          </p>
+          <BackfillDiscsButton userId={user.id} />
+        </section>
+
         {/* Sign Out */}
         <section>
           <Button
