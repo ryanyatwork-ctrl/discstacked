@@ -375,7 +375,7 @@ export default function Settings() {
           <BackfillDiscsButton userId={user.id} />
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">
-              Re-fetch metadata from TMDB for your existing collection. This updates runtime, tagline, synopsis, genre, cast, and crew for all items.
+              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Books use Google Books/Open Library; Games use IGDB/RAWG.
             </p>
             <BackfillTmdbButton userId={user.id} />
           </div>
