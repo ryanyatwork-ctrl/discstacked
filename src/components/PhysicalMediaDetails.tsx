@@ -81,7 +81,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status;
+  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status || meta.distributor || meta.region || meta.disc_layers;
 
   if (!editing && !hasAnyData) {
     return (
