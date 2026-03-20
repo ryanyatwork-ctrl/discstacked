@@ -19,6 +19,9 @@ interface DetailDrawerProps {
   open: boolean;
   onClose: () => void;
   onDuplicated?: () => void;
+  /** Full sorted list for prev/next navigation */
+  itemList?: MediaItem[];
+  onNavigate?: (item: MediaItem) => void;
 }
 
 export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawerProps) {
