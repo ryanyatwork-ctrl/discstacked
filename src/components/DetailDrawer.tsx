@@ -22,9 +22,12 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [editingYear, setEditingYear] = useState(false);
+  const [yearDraft, setYearDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const yearInputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
   const duplicateItem = useDuplicateItem();
 
