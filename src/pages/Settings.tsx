@@ -373,6 +373,12 @@ export default function Settings() {
             Auto-populate disc entries from your imported data. This uses your existing format and disc count information to create individual disc records without re-importing.
           </p>
           <BackfillDiscsButton userId={user.id} />
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Re-fetch metadata from TMDB for your existing collection. This updates runtime, tagline, synopsis, genre, cast, and crew for all items.
+            </p>
+            <BackfillTmdbButton userId={user.id} />
+          </div>
         </section>
 
         {/* Sign Out */}
