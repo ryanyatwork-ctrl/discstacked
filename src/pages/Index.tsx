@@ -114,7 +114,7 @@ export default function Index() {
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title);
+      const key = groupLetter(item.title, item.sortTitle);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
