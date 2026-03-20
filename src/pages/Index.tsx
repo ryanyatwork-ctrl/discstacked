@@ -280,7 +280,7 @@ export default function Index() {
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Loading..." : `${filteredItems.length} items`}
-          {activeFormats.length > 0 && ` · Filtered`}
+          {(activeFormats.length > 0 || activeTags.length > 0) && ` · Filtered`}
           {!user && " · Demo mode"}
         </p>
         <div className="flex items-center gap-1">
