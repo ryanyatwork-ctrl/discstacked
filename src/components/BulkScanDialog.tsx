@@ -114,12 +114,46 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             osc.stop(ctx.currentTime + 0.1);
           } catch {}
 
+          // Check if already in collection
+          let alreadyOwned = false;
+          let existingTitle: string | undefined;
+          if (user) {
+            const { data: existing } = await supabase
+              .from("media_items")
+              .select("title")
+              .eq("user_id", user.id)
+              .eq("barcode", decoded)
+              .limit(1);
+            if (existing && existing.length > 0) {
+              alreadyOwned = true;
+              existingTitle = existing[0].title;
+              // Play a different warning tone
+              try {
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 400;
+                gain.gain.value = 0.15;
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+              } catch {}
+            }
+          }
+
           // Lookup in background
           const result = await lookupBarcode(decoded);
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
-                ? { ...item, ...result }
+                ? {
+                    ...item,
+                    ...result,
+                    alreadyOwned,
+                    existingTitle: existingTitle || result.title,
+                    selected: !alreadyOwned, // deselect by default if already owned
+                  }
                 : item
             )
           );
