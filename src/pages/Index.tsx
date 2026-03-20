@@ -156,8 +156,15 @@ export default function Index() {
     setActiveTab(tab);
     setSearchQuery("");
     setActiveFormats([]);
+    setActiveTags([]);
     setStatusFilter(null);
     setActiveLetter(null);
+  }, []);
+
+  const handleTagToggle = useCallback((tag: string) => {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   }, []);
 
   const handleStatsClick = useCallback((type: "plex" | "digital" | "total") => {
