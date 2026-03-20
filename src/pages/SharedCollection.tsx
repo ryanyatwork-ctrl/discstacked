@@ -79,7 +79,7 @@ export default function SharedCollection() {
   const grouped = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title);
+      const key = groupLetter(item.title, item.sortTitle);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
