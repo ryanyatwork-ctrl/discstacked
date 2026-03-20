@@ -33,7 +33,7 @@ type MetadataFields = {
 };
 
 function getMetadata(item: MediaItem): MetadataFields {
-  const raw = (item as any).metadata;
+  const raw = item.metadata;
   if (!raw || typeof raw !== "object") return {};
   return raw as MetadataFields;
 }
