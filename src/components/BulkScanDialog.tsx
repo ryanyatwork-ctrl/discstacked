@@ -3,12 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
 
 interface ScanQueueItem {
   barcode: string;
@@ -19,27 +21,44 @@ interface ScanQueueItem {
   posterUrl?: string | null;
   runtime?: number | null;
   tagline?: string | null;
+  artist?: string | null;
+  author?: string | null;
   format: string;
   selected: boolean;
   alreadyOwned?: boolean;
   existingTitle?: string;
+  extraMeta?: Record<string, any>;
 }
 
 interface BulkScanDialogProps {
   activeTab: MediaTab;
 }
 
+const TAB_LABELS: Record<MediaTab, string> = {
+  movies: "Bulk Barcode Scan",
+  "music-films": "Bulk Barcode Scan",
+  cds: "Bulk Barcode Scan — Music",
+  books: "Bulk ISBN Scan — Books",
+  games: "Bulk Scan — Games",
+};
+
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [defaultFormat, setDefaultFormat] = useState("Blu-ray");
+  const [defaultFormat, setDefaultFormat] = useState(FORMATS[activeTab]?.[0] || "");
+  const [manualBarcode, setManualBarcode] = useState("");
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const processedBarcodesRef = useRef(new Set<string>());
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Reset default format when tab changes
+  useEffect(() => {
+    setDefaultFormat(FORMATS[activeTab]?.[0] || "");
+  }, [activeTab]);
 
   const stopScanner = async () => {
     if (html5QrCodeRef.current) {
@@ -52,21 +71,48 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setScanning(false);
   };
 
-  const lookupBarcode = async (barcode: string) => {
+  const doLookup = async (barcode: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-        body: { barcode },
-      });
-      if (error) throw error;
-      if (data?.title) {
+      const result = await unifiedLookupBarcode(activeTab, barcode);
+      if (result.direct) {
         return {
           status: "found" as const,
-          title: data.title,
-          year: data.year,
-          genre: data.genre,
-          posterUrl: data.poster_url,
-          runtime: data.runtime,
-          tagline: data.tagline,
+          title: result.direct.title,
+          year: result.direct.year,
+          genre: result.direct.genre,
+          posterUrl: result.direct.cover_url,
+          runtime: result.direct.runtime,
+          tagline: result.direct.tagline,
+          artist: result.direct.artist,
+          author: result.direct.author,
+          extraMeta: {
+            ...(result.direct.overview ? { overview: result.direct.overview } : {}),
+            ...(result.direct.cast ? { cast: result.direct.cast } : {}),
+            ...(result.direct.crew ? { crew: result.direct.crew } : {}),
+            ...(result.direct.label ? { label: result.direct.label } : {}),
+            ...(result.direct.tracklist ? { tracklist: result.direct.tracklist } : {}),
+            ...(result.direct.page_count ? { page_count: result.direct.page_count } : {}),
+            ...(result.direct.publisher ? { publisher: result.direct.publisher } : {}),
+            ...(result.direct.isbn ? { isbn: result.direct.isbn } : {}),
+            ...(result.direct.platforms ? { platforms: result.direct.platforms } : {}),
+            ...(result.direct.developer ? { developer: result.direct.developer } : {}),
+            ...(result.direct.source ? { source: result.direct.source } : {}),
+          },
+        };
+      }
+      if (result.results && result.results.length > 0) {
+        const top = result.results[0];
+        return {
+          status: "found" as const,
+          title: top.title,
+          year: top.year,
+          genre: top.genre,
+          posterUrl: top.cover_url,
+          runtime: top.runtime,
+          tagline: top.tagline,
+          artist: top.artist,
+          author: top.author,
+          extraMeta: {},
         };
       }
       return { status: "not_found" as const };
