@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, X, Disc, Package, HardDrive, Shield } from "lucide-react";
-
+import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];
 const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Poor"];
 const DIGITAL_CODE_STATUSES = ["Not Included", "Included (Unused)", "Redeemed", "Expired"];
@@ -21,8 +21,7 @@ interface PhysicalMediaDetailsProps {
 type MetadataFields = {
   edition?: string;
   case_type?: string;
-  disc_contents?: string;
-  missing_discs?: string;
+  discs?: DiscEntry[];
   condition?: string;
   slipcover?: string;
   digital_code_status?: string;
@@ -54,11 +53,20 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     try {
       const currentMeta = (item as any).metadata || {};
       const merged = { ...currentMeta, ...draft };
-      // Clean empty strings
+      // Clean empty strings (but keep arrays)
       Object.keys(merged).forEach((k) => {
         if (merged[k] === "" || merged[k] === undefined) delete merged[k];
       });
-      await updateItem.mutateAsync({ id: item.id, metadata: merged } as any);
+      // Derive formats from discs
+      const updatePayload: any = { id: item.id, metadata: merged };
+      if (draft.discs && draft.discs.length > 0) {
+        const discFormats = [...new Set(draft.discs.filter(d => !d.missing).map(d => d.format))];
+        if (discFormats.length > 0) {
+          updatePayload.formats = discFormats;
+          updatePayload.format = discFormats[0];
+        }
+      }
+      await updateItem.mutateAsync(updatePayload);
       toast({ title: "Details saved!" });
       setEditing(false);
     } catch {
@@ -70,7 +78,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const hasAnyData = meta.edition || meta.case_type || meta.disc_contents || meta.condition || meta.rip_status;
+  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status;
 
   if (!editing && !hasAnyData) {
     return (
@@ -105,8 +113,11 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
               <ConditionBadge condition={meta.condition} />
             </DetailRow>
           )}
-          {meta.disc_contents && <DetailRow label="Disc Contents" value={meta.disc_contents} fullWidth />}
-          {meta.missing_discs && <DetailRow label="Missing Discs" value={meta.missing_discs} fullWidth warn />}
+          {meta.discs && meta.discs.length > 0 && (
+            <div className="col-span-2">
+              <DiscEditor discs={meta.discs} onChange={() => {}} readOnly />
+            </div>
+          )}
           {meta.digital_code_status && meta.digital_code_status !== "Not Included" && (
             <DetailRow
               label="Digital Code"
@@ -200,25 +211,11 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Select>
         </Field>
 
-        {/* Disc Contents */}
-        <Field label="Disc Contents">
-          <Input
-            value={d.disc_contents || ""}
-            onChange={(e) => updateField("disc_contents", e.target.value)}
-            placeholder="e.g. BD+DVD+Digital, 2×BD, BD only…"
-            className="h-8 text-sm"
-          />
-        </Field>
-
-        {/* Missing Discs */}
-        <Field label="Missing Discs">
-          <Input
-            value={d.missing_discs || ""}
-            onChange={(e) => updateField("missing_discs", e.target.value)}
-            placeholder="e.g. DVD disc missing"
-            className="h-8 text-sm"
-          />
-        </Field>
+        {/* Discs */}
+        <DiscEditor
+          discs={d.discs || []}
+          onChange={(discs) => setDraft((prev) => ({ ...prev, discs }))}
+        />
 
         {/* Digital Code */}
         <Field label="Digital Code">
