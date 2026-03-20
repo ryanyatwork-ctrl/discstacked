@@ -64,6 +64,7 @@ export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>(() => getStored("ds-default-tab", "movies"));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"plex" | "digital" | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
