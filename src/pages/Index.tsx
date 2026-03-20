@@ -16,6 +16,7 @@ import { WelcomeSection } from "@/components/WelcomeSection";
 import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
+import { BulkScanDialog } from "@/components/BulkScanDialog";
 import { FetchArtworkButton } from "@/components/FetchArtworkButton";
 import { Users, LogIn, LogOut, LayoutGrid, List, Pin, PinOff } from "lucide-react";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
