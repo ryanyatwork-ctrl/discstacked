@@ -33,6 +33,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const yearInputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
   const duplicateItem = useDuplicateItem();
+  const deleteItem = useDeleteItem();
 
   // Reset local overrides when item changes
   useEffect(() => {
