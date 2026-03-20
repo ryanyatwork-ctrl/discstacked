@@ -21,6 +21,8 @@ interface ScanQueueItem {
   tagline?: string | null;
   format: string;
   selected: boolean;
+  alreadyOwned?: boolean;
+  existingTitle?: string;
 }
 
 interface BulkScanDialogProps {
