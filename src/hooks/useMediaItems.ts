@@ -129,3 +129,20 @@ export function useDuplicateItem() {
     },
   });
 }
+
+export function useDeleteItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("media_items")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+    },
+  });
+}
