@@ -233,6 +233,44 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     );
   };
 
+  // Manual barcode entry
+  const handleManualAdd = async () => {
+    const code = manualBarcode.trim();
+    if (!code || processedBarcodesRef.current.has(code)) return;
+    processedBarcodesRef.current.add(code);
+    setManualBarcode("");
+
+    const newItem: ScanQueueItem = {
+      barcode: code,
+      status: "looking",
+      format: defaultFormat,
+      selected: true,
+    };
+    setQueue((prev) => [newItem, ...prev]);
+
+    // Check existing
+    let alreadyOwned = false;
+    let existingTitle: string | undefined;
+    if (user) {
+      const { data: existing } = await supabase
+        .from("media_items").select("title")
+        .eq("user_id", user.id).eq("barcode", code).limit(1);
+      if (existing && existing.length > 0) {
+        alreadyOwned = true;
+        existingTitle = existing[0].title;
+      }
+    }
+
+    const result = await doLookup(code);
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.barcode === code
+          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || result.title, selected: !alreadyOwned }
+          : item
+      )
+    );
+  };
+
   const handleCommit = async () => {
     const selected = queue.filter((item) => item.selected && item.status === "found" && item.title);
     if (selected.length === 0 || !user) return;
@@ -251,6 +289,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         metadata: {
           ...(item.runtime ? { runtime: item.runtime } : {}),
           ...(item.tagline ? { tagline: item.tagline } : {}),
+          ...(item.artist ? { artist: item.artist } : {}),
+          ...(item.author ? { author: item.author } : {}),
+          ...(item.extraMeta || {}),
         },
       }));
 
