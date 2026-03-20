@@ -337,13 +337,131 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
 
+            {/* TMDB Metadata (genre, runtime, tagline) */}
+            <TmdbMetadata item={item} />
+
+            {/* Tags */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Tag className="w-3 h-3" /> Tags
+              </p>
+              {editingTags ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={tagsDraft}
+                    onChange={(e) => setTagsDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const tags = tagsDraft.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean);
+                        const currentMeta = (item as any).metadata || {};
+                        updateItem.mutateAsync({ id: item.id, metadata: { ...currentMeta, tags } } as any)
+                          .then(() => toast({ title: "Tags saved!" }))
+                          .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                        setEditingTags(false);
+                      }
+                      if (e.key === "Escape") setEditingTags(false);
+                    }}
+                    className="h-8 text-sm"
+                    placeholder="#marvel, #pixar, #romcom"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                    const tags = tagsDraft.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean);
+                    const currentMeta = (item as any).metadata || {};
+                    updateItem.mutateAsync({ id: item.id, metadata: { ...currentMeta, tags } } as any)
+                      .then(() => toast({ title: "Tags saved!" }))
+                      .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                    setEditingTags(false);
+                  }}>
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingTags(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 flex-wrap group/tags">
+                  {((item.metadata as any)?.tags as string[] || []).length > 0 ? (
+                    <>
+                      {((item.metadata as any).tags as string[]).map((tag: string) => (
+                        <Badge key={tag} variant="secondary" className="text-[10px]">#{tag}</Badge>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No tags</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/tags:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => {
+                      const existingTags = ((item.metadata as any)?.tags as string[]) || [];
+                      setTagsDraft(existingTags.map(t => `#${t}`).join(", "));
+                      setEditingTags(true);
+                    }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             {/* Barcode */}
-            {item.barcode && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">UPC / Barcode</p>
-                <p className="text-sm text-foreground font-mono">{item.barcode}</p>
-              </div>
-            )}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Barcode className="w-3 h-3" /> UPC / Barcode
+              </p>
+              {editingBarcode ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={barcodeDraft}
+                    onChange={(e) => setBarcodeDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const trimmed = barcodeDraft.trim();
+                        updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                          .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                          .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                        setEditingBarcode(false);
+                      }
+                      if (e.key === "Escape") setEditingBarcode(false);
+                    }}
+                    className="h-8 text-sm font-mono"
+                    placeholder="Enter UPC/barcode…"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                    const trimmed = barcodeDraft.trim();
+                    updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                      .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                      .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                    setEditingBarcode(false);
+                  }}>
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingBarcode(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/barcode">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-mono"
+                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
+                  >
+                    {item.barcode || "Add barcode"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/barcode:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
 
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
