@@ -229,41 +229,8 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
             </div>
           )}
 
-          {/* Box set sources */}
-          {(boxSets.length > 0 || (isBoxSet && contents.length > 0)) && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-                <Package className="w-3 h-3" /> Physical Copies
-              </p>
-              {boxSets.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
-                    <Package className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="text-xs text-foreground">Standalone copy</span>
-                  </div>
-                  {boxSets.map((bs, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
-                      <Package className="w-4 h-4 text-primary shrink-0" />
-                      <div className="min-w-0">
-                        <span className="text-xs text-foreground block truncate">Part of: {bs.title}</span>
-                        <span className="text-[10px] text-muted-foreground">{bs.format}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isBoxSet && contents.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Contains {contents.length} titles:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {contents.map((c, i) => (
-                      <Badge key={i} variant="secondary" className="text-[10px]">{c}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Collection / Box Set info */}
+          <CollectionEditor item={item} readOnly />
 
           {/* Notes */}
           {item.notes && (
