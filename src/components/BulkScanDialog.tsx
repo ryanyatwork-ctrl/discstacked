@@ -295,7 +295,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                   <div
                     key={item.barcode}
                     className={`flex items-center gap-2 p-2 rounded-md border transition-colors ${
-                      item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+                      item.alreadyOwned && !item.selected
+                        ? "border-warning/40 bg-warning/5"
+                        : item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-card"
                     }`}
                   >
                     {/* Poster thumbnail */}
@@ -325,6 +327,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                           <p className="text-[10px] text-muted-foreground">
                             {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
                           </p>
+                          {item.alreadyOwned && (
+                            <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
+                              <Copy className="w-3 h-3" />
+                              Already in collection{item.existingTitle ? ` as "${item.existingTitle}"` : ""}
+                              {!item.selected && " — tap ✓ to add anyway"}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
