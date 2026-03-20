@@ -305,13 +305,6 @@ export default function Index() {
         )}
       </main>
 
-      {/* A-Z Rail */}
-      <AlphabetRail
-        activeLetter={activeLetter}
-        onLetterClick={handleLetterClick}
-        availableLetters={availableLetters}
-      />
-
       {/* Mobile Bottom Tab Bar */}
       <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
