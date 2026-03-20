@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -363,6 +363,18 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* Data Tools */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Disc className="h-4 w-4" />
+            Data Tools
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Auto-populate disc entries from your imported data. This uses your existing format and disc count information to create individual disc records without re-importing.
+          </p>
+          <BackfillDiscsButton userId={user.id} />
+        </section>
+
         {/* Sign Out */}
         <section>
           <Button
@@ -377,6 +389,109 @@ export default function Settings() {
           </Button>
         </section>
       </div>
+    </div>
+  );
+}
+
+function BackfillDiscsButton({ userId }: { userId: string }) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+
+  const handleBackfill = async () => {
+    setRunning(true);
+    setProgress("Fetching collection...");
+    try {
+      // Fetch all items for this user
+      let allItems: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("media_items")
+          .select("id, formats, metadata")
+          .eq("user_id", userId)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allItems = allItems.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Filter to items that have formats but no discs in metadata
+      const candidates = allItems.filter((item) => {
+        const meta = item.metadata || {};
+        const hasDiscs = meta.discs && Array.isArray(meta.discs) && meta.discs.length > 0;
+        const hasFormats = item.formats && item.formats.length > 0;
+        return hasFormats && !hasDiscs;
+      });
+
+      setProgress(`Found ${candidates.length} items to backfill...`);
+
+      let updated = 0;
+      for (let i = 0; i < candidates.length; i += 50) {
+        const batch = candidates.slice(i, i + 50);
+        const updates = batch.map((item) => {
+          const meta = item.metadata || {};
+          const discCount = parseInt(meta.disc_count || "0", 10) || item.formats.length;
+          const formats: string[] = item.formats;
+
+          // Create disc entries from formats
+          const discs: { label: string; format: string; missing: boolean }[] = [];
+          for (let d = 0; d < Math.max(discCount, formats.length); d++) {
+            const fmt = formats[d] || formats[0] || "Blu-ray";
+            discs.push({
+              label: discCount > 1 ? `Disc ${d + 1}` : "Main Disc",
+              format: fmt,
+              missing: false,
+            });
+          }
+
+          return {
+            id: item.id,
+            metadata: { ...meta, discs },
+          };
+        });
+
+        for (const upd of updates) {
+          const { error } = await supabase
+            .from("media_items")
+            .update({ metadata: upd.metadata })
+            .eq("id", upd.id);
+          if (error) console.error("Backfill error:", error);
+          else updated++;
+        }
+        setProgress(`Updated ${Math.min(i + 50, candidates.length)} of ${candidates.length}...`);
+      }
+
+      toast({
+        title: "Backfill complete!",
+        description: `Auto-populated disc entries for ${updated} items.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Backfill failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2"
+        onClick={handleBackfill}
+        disabled={running}
+      >
+        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Disc className="h-4 w-4" />}
+        {running ? "Backfilling..." : "Auto-Populate Disc Entries"}
+      </Button>
+      {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Only affects items that don't already have disc entries. Won't overwrite any manual edits you've made.
+      </p>
     </div>
   );
 }
