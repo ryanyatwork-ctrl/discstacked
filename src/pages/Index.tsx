@@ -86,6 +86,15 @@ export default function Index() {
     return generateMockData(activeTab);
   }, [activeTab, user, dbItems]);
 
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    allItems.forEach((item) => {
+      const tags = (item.metadata as any)?.tags as string[] | undefined;
+      if (tags) tags.forEach((t) => tagSet.add(t));
+    });
+    return [...tagSet].sort();
+  }, [allItems]);
+
   const filteredItems = useMemo(() => {
     let items = allItems;
     if (searchQuery) {
@@ -98,13 +107,20 @@ export default function Index() {
         return itemFormats.some((format) => activeFormats.includes(format));
       });
     }
+    if (activeTags.length > 0) {
+      items = items.filter((i) => {
+        const tags = (i.metadata as any)?.tags as string[] | undefined;
+        if (!tags) return false;
+        return activeTags.every((t) => tags.includes(t));
+      });
+    }
     if (statusFilter === "plex") {
       items = items.filter((i) => i.inPlex);
     } else if (statusFilter === "digital") {
       items = items.filter((i) => i.digitalCopy);
     }
     return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
-  }, [allItems, searchQuery, activeFormats, statusFilter]);
+  }, [allItems, searchQuery, activeFormats, activeTags, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
