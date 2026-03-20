@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2 } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -373,6 +373,12 @@ export default function Settings() {
             Auto-populate disc entries from your imported data. This uses your existing format and disc count information to create individual disc records without re-importing.
           </p>
           <BackfillDiscsButton userId={user.id} />
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Re-fetch metadata from TMDB for your existing collection. This updates runtime, tagline, synopsis, genre, cast, and crew for all items.
+            </p>
+            <BackfillTmdbButton userId={user.id} />
+          </div>
         </section>
 
         {/* Sign Out */}
@@ -491,6 +497,124 @@ function BackfillDiscsButton({ userId }: { userId: string }) {
       {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
       <p className="text-[11px] text-muted-foreground">
         Only affects items that don't already have disc entries. Won't overwrite any manual edits you've made.
+      </p>
+    </div>
+  );
+}
+
+function BackfillTmdbButton({ userId }: { userId: string }) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+
+  const handleBackfill = async () => {
+    setRunning(true);
+    setProgress("Fetching collection...");
+    try {
+      let allItems: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("media_items")
+          .select("id, title, year, genre, metadata")
+          .eq("user_id", userId)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allItems = allItems.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Filter to items missing cast/crew or runtime
+      const candidates = allItems.filter((item) => {
+        const meta = item.metadata || {};
+        return !meta.cast || !meta.crew || !meta.runtime;
+      });
+
+      setProgress(`Found ${candidates.length} items to update...`);
+      let updated = 0;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const item = candidates[i];
+        try {
+          // Search TMDB for match
+          const searchType = "movie";
+          const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
+            body: { query: item.title, year: item.year, search_type: searchType },
+          });
+          if (error) throw error;
+
+          const results = data?.results || [];
+          if (results.length === 0) {
+            setProgress(`${i + 1}/${candidates.length} — no match for "${item.title}"`);
+            continue;
+          }
+
+          // Get full details for top result
+          const topResult = results[0];
+          const { data: details, error: detErr } = await supabase.functions.invoke("tmdb-lookup", {
+            body: { tmdb_id: topResult.tmdb_id, search_type: topResult.media_type || searchType },
+          });
+          if (detErr || !details) continue;
+
+          const currentMeta = item.metadata || {};
+          const updatedMeta = {
+            ...currentMeta,
+            runtime: details.runtime || currentMeta.runtime,
+            tagline: details.tagline || currentMeta.tagline,
+            overview: details.overview || currentMeta.overview,
+            cast: details.cast || currentMeta.cast,
+            crew: details.crew || currentMeta.crew,
+          };
+
+          const updatePayload: any = { metadata: updatedMeta };
+          if (details.genre && !item.genre) updatePayload.genre = details.genre;
+
+          const { error: updErr } = await supabase
+            .from("media_items")
+            .update(updatePayload)
+            .eq("id", item.id);
+          if (!updErr) updated++;
+        } catch {
+          // Skip failed lookups
+        }
+
+        setProgress(`${i + 1}/${candidates.length} — updated ${updated} items`);
+
+        // Rate limit
+        if (i < candidates.length - 1) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+
+      toast({
+        title: "TMDB backfill complete!",
+        description: `Updated cast, crew, and metadata for ${updated} items.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Backfill failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2"
+        onClick={handleBackfill}
+        disabled={running}
+      >
+        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+        {running ? "Fetching TMDB data..." : "Re-fetch TMDB Metadata"}
+      </Button>
+      {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Updates runtime, synopsis, cast, crew, and genre. Only fills in missing data — won't overwrite existing values.
       </p>
     </div>
   );
