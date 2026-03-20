@@ -265,7 +265,7 @@ export default function Index() {
       </div>
 
       {/* Grid / List */}
-      <main className="px-4 pb-8 pr-8" ref={gridRef}>
+      <main className="px-4 pb-8" ref={gridRef}>
         {sortedLetters.map((letter) => (
           <div key={letter} id={`letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 sticky top-[120px] bg-background/95 backdrop-blur-sm py-1 z-10">
