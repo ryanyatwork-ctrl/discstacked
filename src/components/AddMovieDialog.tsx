@@ -173,7 +173,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
-    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline });
+    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline, overview: result.overview, cast: result.cast, crew: result.crew });
     setTmdbResults([]);
     setMultiSelect([]);
   };
