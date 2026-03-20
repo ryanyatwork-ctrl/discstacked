@@ -270,7 +270,51 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               )}
             </div>
 
-            {/* Format Editor */}
+            {/* Sort Title */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <ArrowDownAZ className="w-3 h-3" /> Sort As
+              </p>
+              {editingSortTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={sortTitleDraft}
+                    onChange={(e) => setSortTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveSortTitle();
+                      if (e.key === "Escape") setEditingSortTitle(false);
+                    }}
+                    className="h-8 text-sm"
+                    placeholder="e.g. Allegiant"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={handleSaveSortTitle}>
+                    <Check className="w-4 h-4 text-green-500" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingSortTitle(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/sort">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => { setSortTitleDraft(item.sortTitle || ""); setEditingSortTitle(true); }}
+                  >
+                    {item.sortTitle || "Same as title"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/sort:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setSortTitleDraft(item.sortTitle || ""); setEditingSortTitle(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <FormatEditor
               formats={formats}
               mediaType={mediaType}
