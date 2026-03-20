@@ -29,6 +29,9 @@ type MetadataFields = {
   rip_status?: string;
   rip_notes?: string;
   physical_notes?: string;
+  distributor?: string;
+  region?: string;
+  disc_layers?: string;
 };
 
 function getMetadata(item: MediaItem): MetadataFields {
