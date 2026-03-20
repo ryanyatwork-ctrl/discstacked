@@ -201,6 +201,7 @@ export default function Index() {
             {user ? (
               <>
                 <AddMovieDialog activeTab={activeTab} />
+                <BulkScanDialog activeTab={activeTab} />
                 <FetchArtworkButton items={dbItems ?? []} />
                 <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
