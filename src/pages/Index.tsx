@@ -155,7 +155,11 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+      <header
+        className={`sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border transition-transform duration-300 ${
+          headerVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 min-w-0">
             <MobileMenu
@@ -191,6 +195,15 @@ export default function Index() {
                   onClick={() => signOut()}
                 >
                   <LogOut className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
+                  onClick={toggleHeaderPin}
+                  title={headerPinned ? "Unpin header" : "Pin header"}
+                >
+                  {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
                 </Button>
               </>
             ) : (
