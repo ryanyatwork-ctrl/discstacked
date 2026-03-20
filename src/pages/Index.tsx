@@ -70,6 +70,7 @@ export default function Index() {
 
   const { user, signOut } = useAuth();
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
+  const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader();
 
   const allItems = useMemo(() => {
     if (user && dbItems && dbItems.length > 0) {
