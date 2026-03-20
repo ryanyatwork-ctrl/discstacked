@@ -764,7 +764,26 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   const crew = meta.crew as { director?: string[]; writer?: string[]; producer?: string[] } | undefined;
   const overview = meta.overview as string | undefined;
 
-  if (!genre && !runtime && !tagline && !cast?.length && !crew) return null;
+  // Music-specific
+  const artist = meta.artist as string | undefined;
+  const label = meta.label as string | undefined;
+  const tracklist = meta.tracklist as { position: string; title: string; duration?: string }[] | undefined;
+
+  // Book-specific
+  const author = meta.author as string | undefined;
+  const pageCount = meta.page_count as number | undefined;
+  const publisher = meta.publisher as string | undefined;
+  const isbn = meta.isbn as string | undefined;
+
+  // Game-specific
+  const platforms = meta.platforms as string[] | undefined;
+  const developer = meta.developer as string | undefined;
+
+  const hasAny = genre || runtime || tagline || cast?.length || crew || overview
+    || artist || label || tracklist?.length || author || pageCount || publisher
+    || platforms?.length || developer;
+
+  if (!hasAny) return null;
 
   const formatRuntime = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -774,6 +793,16 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
 
   return (
     <div className="space-y-3">
+      {/* Artist / Author */}
+      {(artist || author) && (
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+            {author ? "Author" : "Artist"}
+          </p>
+          <p className="text-sm text-foreground">{author || artist}</p>
+        </div>
+      )}
+
       {genre && (
         <div className="flex items-center gap-2 flex-wrap">
           {genre.split(",").map((g) => (
@@ -781,18 +810,48 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
         {runtime && (
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" /> {formatRuntime(runtime)}
           </span>
         )}
+        {pageCount && <span>{pageCount} pages</span>}
+        {publisher && <span>Published by {publisher}</span>}
+        {label && <span>Label: {label}</span>}
+        {developer && <span>Developer: {developer}</span>}
+        {isbn && <span className="font-mono text-xs">ISBN: {isbn}</span>}
       </div>
+
+      {/* Platforms (games) */}
+      {platforms && platforms.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {platforms.map((p) => (
+            <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+          ))}
+        </div>
+      )}
+
       {tagline && (
         <p className="text-xs text-muted-foreground italic">"{tagline}"</p>
       )}
       {overview && (
         <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{overview}</p>
+      )}
+
+      {/* Tracklist (music) */}
+      {tracklist && tracklist.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Tracklist</p>
+          <div className="text-xs max-h-32 overflow-y-auto space-y-0.5">
+            {tracklist.map((t, i) => (
+              <div key={i} className="flex items-center justify-between text-muted-foreground">
+                <span><span className="text-foreground">{t.position || i + 1}.</span> {t.title}</span>
+                {t.duration && <span className="tabular-nums">{t.duration}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Cast */}

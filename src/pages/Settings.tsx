@@ -375,7 +375,7 @@ export default function Settings() {
           <BackfillDiscsButton userId={user.id} />
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">
-              Re-fetch metadata from TMDB for your existing collection. This updates runtime, tagline, synopsis, genre, cast, and crew for all items.
+              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Books use Google Books/Open Library; Games use IGDB/RAWG.
             </p>
             <BackfillTmdbButton userId={user.id} />
           </div>
@@ -516,7 +516,7 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
       while (true) {
         const { data, error } = await supabase
           .from("media_items")
-          .select("id, title, year, genre, metadata")
+          .select("id, title, year, genre, metadata, media_type")
           .eq("user_id", userId)
           .range(from, from + PAGE - 1);
         if (error) throw error;
@@ -526,10 +526,17 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
         from += PAGE;
       }
 
-      // Filter to items missing cast/crew or runtime
+      // Filter to items missing enriched metadata
       const candidates = allItems.filter((item) => {
         const meta = item.metadata || {};
-        return !meta.cast || !meta.crew || !meta.runtime;
+        const type = item.media_type;
+        if (type === "movies" || type === "music-films") {
+          return !meta.cast || !meta.crew || !meta.runtime;
+        }
+        if (type === "cds") return !meta.artist && !meta.tracklist;
+        if (type === "books") return !meta.author && !meta.page_count;
+        if (type === "games") return !meta.developer && !meta.platforms;
+        return false;
       });
 
       setProgress(`Found ${candidates.length} items to update...`);
@@ -537,12 +544,28 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
 
       for (let i = 0; i < candidates.length; i++) {
         const item = candidates[i];
+        const type = item.media_type;
         try {
-          // Search TMDB for match
-          const searchType = "movie";
-          const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-            body: { query: item.title, year: item.year, search_type: searchType },
-          });
+          let lookupFn: string;
+          let body: Record<string, any>;
+
+          if (type === "movies" || type === "music-films") {
+            lookupFn = "tmdb-lookup";
+            body = { query: item.title, year: item.year, search_type: "movie" };
+          } else if (type === "cds") {
+            lookupFn = "music-lookup";
+            body = { query: item.title };
+          } else if (type === "books") {
+            lookupFn = "book-lookup";
+            body = { query: item.title };
+          } else if (type === "games") {
+            lookupFn = "game-lookup";
+            body = { query: item.title };
+          } else {
+            continue;
+          }
+
+          const { data, error } = await supabase.functions.invoke(lookupFn, { body });
           if (error) throw error;
 
           const results = data?.results || [];
@@ -551,26 +574,63 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
             continue;
           }
 
-          // Get full details for top result
-          const topResult = results[0];
-          const { data: details, error: detErr } = await supabase.functions.invoke("tmdb-lookup", {
-            body: { tmdb_id: topResult.tmdb_id, search_type: topResult.media_type || searchType },
-          });
-          if (detErr || !details) continue;
-
+          const top = results[0];
           const currentMeta = item.metadata || {};
-          const updatedMeta = {
-            ...currentMeta,
-            runtime: details.runtime || currentMeta.runtime,
-            tagline: details.tagline || currentMeta.tagline,
-            overview: details.overview || currentMeta.overview,
-            cast: details.cast || currentMeta.cast,
-            crew: details.crew || currentMeta.crew,
-          };
+          let updatedMeta = { ...currentMeta };
+          const updatePayload: any = {};
 
-          const updatePayload: any = { metadata: updatedMeta };
-          if (details.genre && !item.genre) updatePayload.genre = details.genre;
+          if (type === "movies" || type === "music-films") {
+            // Get full details
+            const { data: details } = await supabase.functions.invoke("tmdb-lookup", {
+              body: { tmdb_id: top.tmdb_id, search_type: top.media_type || "movie" },
+            });
+            if (details) {
+              updatedMeta = {
+                ...updatedMeta,
+                runtime: details.runtime || currentMeta.runtime,
+                tagline: details.tagline || currentMeta.tagline,
+                overview: details.overview || currentMeta.overview,
+                cast: details.cast || currentMeta.cast,
+                crew: details.crew || currentMeta.crew,
+              };
+              if (details.genre && !item.genre) updatePayload.genre = details.genre;
+            }
+          } else if (type === "cds") {
+            updatedMeta = {
+              ...updatedMeta,
+              artist: top.artist || currentMeta.artist,
+              label: top.label || currentMeta.label,
+              tracklist: top.tracklist || currentMeta.tracklist,
+              source: top.source || currentMeta.source,
+            };
+            if (top.genre && !item.genre) updatePayload.genre = top.genre;
+            if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
+          } else if (type === "books") {
+            updatedMeta = {
+              ...updatedMeta,
+              author: top.author || currentMeta.author,
+              page_count: top.page_count || currentMeta.page_count,
+              publisher: top.publisher || currentMeta.publisher,
+              isbn: top.isbn || currentMeta.isbn,
+              overview: top.description || currentMeta.overview,
+              source: top.source || currentMeta.source,
+            };
+            if (top.categories?.join && !item.genre) updatePayload.genre = top.categories.join(", ");
+            if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
+          } else if (type === "games") {
+            updatedMeta = {
+              ...updatedMeta,
+              developer: top.developer || currentMeta.developer,
+              publisher: top.publisher || currentMeta.publisher,
+              platforms: top.platforms || currentMeta.platforms,
+              overview: top.description || currentMeta.overview,
+              source: top.source || currentMeta.source,
+            };
+            if (top.genre && !item.genre) updatePayload.genre = top.genre;
+            if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
+          }
 
+          updatePayload.metadata = updatedMeta;
           const { error: updErr } = await supabase
             .from("media_items")
             .update(updatePayload)
@@ -582,15 +642,14 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
 
         setProgress(`${i + 1}/${candidates.length} — updated ${updated} items`);
 
-        // Rate limit
         if (i < candidates.length - 1) {
           await new Promise((r) => setTimeout(r, 300));
         }
       }
 
       toast({
-        title: "TMDB backfill complete!",
-        description: `Updated cast, crew, and metadata for ${updated} items.`,
+        title: "Metadata backfill complete!",
+        description: `Updated metadata for ${updated} items across all categories.`,
       });
     } catch (err: any) {
       toast({ title: "Backfill failed", description: err.message, variant: "destructive" });
@@ -610,11 +669,11 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
         disabled={running}
       >
         {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-        {running ? "Fetching TMDB data..." : "Re-fetch TMDB Metadata"}
+        {running ? "Fetching metadata..." : "Re-fetch All Metadata"}
       </Button>
       {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
       <p className="text-[11px] text-muted-foreground">
-        Updates runtime, synopsis, cast, crew, and genre. Only fills in missing data — won't overwrite existing values.
+        Updates metadata across all categories. Only fills in missing data — won't overwrite existing values.
       </p>
     </div>
   );

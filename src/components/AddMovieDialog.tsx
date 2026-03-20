@@ -7,17 +7,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Camera, Loader2, Search, Check, Eye } from "lucide-react";
-import { useImportItems } from "@/hooks/useMediaItems";
-import { searchTmdb, TmdbResult } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { searchMedia, lookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
 }
+
+// Tab-specific labels
+const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; wantAction: string }> = {
+  movies: { title: "Movie", searchPlaceholder: "Movie title…", wantAction: "Want to Watch" },
+  "music-films": { title: "Music Film", searchPlaceholder: "Concert / music film…", wantAction: "Want to Watch" },
+  cds: { title: "Album", searchPlaceholder: "Artist or album…", wantAction: "Want to Listen" },
+  books: { title: "Book", searchPlaceholder: "Book title or author…", wantAction: "Want to Read" },
+  games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },
+};
 
 export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [open, setOpen] = useState(false);
@@ -27,6 +35,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [barcode, setBarcode] = useState("");
   const [genre, setGenre] = useState("");
   const [notes, setNotes] = useState("");
+  const [artist, setArtist] = useState(""); // music / books author
   const [inPlex, setInPlex] = useState(false);
   const [digitalCopy, setDigitalCopy] = useState(false);
   const [wishlist, setWishlist] = useState(false);
@@ -34,40 +43,34 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
-  const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
+  const [searchResults, setSearchResults] = useState<MediaLookupResult[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
-  const [tmdbMeta, setTmdbMeta] = useState<{ runtime?: number | null; tagline?: string | null; overview?: string | null; cast?: any[]; crew?: any }>({});
-  const [multiSelect, setMultiSelect] = useState<TmdbResult[]>([]);
+  const [extraMeta, setExtraMeta] = useState<Record<string, any>>({});
+  const [multiSelect, setMultiSelect] = useState<MediaLookupResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const labels = TAB_LABELS[activeTab];
+
+  const isMovieTab = activeTab === "movies" || activeTab === "music-films";
+  const isMusicTab = activeTab === "cds";
+  const isBookTab = activeTab === "books";
+  const isGameTab = activeTab === "games";
+  const hasBarcode = isMovieTab || isMusicTab || isBookTab;
 
   const resetForm = () => {
-    setTitle("");
-    setYear("");
-    setFormat("");
-    setBarcode("");
-    setGenre("");
-    setNotes("");
-    setInPlex(false);
-    setDigitalCopy(false);
-    setWishlist(false);
-    setWantToWatch(false);
-    setTmdbResults([]);
-    setSelectedPoster(null);
-    setTmdbMeta({});
-    setMultiSelect([]);
-    setMultiSelectMode(false);
+    setTitle(""); setYear(""); setFormat(""); setBarcode("");
+    setGenre(""); setNotes(""); setArtist("");
+    setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
+    setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
+    setMultiSelect([]); setMultiSelectMode(false);
   };
 
   const stopScanner = async () => {
     if (html5QrCodeRef.current) {
-      try {
-        await html5QrCodeRef.current.stop();
-        html5QrCodeRef.current.clear();
-      } catch {}
+      try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch {}
       html5QrCodeRef.current = null;
     }
     setScanning(false);
@@ -75,14 +78,10 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const startScanner = async () => {
     setScanning(true);
-    // Dynamic import to avoid SSR issues
     const { Html5Qrcode } = await import("html5-qrcode");
-
-    await new Promise((r) => setTimeout(r, 100)); // wait for DOM
-
+    await new Promise((r) => setTimeout(r, 100));
     const scanner = new Html5Qrcode("barcode-scanner");
     html5QrCodeRef.current = scanner;
-
     try {
       await scanner.start(
         { facingMode: "environment" },
@@ -92,7 +91,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           await stopScanner();
           handleBarcodeLookup(decodedText);
         },
-        () => {} // ignore scan failures
+        () => {}
       );
     } catch (err: any) {
       toast({ title: "Camera error", description: err.message || "Could not access camera", variant: "destructive" });
@@ -104,14 +103,11 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!upc.trim()) return;
     setLookingUp(true);
     try {
-      // Check if barcode already exists in collection
+      // Check for existing item with this barcode
       if (user) {
         const { data: existing } = await supabase
-          .from("media_items")
-          .select("title")
-          .eq("user_id", user.id)
-          .eq("barcode", upc.trim())
-          .limit(1);
+          .from("media_items").select("title")
+          .eq("user_id", user.id).eq("barcode", upc.trim()).limit(1);
         if (existing && existing.length > 0) {
           toast({
             title: "Already in collection",
@@ -120,20 +116,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         }
       }
 
-      // Use the edge function for UPC lookup
-      const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-        body: { barcode: upc },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.title) {
-        setTitle(data.title);
-        if (data.year) setYear(String(data.year));
-        if (data.genre) setGenre(data.genre);
-        if (data.poster_url) setSelectedPoster(data.poster_url);
-        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline, overview: data.overview, cast: data.cast, crew: data.crew });
-        toast({ title: "Found it!", description: data.title });
-      } else if (data?.results?.length > 0) {
-        setTmdbResults(data.results);
+      const result = await lookupBarcode(activeTab, upc);
+      if (result.direct) {
+        applyResult(result.direct);
+        toast({ title: "Found it!", description: result.direct.title });
+      } else if (result.results && result.results.length > 0) {
+        setSearchResults(result.results);
         toast({ title: "Multiple results found", description: "Select the correct one below." });
       } else {
         toast({ title: "Not found", description: "No match for that barcode. Try searching by title.", variant: "destructive" });
@@ -144,13 +132,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(false);
   };
 
-  const handleTmdbSearch = async () => {
+  const handleSearch = async () => {
     if (!title.trim()) return;
     setLookingUp(true);
     try {
       const yearNum = year ? parseInt(year) : undefined;
-      const results = await searchTmdb(title, yearNum);
-      setTmdbResults(results);
+      const results = await searchMedia(activeTab, title, { year: yearNum });
+      setSearchResults(results);
       if (results.length === 0) {
         toast({ title: "No results", description: "Try a different title." });
       }
@@ -160,21 +148,42 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(false);
   };
 
-  const toggleMultiSelect = (result: TmdbResult) => {
+  const applyResult = (r: MediaLookupResult) => {
+    setTitle(r.title);
+    if (r.year) setYear(String(r.year));
+    if (r.genre) setGenre(r.genre);
+    if (r.cover_url) setSelectedPoster(r.cover_url);
+    if (r.artist || r.author) setArtist(r.artist || r.author || "");
+
+    const meta: Record<string, any> = {};
+    if (r.runtime) meta.runtime = r.runtime;
+    if (r.tagline) meta.tagline = r.tagline;
+    if (r.overview) meta.overview = r.overview;
+    if (r.description) meta.overview = r.description;
+    if (r.cast) meta.cast = r.cast;
+    if (r.crew) meta.crew = r.crew;
+    if (r.page_count) meta.page_count = r.page_count;
+    if (r.publisher) meta.publisher = r.publisher;
+    if (r.isbn) meta.isbn = r.isbn;
+    if (r.label) meta.label = r.label;
+    if (r.tracklist && r.tracklist.length > 0) meta.tracklist = r.tracklist;
+    if (r.platforms && r.platforms.length > 0) meta.platforms = r.platforms;
+    if (r.developer) meta.developer = r.developer;
+    if (r.source) meta.source = r.source;
+    setExtraMeta(meta);
+  };
+
+  const toggleMultiSelect = (result: MediaLookupResult) => {
     setMultiSelect((prev) => {
-      const exists = prev.some((r) => r.tmdb_id === result.tmdb_id && r.media_type === result.media_type);
-      if (exists) return prev.filter((r) => !(r.tmdb_id === result.tmdb_id && r.media_type === result.media_type));
+      const exists = prev.some((r) => r.id === result.id);
+      if (exists) return prev.filter((r) => r.id !== result.id);
       return [...prev, result];
     });
   };
 
-  const selectTmdbResult = (result: TmdbResult) => {
-    setTitle(result.title);
-    if (result.year) setYear(String(result.year));
-    if (result.genre) setGenre(result.genre);
-    if (result.poster_url) setSelectedPoster(result.poster_url);
-    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline, overview: result.overview, cast: result.cast, crew: result.crew });
-    setTmdbResults([]);
+  const selectResult = (result: MediaLookupResult) => {
+    applyResult(result);
+    setSearchResults([]);
     setMultiSelect([]);
   };
 
@@ -189,13 +198,19 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         format: null,
         formats: [] as string[],
         genre: r.genre ?? null,
-        poster_url: r.poster_url ?? null,
+        poster_url: r.cover_url ?? null,
         want_to_watch: true,
         media_type: activeTab,
+        metadata: {
+          ...(r.artist ? { artist: r.artist } : {}),
+          ...(r.author ? { author: r.author } : {}),
+          ...(r.overview || r.description ? { overview: r.overview || r.description } : {}),
+          ...(r.source ? { source: r.source } : {}),
+        },
       }));
       const { error } = await supabase.from("media_items").insert(rows);
       if (error) throw error;
-      toast({ title: "Added!", description: `${multiSelect.length} titles added to Want to Watch.` });
+      toast({ title: "Added!", description: `${multiSelect.length} titles added to ${labels.wantAction}.` });
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
       resetForm();
       setOpen(false);
@@ -205,19 +220,16 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(false);
   };
 
-  // Auto-set want_to_watch when no format is selected
   const effectiveWantToWatch = !format ? true : wantToWatch;
 
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
     try {
-      const metaPayload: Record<string, any> = {};
-      if (tmdbMeta.runtime) metaPayload.runtime = tmdbMeta.runtime;
-      if (tmdbMeta.tagline) metaPayload.tagline = tmdbMeta.tagline;
-      if (tmdbMeta.overview) metaPayload.overview = tmdbMeta.overview;
-      if (tmdbMeta.cast) metaPayload.cast = tmdbMeta.cast;
-      if (tmdbMeta.crew) metaPayload.crew = tmdbMeta.crew;
+      const metaPayload: Record<string, any> = { ...extraMeta };
+      if (artist && (isMusicTab || isBookTab)) {
+        metaPayload[isBookTab ? "author" : "artist"] = artist;
+      }
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
@@ -246,10 +258,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(false);
   };
 
-  // Cleanup scanner on close
-  useEffect(() => {
-    if (!open) stopScanner();
-  }, [open]);
+  useEffect(() => { if (!open) stopScanner(); }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
@@ -260,86 +269,94 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       </DialogTrigger>
       <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Add Item</DialogTitle>
+          <DialogTitle className="text-foreground">Add {labels.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Barcode scanner */}
-          <div className="space-y-2">
-            <Label className="text-foreground">Barcode / UPC</Label>
-            <div className="flex gap-2">
-              <Input
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Scan or type UPC…"
-                className="flex-1"
-                onKeyDown={(e) => e.key === "Enter" && handleBarcodeLookup(barcode)}
-              />
-              <Button variant="outline" size="icon" onClick={startScanner} disabled={scanning}>
-                <Camera className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => handleBarcodeLookup(barcode)} disabled={lookingUp || !barcode.trim()}>
-                {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-            </div>
-            {scanning && (
-              <div className="relative">
-                <div id="barcode-scanner" ref={scannerRef} className="w-full rounded-md overflow-hidden" />
-                <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={stopScanner}>
-                  Stop
+          {/* Barcode scanner (movies, music, books) */}
+          {hasBarcode && (
+            <div className="space-y-2">
+              <Label className="text-foreground">Barcode / UPC{isBookTab ? " / ISBN" : ""}</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder={isBookTab ? "Scan or type ISBN…" : "Scan or type UPC…"}
+                  className="flex-1"
+                  onKeyDown={(e) => e.key === "Enter" && handleBarcodeLookup(barcode)}
+                />
+                <Button variant="outline" size="icon" onClick={startScanner} disabled={scanning}>
+                  <Camera className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => handleBarcodeLookup(barcode)} disabled={lookingUp || !barcode.trim()}>
+                  {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
-            )}
-          </div>
+              {scanning && (
+                <div className="relative">
+                  <div id="barcode-scanner" ref={scannerRef} className="w-full rounded-md overflow-hidden" />
+                  <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={stopScanner}>Stop</Button>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Title + TMDB search */}
+          {/* Title + search */}
           <div className="space-y-2">
             <Label className="text-foreground">Title *</Label>
             <div className="flex gap-2">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Movie title…"
+                placeholder={labels.searchPlaceholder}
                 className="flex-1"
-                onKeyDown={(e) => e.key === "Enter" && handleTmdbSearch()}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
-              <Button variant="outline" size="icon" onClick={handleTmdbSearch} disabled={lookingUp || !title.trim()}>
+              <Button variant="outline" size="icon" onClick={handleSearch} disabled={lookingUp || !title.trim()}>
                 {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
           </div>
 
-          {/* TMDB results */}
-          {tmdbResults.length > 0 && (
+          {/* Artist / Author field for music & books */}
+          {(isMusicTab || isBookTab) && (
+            <div className="space-y-2">
+              <Label className="text-foreground">{isBookTab ? "Author" : "Artist"}</Label>
+              <Input
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder={isBookTab ? "Author name…" : "Artist / band name…"}
+              />
+            </div>
+          )}
+
+          {/* Search results grid */}
+          {searchResults.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] text-muted-foreground">
-                  {multiSelectMode ? "Tap to select/deselect titles" : "Tap to fill form"}
+                  {multiSelectMode ? "Tap to select/deselect" : "Tap to fill form"}
                 </p>
                 <Button
                   variant={multiSelectMode ? "default" : "outline"}
                   size="sm"
                   className="h-6 text-[10px] gap-1"
-                  onClick={() => {
-                    setMultiSelectMode(!multiSelectMode);
-                    if (multiSelectMode) setMultiSelect([]);
-                  }}
+                  onClick={() => { setMultiSelectMode(!multiSelectMode); if (multiSelectMode) setMultiSelect([]); }}
                 >
-                  <Check className="h-3 w-3" />
-                  Multi-select
+                  <Check className="h-3 w-3" /> Multi-select
                 </Button>
               </div>
               <div className="grid grid-cols-4 gap-2">
-                {tmdbResults.slice(0, 8).map((r) => {
-                  const isSelected = multiSelect.some((s) => s.tmdb_id === r.tmdb_id && s.media_type === r.media_type);
+                {searchResults.slice(0, 8).map((r) => {
+                  const isSelected = multiSelect.some((s) => s.id === r.id);
                   return (
                     <button
-                      key={`${r.media_type}-${r.tmdb_id}`}
-                      onClick={() => multiSelectMode ? toggleMultiSelect(r) : selectTmdbResult(r)}
+                      key={r.id}
+                      onClick={() => multiSelectMode ? toggleMultiSelect(r) : selectResult(r)}
                       className={`relative rounded-md overflow-hidden border-2 transition-colors ${isSelected ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary"}`}
                     >
-                      {r.poster_url ? (
-                        <img src={r.poster_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
+                      {r.cover_url ? (
+                        <img src={r.cover_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
                       ) : (
                         <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
                           <p className="text-[9px] text-muted-foreground p-1 text-center">{r.title}</p>
@@ -352,7 +369,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                       )}
                       <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1">
                         <p className="text-[9px] font-medium text-foreground truncate">{r.title}</p>
-                        <p className="text-[8px] text-muted-foreground">{r.year}</p>
+                        <p className="text-[8px] text-muted-foreground">
+                          {r.artist || r.author || ""}{r.year ? ` (${r.year})` : ""}
+                        </p>
                       </div>
                     </button>
                   );
@@ -361,16 +380,40 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
               {multiSelect.length > 0 && (
                 <Button onClick={handleBatchAdd} disabled={saving} className="w-full gap-2">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                  Add {multiSelect.length} to Want to Watch
+                  Add {multiSelect.length} to {labels.wantAction}
                 </Button>
               )}
             </div>
           )}
 
-          {/* Selected poster preview */}
+          {/* Poster preview */}
           {selectedPoster && (
             <div className="flex justify-center">
-              <img src={selectedPoster} alt="Selected poster" className="h-32 rounded-md border border-border" />
+              <img src={selectedPoster} alt="Cover" className="h-32 rounded-md border border-border" />
+            </div>
+          )}
+
+          {/* Extra info from lookup */}
+          {extraMeta.publisher && (
+            <p className="text-xs text-muted-foreground">Publisher: {extraMeta.publisher}</p>
+          )}
+          {extraMeta.label && (
+            <p className="text-xs text-muted-foreground">Label: {extraMeta.label}</p>
+          )}
+          {extraMeta.developer && (
+            <p className="text-xs text-muted-foreground">Developer: {extraMeta.developer}</p>
+          )}
+          {extraMeta.platforms && extraMeta.platforms.length > 0 && (
+            <p className="text-xs text-muted-foreground">Platforms: {extraMeta.platforms.join(", ")}</p>
+          )}
+          {extraMeta.tracklist && extraMeta.tracklist.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium">Tracklist</p>
+              <div className="text-xs text-muted-foreground max-h-28 overflow-y-auto space-y-0.5">
+                {extraMeta.tracklist.map((t: any, i: number) => (
+                  <p key={i}>{t.position || i + 1}. {t.title} {t.duration ? `(${t.duration})` : ""}</p>
+                ))}
+              </div>
             </div>
           )}
 
@@ -378,28 +421,21 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-foreground">Year</Label>
-              <Input
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                placeholder="2024"
-                type="number"
-              />
+              <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="2024" type="number" />
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
               <Select value={format || "none"} onValueChange={(v) => setFormat(v === "none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None (watchlist only)" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={`None (${labels.wantAction.toLowerCase()})`} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None (watchlist only)</SelectItem>
+                  <SelectItem value="none">None ({labels.wantAction.toLowerCase()})</SelectItem>
                   {(FORMATS[activeTab] || []).map((f) => (
                     <SelectItem key={f} value={f}>{f}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {!format && (
-                <p className="text-[10px] text-muted-foreground">No format will auto-add to Want to Watch</p>
+                <p className="text-[10px] text-muted-foreground">No format → auto-add to {labels.wantAction}</p>
               )}
             </div>
           </div>
@@ -418,10 +454,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
           {/* Status toggles */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-foreground text-sm">In Plex</Label>
-              <Switch checked={inPlex} onCheckedChange={setInPlex} />
-            </div>
+            {isMovieTab && (
+              <div className="flex items-center justify-between">
+                <Label className="text-foreground text-sm">In Plex</Label>
+                <Switch checked={inPlex} onCheckedChange={setInPlex} />
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <Label className="text-foreground text-sm">Digital Copy</Label>
               <Switch checked={digitalCopy} onCheckedChange={setDigitalCopy} />
@@ -431,7 +469,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
               <Switch checked={wishlist} onCheckedChange={setWishlist} />
             </div>
             <div className="flex items-center justify-between">
-              <Label className="text-foreground text-sm">Want to Watch</Label>
+              <Label className="text-foreground text-sm">{labels.wantAction}</Label>
               <Switch checked={wantToWatch} onCheckedChange={setWantToWatch} />
             </div>
           </div>
