@@ -122,13 +122,25 @@ serve(async (req) => {
     // Fetch details by tmdb_id
     if (tmdb_id) {
       const type = search_type === "tv" ? "tv" : "movie";
-      const detailRes = await fetch(
-        `https://api.themoviedb.org/3/${type}/${tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`
-      );
+      const [detailRes, creditsRes] = await Promise.all([
+        fetch(`https://api.themoviedb.org/3/${type}/${tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`),
+        fetch(`https://api.themoviedb.org/3/${type}/${tmdb_id}/credits?api_key=${TMDB_API_KEY}&language=en-US`),
+      ]);
       const detail = await detailRes.json();
+      const credits = creditsRes.ok ? await creditsRes.json() : {};
 
       const title = type === "tv" ? detail.name : detail.title;
       const releaseDate = type === "tv" ? detail.first_air_date : detail.release_date;
+
+      const cast = (credits.cast || []).slice(0, 10).map((c: any) => ({
+        name: c.name,
+        character: c.character,
+        profile_url: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
+      }));
+
+      const director = (credits.crew || []).filter((c: any) => c.job === "Director").map((c: any) => c.name);
+      const writer = (credits.crew || []).filter((c: any) => c.job === "Writer" || c.job === "Screenplay").map((c: any) => c.name);
+      const producer = (credits.crew || []).filter((c: any) => c.job === "Producer").map((c: any) => c.name);
 
       return new Response(JSON.stringify({
         tmdb_id: detail.id,
@@ -141,6 +153,8 @@ serve(async (req) => {
         runtime: detail.runtime || detail.episode_run_time?.[0] || null,
         tagline: detail.tagline || null,
         media_type: type,
+        cast,
+        crew: { director, writer, producer },
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

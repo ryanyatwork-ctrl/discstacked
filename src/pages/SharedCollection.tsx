@@ -312,6 +312,8 @@ export default function SharedCollection() {
         item={selectedItem}
         open={!!selectedItem}
         onClose={() => setSelectedItem(null)}
+        itemList={filteredItems}
+        onNavigate={setSelectedItem}
       />
     </div>
   );

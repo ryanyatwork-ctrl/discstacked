@@ -2,7 +2,7 @@ import { MediaItem } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers } from "lucide-react";
+import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 import { CollectionEditor } from "@/components/CollectionEditor";
 
@@ -10,6 +10,8 @@ interface SharedDetailDrawerProps {
   item: MediaItem | null;
   open: boolean;
   onClose: () => void;
+  itemList?: MediaItem[];
+  onNavigate?: (item: MediaItem) => void;
 }
 
 const getFormatVariant = (f: string) =>
@@ -34,8 +36,12 @@ function ConditionBadge({ condition }: { condition: string }) {
   );
 }
 
-export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerProps) {
+export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }: SharedDetailDrawerProps) {
   if (!item) return null;
+
+  const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
+  const prevItem = currentIndex > 0 ? itemList![currentIndex - 1] : null;
+  const nextItem = currentIndex >= 0 && currentIndex < (itemList?.length ?? 0) - 1 ? itemList![currentIndex + 1] : null;
 
   const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
   const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, any>;
@@ -50,12 +56,6 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  // Box set info
-  let boxSets: { title: string; format: string }[] = [];
-  try { boxSets = JSON.parse(meta.box_sets || "[]"); } catch {}
-  const isBoxSet = meta.is_box_set === "true";
-  let contents: string[] = [];
-  try { contents = JSON.parse(meta.contents || "[]"); } catch {}
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -64,7 +64,22 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
           <SheetTitle>{item.title}</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-5 pt-2">
+          {/* Navigation bar */}
+          <div className="flex items-center justify-between py-2 border-b border-border mb-2">
+            <Button variant="ghost" size="sm" onClick={onClose} className="gap-1 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" disabled={!prevItem} onClick={() => prevItem && onNavigate?.(prevItem)} className="gap-1 text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </Button>
+              <Button variant="ghost" size="sm" disabled={!nextItem} onClick={() => nextItem && onNavigate?.(nextItem)} className="gap-1 text-muted-foreground hover:text-foreground">
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-5">
           {/* Poster */}
           <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
             {item.posterUrl ? (
@@ -89,7 +104,7 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
           </div>
 
           {/* Edition & Case */}
-          {(meta.edition || meta.case_type) && (
+          {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers) && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               {meta.edition && (
                 <div>
@@ -115,6 +130,24 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
                   <p className="text-sm text-foreground flex items-center gap-1">
                     <ConditionBadge condition={meta.condition} />
                   </p>
+                </div>
+              )}
+              {meta.distributor && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Distributor</span>
+                  <p className="text-sm text-foreground">{meta.distributor}</p>
+                </div>
+              )}
+              {meta.region && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Region</span>
+                  <p className="text-sm text-foreground">{meta.region}</p>
+                </div>
+              )}
+              {meta.disc_layers && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Layers</span>
+                  <p className="text-sm text-foreground">{meta.disc_layers}</p>
                 </div>
               )}
             </div>
@@ -151,11 +184,11 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
           )}
 
           {/* TMDB Metadata */}
-          {(item.genre || meta.runtime || meta.tagline) && (
-            <div className="space-y-1.5">
+          {(item.genre || meta.runtime || meta.tagline || meta.cast?.length || meta.crew) && (
+            <div className="space-y-3">
               {item.genre && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {item.genre.split(",").map((g) => (
+                  {item.genre.split(",").map((g: string) => (
                     <Badge key={g.trim()} variant="outline" className="text-[10px]">{g.trim()}</Badge>
                   ))}
                 </div>
@@ -167,6 +200,54 @@ export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerPr
               )}
               {meta.tagline && (
                 <p className="text-sm text-muted-foreground italic">"{meta.tagline}"</p>
+              )}
+              {meta.overview && (
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{meta.overview}</p>
+              )}
+              {/* Cast */}
+              {meta.cast && (meta.cast as any[]).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Cast</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {(meta.cast as any[]).slice(0, 6).map((c: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {c.profile_url ? (
+                          <img src={c.profile_url} alt={c.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-secondary shrink-0" />
+                        )}
+                        <span className="text-foreground font-medium truncate">{c.name}</span>
+                        {c.character && <span className="text-muted-foreground truncate">as {c.character}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Crew */}
+              {meta.crew && ((meta.crew as any).director?.length || (meta.crew as any).writer?.length || (meta.crew as any).producer?.length) && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Crew</p>
+                  <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-xs">
+                    {(meta.crew as any).director?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Director</span>
+                        <span className="text-foreground">{(meta.crew as any).director.join(", ")}</span>
+                      </>
+                    )}
+                    {(meta.crew as any).writer?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Writer</span>
+                        <span className="text-foreground">{(meta.crew as any).writer.join(", ")}</span>
+                      </>
+                    )}
+                    {(meta.crew as any).producer?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Producer</span>
+                        <span className="text-foreground">{(meta.crew as any).producer.join(", ")}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}

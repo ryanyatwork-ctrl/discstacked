@@ -29,6 +29,9 @@ type MetadataFields = {
   rip_status?: string;
   rip_notes?: string;
   physical_notes?: string;
+  distributor?: string;
+  region?: string;
+  disc_layers?: string;
 };
 
 function getMetadata(item: MediaItem): MetadataFields {
@@ -78,7 +81,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status;
+  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status || meta.distributor || meta.region || meta.disc_layers;
 
   if (!editing && !hasAnyData) {
     return (
@@ -132,6 +135,9 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             </DetailRow>
           )}
           {meta.rip_notes && <DetailRow label="Rip Notes" value={meta.rip_notes} fullWidth />}
+          {meta.distributor && <DetailRow label="Distributor" value={meta.distributor} />}
+          {meta.region && <DetailRow label="Region" value={meta.region} />}
+          {meta.disc_layers && <DetailRow label="Layers" value={meta.disc_layers} />}
           {meta.physical_notes && <DetailRow label="Notes" value={meta.physical_notes} fullWidth />}
         </div>
       </div>
@@ -269,6 +275,51 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             />
           </Field>
         )}
+
+        {/* Distributor */}
+        <Field label="Distributor">
+          <Input
+            value={d.distributor || ""}
+            onChange={(e) => updateField("distributor", e.target.value)}
+            placeholder="e.g. Universal Studios, Warner Bros…"
+            className="h-8 text-sm"
+          />
+        </Field>
+
+        {/* Region */}
+        <Field label="Region">
+          <Select value={d.region || "none"} onValueChange={(v) => updateField("region", v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not set</SelectItem>
+              <SelectItem value="Region A/1">Region A/1 (Americas, East Asia)</SelectItem>
+              <SelectItem value="Region B/2">Region B/2 (Europe, Africa, Oceania)</SelectItem>
+              <SelectItem value="Region C/3">Region C/3 (Asia, Russia)</SelectItem>
+              <SelectItem value="Region Free">Region Free</SelectItem>
+              <SelectItem value="Region 1">Region 1 (DVD - US/Canada)</SelectItem>
+              <SelectItem value="Region 2">Region 2 (DVD - Europe/Japan)</SelectItem>
+              <SelectItem value="Region 4">Region 4 (DVD - Oceania/Latin America)</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {/* Disc Layers */}
+        <Field label="Disc Layers">
+          <Select value={d.disc_layers || "none"} onValueChange={(v) => updateField("disc_layers", v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not set</SelectItem>
+              <SelectItem value="Single side, Single layer">Single side, Single layer</SelectItem>
+              <SelectItem value="Single side, Dual layer">Single side, Dual layer</SelectItem>
+              <SelectItem value="Dual side, Single layer">Dual side, Single layer</SelectItem>
+              <SelectItem value="Dual side, Dual layer">Dual side, Dual layer</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
 
         {/* Additional physical notes */}
         <Field label="Additional Notes">

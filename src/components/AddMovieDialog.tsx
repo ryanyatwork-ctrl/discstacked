@@ -36,7 +36,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [lookingUp, setLookingUp] = useState(false);
   const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
-  const [tmdbMeta, setTmdbMeta] = useState<{ runtime?: number | null; tagline?: string | null }>({});
+  const [tmdbMeta, setTmdbMeta] = useState<{ runtime?: number | null; tagline?: string | null; overview?: string | null; cast?: any[]; crew?: any }>({});
   const [multiSelect, setMultiSelect] = useState<TmdbResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
@@ -130,7 +130,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         if (data.year) setYear(String(data.year));
         if (data.genre) setGenre(data.genre);
         if (data.poster_url) setSelectedPoster(data.poster_url);
-        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline });
+        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline, overview: data.overview, cast: data.cast, crew: data.crew });
         toast({ title: "Found it!", description: data.title });
       } else if (data?.results?.length > 0) {
         setTmdbResults(data.results);
@@ -173,7 +173,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
-    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline });
+    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline, overview: result.overview, cast: result.cast, crew: result.crew });
     setTmdbResults([]);
     setMultiSelect([]);
   };
@@ -215,6 +215,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       const metaPayload: Record<string, any> = {};
       if (tmdbMeta.runtime) metaPayload.runtime = tmdbMeta.runtime;
       if (tmdbMeta.tagline) metaPayload.tagline = tmdbMeta.tagline;
+      if (tmdbMeta.overview) metaPayload.overview = tmdbMeta.overview;
+      if (tmdbMeta.cast) metaPayload.cast = tmdbMeta.cast;
+      if (tmdbMeta.crew) metaPayload.crew = tmdbMeta.crew;
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),

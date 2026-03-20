@@ -352,6 +352,8 @@ export default function Index() {
         item={selectedItem}
         open={!!selectedItem}
         onClose={() => setSelectedItem(null)}
+        itemList={filteredItems}
+        onNavigate={setSelectedItem}
       />
     </div>
   );

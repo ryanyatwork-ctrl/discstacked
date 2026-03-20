@@ -7,7 +7,7 @@ import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/h
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2 } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
@@ -19,9 +19,12 @@ interface DetailDrawerProps {
   open: boolean;
   onClose: () => void;
   onDuplicated?: () => void;
+  /** Full sorted list for prev/next navigation */
+  itemList?: MediaItem[];
+  onNavigate?: (item: MediaItem) => void;
 }
 
-export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawerProps) {
+export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNavigate }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -67,6 +70,11 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   }, [editingYear]);
 
   if (!item) return null;
+
+  // Prev/Next navigation
+  const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
+  const prevItem = currentIndex > 0 ? itemList![currentIndex - 1] : null;
+  const nextItem = currentIndex >= 0 && currentIndex < (itemList?.length ?? 0) - 1 ? itemList![currentIndex + 1] : null;
 
   const inPlex = localFlags.in_plex ?? item.inPlex;
   const digitalCopy = localFlags.digital_copy ?? item.digitalCopy;
@@ -192,7 +200,34 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             <SheetTitle>{item.title}</SheetTitle>
           </SheetHeader>
 
-          <div className="space-y-6 pt-2">
+          {/* Navigation bar */}
+          <div className="flex items-center justify-between py-2 border-b border-border mb-2">
+            <Button variant="ghost" size="sm" onClick={onClose} className="gap-1 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!prevItem}
+                onClick={() => prevItem && onNavigate?.(prevItem)}
+                className="gap-1 text-muted-foreground hover:text-foreground"
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!nextItem}
+                onClick={() => nextItem && onNavigate?.(nextItem)}
+                className="gap-1 text-muted-foreground hover:text-foreground"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
             {/* Poster */}
             <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
               {item.posterUrl ? (
@@ -725,8 +760,11 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   const runtime = meta.runtime as number | undefined;
   const tagline = meta.tagline as string | undefined;
   const genre = item.genre;
+  const cast = meta.cast as { name: string; character: string; profile_url: string | null }[] | undefined;
+  const crew = meta.crew as { director?: string[]; writer?: string[]; producer?: string[] } | undefined;
+  const overview = meta.overview as string | undefined;
 
-  if (!genre && !runtime && !tagline) return null;
+  if (!genre && !runtime && !tagline && !cast?.length && !crew) return null;
 
   const formatRuntime = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -735,7 +773,7 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-3">
       {genre && (
         <div className="flex items-center gap-2 flex-wrap">
           {genre.split(",").map((g) => (
@@ -753,6 +791,56 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
       {tagline && (
         <p className="text-xs text-muted-foreground italic">"{tagline}"</p>
       )}
+      {overview && (
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{overview}</p>
+      )}
+
+      {/* Cast */}
+      {cast && cast.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Cast</p>
+          <div className="grid grid-cols-1 gap-1">
+            {cast.slice(0, 6).map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                {c.profile_url ? (
+                  <img src={c.profile_url} alt={c.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-secondary shrink-0" />
+                )}
+                <span className="text-foreground font-medium truncate">{c.name}</span>
+                {c.character && <span className="text-muted-foreground truncate">as {c.character}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Crew */}
+      {crew && (crew.director?.length || crew.writer?.length || crew.producer?.length) ? (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Crew</p>
+          <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-xs">
+            {crew.director && crew.director.length > 0 && (
+              <>
+                <span className="text-muted-foreground font-medium">Director</span>
+                <span className="text-foreground">{crew.director.join(", ")}</span>
+              </>
+            )}
+            {crew.writer && crew.writer.length > 0 && (
+              <>
+                <span className="text-muted-foreground font-medium">Writer</span>
+                <span className="text-foreground">{crew.writer.join(", ")}</span>
+              </>
+            )}
+            {crew.producer && crew.producer.length > 0 && (
+              <>
+                <span className="text-muted-foreground font-medium">Producer</span>
+                <span className="text-foreground">{crew.producer.join(", ")}</span>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
