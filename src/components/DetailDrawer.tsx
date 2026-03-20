@@ -216,7 +216,40 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
                   </Button>
                 </div>
               )}
-              {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
+              {editingYear ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={yearInputRef}
+                    value={yearDraft}
+                    onChange={(e) => setYearDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveYear(); if (e.key === "Escape") setEditingYear(false); }}
+                    className="w-24 h-7 text-sm"
+                    placeholder="Year"
+                    type="number"
+                    min={1888}
+                    max={2099}
+                  />
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleSaveYear}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingYear(false)}>Cancel</Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/year">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => { setYearDraft(String(item.year ?? "")); setEditingYear(true); }}
+                  >
+                    {item.year || "Add year"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/year:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setYearDraft(String(item.year ?? "")); setEditingYear(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Format Editor */}
