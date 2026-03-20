@@ -106,7 +106,7 @@ export default function Index() {
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      letters.add(groupLetter(item.title));
+      letters.add(groupLetter(item.title, item.sortTitle));
     });
     return letters;
   }, [filteredItems]);
