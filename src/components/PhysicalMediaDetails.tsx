@@ -113,8 +113,11 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
               <ConditionBadge condition={meta.condition} />
             </DetailRow>
           )}
-          {meta.disc_contents && <DetailRow label="Disc Contents" value={meta.disc_contents} fullWidth />}
-          {meta.missing_discs && <DetailRow label="Missing Discs" value={meta.missing_discs} fullWidth warn />}
+          {meta.discs && meta.discs.length > 0 && (
+            <div className="col-span-2">
+              <DiscEditor discs={meta.discs} onChange={() => {}} readOnly />
+            </div>
+          )}
           {meta.digital_code_status && meta.digital_code_status !== "Not Included" && (
             <DetailRow
               label="Digital Code"
