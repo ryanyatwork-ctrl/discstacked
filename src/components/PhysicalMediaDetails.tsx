@@ -276,6 +276,51 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Field>
         )}
 
+        {/* Distributor */}
+        <Field label="Distributor">
+          <Input
+            value={d.distributor || ""}
+            onChange={(e) => updateField("distributor", e.target.value)}
+            placeholder="e.g. Universal Studios, Warner Bros…"
+            className="h-8 text-sm"
+          />
+        </Field>
+
+        {/* Region */}
+        <Field label="Region">
+          <Select value={d.region || "none"} onValueChange={(v) => updateField("region", v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not set</SelectItem>
+              <SelectItem value="Region A/1">Region A/1 (Americas, East Asia)</SelectItem>
+              <SelectItem value="Region B/2">Region B/2 (Europe, Africa, Oceania)</SelectItem>
+              <SelectItem value="Region C/3">Region C/3 (Asia, Russia)</SelectItem>
+              <SelectItem value="Region Free">Region Free</SelectItem>
+              <SelectItem value="Region 1">Region 1 (DVD - US/Canada)</SelectItem>
+              <SelectItem value="Region 2">Region 2 (DVD - Europe/Japan)</SelectItem>
+              <SelectItem value="Region 4">Region 4 (DVD - Oceania/Latin America)</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {/* Disc Layers */}
+        <Field label="Disc Layers">
+          <Select value={d.disc_layers || "none"} onValueChange={(v) => updateField("disc_layers", v === "none" ? "" : v)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not set</SelectItem>
+              <SelectItem value="Single side, Single layer">Single side, Single layer</SelectItem>
+              <SelectItem value="Single side, Dual layer">Single side, Dual layer</SelectItem>
+              <SelectItem value="Dual side, Single layer">Dual side, Single layer</SelectItem>
+              <SelectItem value="Dual side, Dual layer">Dual side, Dual layer</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
         {/* Additional physical notes */}
         <Field label="Additional Notes">
           <Textarea
