@@ -325,6 +325,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               onToggle={handleFormatToggle}
             />
 
+            {/* Physical Media Details */}
+            <PhysicalMediaDetails item={item} />
+
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
 
