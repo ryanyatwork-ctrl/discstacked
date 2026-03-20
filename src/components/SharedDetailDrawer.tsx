@@ -56,12 +56,6 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  // Box set info
-  let boxSets: { title: string; format: string }[] = [];
-  try { boxSets = JSON.parse(meta.box_sets || "[]"); } catch {}
-  const isBoxSet = meta.is_box_set === "true";
-  let contents: string[] = [];
-  try { contents = JSON.parse(meta.contents || "[]"); } catch {}
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
