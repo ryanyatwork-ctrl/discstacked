@@ -41,6 +41,7 @@ export default function SharedCollection() {
     return items.map((db: any): MediaItem => ({
       id: db.id,
       title: db.title,
+      sortTitle: db.sort_title ?? undefined,
       year: db.year ?? undefined,
       format: db.format ?? undefined,
       formats: db.formats?.length > 0 ? db.formats : db.format ? [db.format] : undefined,
