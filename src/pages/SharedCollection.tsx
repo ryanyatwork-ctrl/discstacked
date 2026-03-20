@@ -48,11 +48,15 @@ export default function SharedCollection() {
       posterUrl: db.poster_url ?? undefined,
       genre: db.genre ?? undefined,
       rating: db.rating ?? undefined,
+      notes: db.notes ?? undefined,
       mediaType: db.media_type as MediaTab,
       inPlex: db.in_plex,
       digitalCopy: db.digital_copy,
       wishlist: db.wishlist,
       wantToWatch: db.want_to_watch,
+      barcode: db.barcode ?? undefined,
+      totalCopies: db.total_copies ?? 1,
+      metadata: db.metadata ?? undefined,
     }));
   }, [items]);
 
