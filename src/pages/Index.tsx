@@ -241,6 +241,9 @@ export default function Index() {
               onSearchChange={setSearchQuery}
               activeFormats={activeFormats}
               onFormatToggle={handleFormatToggle}
+              availableTags={availableTags}
+              activeTags={activeTags}
+              onTagToggle={handleTagToggle}
             />
           </div>
           <AlphabetRail
