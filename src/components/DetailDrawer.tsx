@@ -73,6 +73,25 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
     setEditingTitle(false);
   };
 
+  const handleSaveYear = async () => {
+    const parsed = yearDraft.trim() ? parseInt(yearDraft.trim()) : null;
+    if (parsed === (item.year ?? null)) {
+      setEditingYear(false);
+      return;
+    }
+    if (yearDraft.trim() && (isNaN(parsed!) || parsed! < 1888 || parsed! > 2099)) {
+      toast({ title: "Enter a valid year", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, year: parsed } as any);
+      toast({ title: "Year updated!" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingYear(false);
+  };
+
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
     setLocalFlags((prev) => ({ ...prev, [field]: value }));
     try {
