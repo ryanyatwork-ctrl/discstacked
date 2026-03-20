@@ -91,34 +91,49 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
         <p className="text-xs text-muted-foreground italic">No discs added yet. Click "Add Disc" to start.</p>
       )}
       {discs.map((disc, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <Select value={disc.format} onValueChange={(v) => updateDisc(i, { format: v })}>
-            <SelectTrigger className="h-8 text-sm w-28 shrink-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DISC_FORMATS.map((f) => (
-                <SelectItem key={f} value={f}>{f}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            value={disc.label}
-            onChange={(e) => updateDisc(i, { label: e.target.value })}
-            placeholder={`Disc ${i + 1} label`}
-            className="h-8 text-sm flex-1"
-          />
-          <div className="flex items-center gap-1 shrink-0" title="Missing?">
-            <Checkbox
-              checked={disc.missing || false}
-              onCheckedChange={(checked) => updateDisc(i, { missing: !!checked })}
-              className="h-4 w-4"
+        <div key={i} className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Select value={disc.format} onValueChange={(v) => updateDisc(i, { format: v })}>
+              <SelectTrigger className="h-8 text-sm w-28 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISC_FORMATS.map((f) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              value={disc.label}
+              onChange={(e) => updateDisc(i, { label: e.target.value })}
+              placeholder={`Disc ${i + 1} label`}
+              className="h-8 text-sm flex-1"
             />
-            <span className="text-[10px] text-muted-foreground">Missing</span>
+            <div className="flex items-center gap-1 shrink-0" title="Missing?">
+              <Checkbox
+                checked={disc.missing || false}
+                onCheckedChange={(checked) => updateDisc(i, { missing: !!checked })}
+                className="h-4 w-4"
+              />
+              <span className="text-[10px] text-muted-foreground">Missing</span>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => removeDisc(i)}>
+              <X className="w-3 h-3 text-muted-foreground" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => removeDisc(i)}>
-            <X className="w-3 h-3 text-muted-foreground" />
-          </Button>
+          <div className="pl-[7.5rem]">
+            <Select value={disc.aspectRatio || "none"} onValueChange={(v) => updateDisc(i, { aspectRatio: v === "none" ? undefined : v })}>
+              <SelectTrigger className="h-7 text-xs w-48">
+                <SelectValue placeholder="Aspect ratio…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No aspect ratio set</SelectItem>
+                {ASPECT_RATIOS.map((ar) => (
+                  <SelectItem key={ar} value={ar}>{ar}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       ))}
     </div>
