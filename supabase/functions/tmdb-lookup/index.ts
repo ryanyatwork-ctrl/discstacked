@@ -136,6 +136,8 @@ serve(async (req) => {
         genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
         rating: detail.vote_average || null,
         overview: detail.overview || null,
+        runtime: detail.runtime || detail.episode_run_time?.[0] || null,
+        tagline: detail.tagline || null,
         media_type: type,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
