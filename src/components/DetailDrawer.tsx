@@ -732,3 +732,40 @@ function BoxSetSources({ item }: { item: MediaItem }) {
     </div>
   );
 }
+
+function TmdbMetadata({ item }: { item: MediaItem }) {
+  const meta = (item as any).metadata || {};
+  const runtime = meta.runtime as number | undefined;
+  const tagline = meta.tagline as string | undefined;
+  const genre = item.genre;
+
+  if (!genre && !runtime && !tagline) return null;
+
+  const formatRuntime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {genre && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {genre.split(",").map((g) => (
+            <Badge key={g.trim()} variant="outline" className="text-[10px]">{g.trim()}</Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        {runtime && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {formatRuntime(runtime)}
+          </span>
+        )}
+      </div>
+      {tagline && (
+        <p className="text-xs text-muted-foreground italic">"{tagline}"</p>
+      )}
+    </div>
+  );
+}
