@@ -57,6 +57,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setWantToWatch(false);
     setTmdbResults([]);
     setSelectedPoster(null);
+    setTmdbMeta({});
     setMultiSelect([]);
     setMultiSelectMode(false);
   };
