@@ -9,8 +9,7 @@ import { AlphabetRail } from "@/components/AlphabetRail";
 import { groupLetter, sortTitle, cn } from "@/lib/utils";
 import { Search, X, LayoutGrid, List, Heart, Eye, ExternalLink, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
+import { SharedDetailDrawer } from "@/components/SharedDetailDrawer";
 import logo from "@/assets/DiscStacked_16x9.png";
 
 type ViewMode = "covers" | "list";
