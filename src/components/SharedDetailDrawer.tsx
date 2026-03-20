@@ -36,8 +36,12 @@ function ConditionBadge({ condition }: { condition: string }) {
   );
 }
 
-export function SharedDetailDrawer({ item, open, onClose }: SharedDetailDrawerProps) {
+export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }: SharedDetailDrawerProps) {
   if (!item) return null;
+
+  const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
+  const prevItem = currentIndex > 0 ? itemList![currentIndex - 1] : null;
+  const nextItem = currentIndex >= 0 && currentIndex < (itemList?.length ?? 0) - 1 ? itemList![currentIndex + 1] : null;
 
   const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
   const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, any>;
