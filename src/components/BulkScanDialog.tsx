@@ -188,8 +188,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             }
           }
 
-          // Lookup in background
-          const result = await lookupBarcode(decoded);
+          // Lookup in background using unified lookup
+          const result = await doLookup(decoded);
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
