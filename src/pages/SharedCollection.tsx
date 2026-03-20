@@ -314,5 +314,6 @@ export default function SharedCollection() {
         onClose={() => setSelectedItem(null)}
       />
     </div>
+  );
 }
 
