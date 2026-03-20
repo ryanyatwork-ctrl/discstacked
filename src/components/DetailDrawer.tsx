@@ -161,6 +161,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
         watch_notes: item.watchNotes ?? null,
         media_type: item.mediaType ?? "movies",
         barcode: item.barcode ?? null,
+        sort_title: item.sortTitle ?? null,
       };
       await duplicateItem.mutateAsync(dbItem);
       toast({ title: "Item duplicated", description: "Edit the copy to set the correct title and year." });
