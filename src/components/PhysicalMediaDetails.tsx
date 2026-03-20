@@ -135,6 +135,9 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             </DetailRow>
           )}
           {meta.rip_notes && <DetailRow label="Rip Notes" value={meta.rip_notes} fullWidth />}
+          {meta.distributor && <DetailRow label="Distributor" value={meta.distributor} />}
+          {meta.region && <DetailRow label="Region" value={meta.region} />}
+          {meta.disc_layers && <DetailRow label="Layers" value={meta.disc_layers} />}
           {meta.physical_notes && <DetailRow label="Notes" value={meta.physical_notes} fullWidth />}
         </div>
       </div>
