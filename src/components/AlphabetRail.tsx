@@ -19,30 +19,28 @@ export function AlphabetRail({ activeLetter, onLetterClick, availableLetters }: 
   if (availableArray.length === 0) return null;
 
   return (
-    <div className="fixed right-3 bottom-20 md:bottom-6 z-40">
-      <Select
-        value={activeLetter ?? ""}
-        onValueChange={(val) => onLetterClick(val)}
+    <Select
+      value={activeLetter ?? ""}
+      onValueChange={(val) => onLetterClick(val)}
+    >
+      <SelectTrigger className="w-16 h-8 bg-card/90 backdrop-blur-sm border-border text-foreground text-xs font-semibold justify-center px-2 gap-1 shrink-0">
+        <SelectValue placeholder="A-Z" />
+      </SelectTrigger>
+      <SelectContent
+        side="bottom"
+        align="end"
+        className="max-h-64 min-w-[3rem] w-14"
       >
-        <SelectTrigger className="w-12 h-10 bg-card/90 backdrop-blur-sm border-border text-foreground text-sm font-semibold justify-center px-0 gap-1">
-          <SelectValue placeholder="A-Z" />
-        </SelectTrigger>
-        <SelectContent
-          side="top"
-          align="end"
-          className="max-h-64 min-w-[3rem] w-14"
-        >
-          {availableArray.map((letter) => (
-            <SelectItem
-              key={letter}
-              value={letter}
-              className="justify-center pl-2 pr-2 text-sm font-medium"
-            >
-              {letter}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+        {availableArray.map((letter) => (
+          <SelectItem
+            key={letter}
+            value={letter}
+            className="justify-center pl-2 pr-2 text-sm font-medium"
+          >
+            {letter}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
