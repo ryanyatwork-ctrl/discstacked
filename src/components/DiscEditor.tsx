@@ -7,11 +7,23 @@ import { Plus, X, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const DISC_FORMATS = ["4K", "Blu-ray", "3D", "DVD", "CD", "Digital"];
+const ASPECT_RATIOS = [
+  "16:9 (Widescreen)",
+  "4:3 (Fullscreen)",
+  "2.39:1 (Scope)",
+  "2.35:1 (Scope)",
+  "1.85:1 (Flat)",
+  "1.78:1 (16:9)",
+  "1.66:1 (European)",
+  "1.33:1 (4:3)",
+  "Dual-Sided (WS/FS)",
+];
 
 export interface DiscEntry {
   label: string;
   format: string;
   missing?: boolean;
+  aspectRatio?: string;
 }
 
 interface DiscEditorProps {
