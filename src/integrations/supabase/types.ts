@@ -31,6 +31,7 @@ export type Database = {
           notes: string | null
           poster_url: string | null
           rating: number | null
+          sort_title: string | null
           title: string
           updated_at: string
           user_id: string
@@ -55,6 +56,7 @@ export type Database = {
           notes?: string | null
           poster_url?: string | null
           rating?: number | null
+          sort_title?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -79,6 +81,7 @@ export type Database = {
           notes?: string | null
           poster_url?: string | null
           rating?: number | null
+          sort_title?: string | null
           title?: string
           updated_at?: string
           user_id?: string

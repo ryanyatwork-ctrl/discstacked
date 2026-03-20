@@ -1,0 +1,1 @@
+ALTER TABLE public.media_items ADD COLUMN sort_title text DEFAULT NULL;
