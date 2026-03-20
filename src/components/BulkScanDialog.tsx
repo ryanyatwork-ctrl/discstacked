@@ -332,7 +332,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       </DialogTrigger>
       <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Bulk Barcode Scan</DialogTitle>
+          <DialogTitle className="text-foreground">{TAB_LABELS[activeTab]}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
