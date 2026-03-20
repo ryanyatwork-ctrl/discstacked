@@ -423,11 +423,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                       {item.status === "looking" ? (
                         <p className="text-sm text-muted-foreground">Looking up {item.barcode}…</p>
                       ) : item.status === "found" ? (
-                        <>
-                          <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
-                          </p>
+                         <>
+                           <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                           <p className="text-[10px] text-muted-foreground truncate">
+                             {item.artist || item.author || ""}{(item.artist || item.author) && item.year ? " · " : ""}
+                             {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
+                           </p>
                           {item.alreadyOwned && (
                             <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
                               <Copy className="w-3 h-3" />
