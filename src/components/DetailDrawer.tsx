@@ -44,6 +44,13 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
     }
   }, [editingTitle]);
 
+  useEffect(() => {
+    if (editingYear && yearInputRef.current) {
+      yearInputRef.current.focus();
+      yearInputRef.current.select();
+    }
+  }, [editingYear]);
+
   if (!item) return null;
 
   const inPlex = localFlags.in_plex ?? item.inPlex;
