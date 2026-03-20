@@ -7,7 +7,7 @@ import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/h
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
@@ -30,6 +30,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [sortTitleDraft, setSortTitleDraft] = useState("");
   const [editingBarcode, setEditingBarcode] = useState(false);
   const [barcodeDraft, setBarcodeDraft] = useState("");
+  const [scanningBarcode, setScanningBarcode] = useState(false);
+  const barcodeScannerRef = useRef<HTMLDivElement>(null);
+  const barcodeQrRef = useRef<any>(null);
   const [editingTags, setEditingTags] = useState(false);
   const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
@@ -412,36 +415,82 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
                 <Barcode className="w-3 h-3" /> UPC / Barcode
               </p>
               {editingBarcode ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={barcodeDraft}
-                    onChange={(e) => setBarcodeDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const trimmed = barcodeDraft.trim();
-                        updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
-                          .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
-                          .catch(() => toast({ title: "Update failed", variant: "destructive" }));
-                        setEditingBarcode(false);
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={barcodeDraft}
+                      onChange={(e) => setBarcodeDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const trimmed = barcodeDraft.trim();
+                          updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                            .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                            .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                          setEditingBarcode(false);
+                        }
+                        if (e.key === "Escape") setEditingBarcode(false);
+                      }}
+                      className="h-8 text-sm font-mono"
+                      placeholder="Enter UPC/barcode…"
+                      autoFocus
+                    />
+                    <Button variant="outline" size="icon" className="shrink-0 h-8 w-8" onClick={async () => {
+                      setScanningBarcode(true);
+                      const { Html5Qrcode } = await import("html5-qrcode");
+                      await new Promise((r) => setTimeout(r, 100));
+                      const scanner = new Html5Qrcode("detail-barcode-scanner");
+                      barcodeQrRef.current = scanner;
+                      try {
+                        await scanner.start(
+                          { facingMode: "environment" },
+                          { fps: 10, qrbox: { width: 250, height: 100 } },
+                          async (decoded: string) => {
+                            setBarcodeDraft(decoded);
+                            try { await scanner.stop(); scanner.clear(); } catch {}
+                            barcodeQrRef.current = null;
+                            setScanningBarcode(false);
+                          },
+                          () => {}
+                        );
+                      } catch (err: any) {
+                        toast({ title: "Camera error", description: err.message, variant: "destructive" });
+                        setScanningBarcode(false);
                       }
-                      if (e.key === "Escape") setEditingBarcode(false);
-                    }}
-                    className="h-8 text-sm font-mono"
-                    placeholder="Enter UPC/barcode…"
-                    autoFocus
-                  />
-                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
-                    const trimmed = barcodeDraft.trim();
-                    updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
-                      .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
-                      .catch(() => toast({ title: "Update failed", variant: "destructive" }));
-                    setEditingBarcode(false);
-                  }}>
-                    <Check className="w-4 h-4 text-success" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingBarcode(false)}>
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </Button>
+                    }}>
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                      const trimmed = barcodeDraft.trim();
+                      updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                        .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                        .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                      setEditingBarcode(false);
+                    }}>
+                      <Check className="w-4 h-4 text-success" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                      if (barcodeQrRef.current) {
+                        try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
+                        barcodeQrRef.current = null;
+                      }
+                      setScanningBarcode(false);
+                      setEditingBarcode(false);
+                    }}>
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  {scanningBarcode && (
+                    <div className="relative">
+                      <div id="detail-barcode-scanner" ref={barcodeScannerRef} className="w-full rounded-md overflow-hidden" />
+                      <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={() => {
+                        if (barcodeQrRef.current) {
+                          try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
+                          barcodeQrRef.current = null;
+                        }
+                        setScanningBarcode(false);
+                      }}>Stop</Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-1 group/barcode">
