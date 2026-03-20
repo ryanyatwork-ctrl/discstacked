@@ -1,5 +1,11 @@
 import { ALPHABET } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AlphabetRailProps {
   activeLetter: string | null;
@@ -8,25 +14,35 @@ interface AlphabetRailProps {
 }
 
 export function AlphabetRail({ activeLetter, onLetterClick, availableLetters }: AlphabetRailProps) {
+  const availableArray = ALPHABET.filter((l) => availableLetters.has(l));
+
+  if (availableArray.length === 0) return null;
+
   return (
-    <nav className="fixed right-1 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-0.5 py-2 px-1">
-      {ALPHABET.map((letter) => {
-        const available = availableLetters.has(letter);
-        return (
-          <button
-            key={letter}
-            onClick={() => available && onLetterClick(letter)}
-            className={cn(
-              "w-5 h-5 flex items-center justify-center text-[10px] font-medium rounded-sm transition-colors duration-100",
-              activeLetter === letter && "bg-primary text-primary-foreground",
-              activeLetter !== letter && available && "text-muted-foreground hover:text-foreground hover:bg-secondary",
-              !available && "text-muted-foreground/30 cursor-default"
-            )}
-          >
-            {letter}
-          </button>
-        );
-      })}
-    </nav>
+    <div className="fixed right-3 bottom-20 md:bottom-6 z-40">
+      <Select
+        value={activeLetter ?? ""}
+        onValueChange={(val) => onLetterClick(val)}
+      >
+        <SelectTrigger className="w-12 h-10 bg-card/90 backdrop-blur-sm border-border text-foreground text-sm font-semibold justify-center px-0 gap-1">
+          <SelectValue placeholder="A-Z" />
+        </SelectTrigger>
+        <SelectContent
+          side="top"
+          align="end"
+          className="max-h-64 min-w-[3rem] w-14"
+        >
+          {availableArray.map((letter) => (
+            <SelectItem
+              key={letter}
+              value={letter}
+              className="justify-center pl-2 pr-2 text-sm font-medium"
+            >
+              {letter}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
