@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle } from "lucide-react";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
@@ -21,6 +21,8 @@ interface ScanQueueItem {
   tagline?: string | null;
   format: string;
   selected: boolean;
+  alreadyOwned?: boolean;
+  existingTitle?: string;
 }
 
 interface BulkScanDialogProps {
@@ -112,12 +114,46 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             osc.stop(ctx.currentTime + 0.1);
           } catch {}
 
+          // Check if already in collection
+          let alreadyOwned = false;
+          let existingTitle: string | undefined;
+          if (user) {
+            const { data: existing } = await supabase
+              .from("media_items")
+              .select("title")
+              .eq("user_id", user.id)
+              .eq("barcode", decoded)
+              .limit(1);
+            if (existing && existing.length > 0) {
+              alreadyOwned = true;
+              existingTitle = existing[0].title;
+              // Play a different warning tone
+              try {
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 400;
+                gain.gain.value = 0.15;
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+              } catch {}
+            }
+          }
+
           // Lookup in background
           const result = await lookupBarcode(decoded);
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
-                ? { ...item, ...result }
+                ? {
+                    ...item,
+                    ...result,
+                    alreadyOwned,
+                    existingTitle: existingTitle || result.title,
+                    selected: !alreadyOwned, // deselect by default if already owned
+                  }
                 : item
             )
           );
@@ -259,7 +295,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                   <div
                     key={item.barcode}
                     className={`flex items-center gap-2 p-2 rounded-md border transition-colors ${
-                      item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+                      item.alreadyOwned && !item.selected
+                        ? "border-warning/40 bg-warning/5"
+                        : item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-card"
                     }`}
                   >
                     {/* Poster thumbnail */}
@@ -289,6 +327,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                           <p className="text-[10px] text-muted-foreground">
                             {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
                           </p>
+                          {item.alreadyOwned && (
+                            <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
+                              <Copy className="w-3 h-3" />
+                              Already in collection{item.existingTitle ? ` as "${item.existingTitle}"` : ""}
+                              {!item.selected && " — tap ✓ to add anyway"}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
