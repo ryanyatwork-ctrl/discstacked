@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
+import { CollectionEditor } from "@/components/CollectionEditor";
 
 interface SharedDetailDrawerProps {
   item: MediaItem | null;
