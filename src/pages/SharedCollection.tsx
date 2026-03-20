@@ -41,6 +41,7 @@ export default function SharedCollection() {
     return items.map((db: any): MediaItem => ({
       id: db.id,
       title: db.title,
+      sortTitle: db.sort_title ?? undefined,
       year: db.year ?? undefined,
       format: db.format ?? undefined,
       formats: db.formats?.length > 0 ? db.formats : db.format ? [db.format] : undefined,
@@ -72,13 +73,13 @@ export default function SharedCollection() {
     } else if (statusFilter === "wantToWatch") {
       result = result.filter((i) => i.wantToWatch);
     }
-    return result.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
+    return result.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
   }, [mediaItems, activeFormats, searchQuery, statusFilter]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title);
+      const key = groupLetter(item.title, item.sortTitle);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
@@ -87,7 +88,7 @@ export default function SharedCollection() {
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
-    filteredItems.forEach((item) => letters.add(groupLetter(item.title)));
+    filteredItems.forEach((item) => letters.add(groupLetter(item.title, item.sortTitle)));
     return letters;
   }, [filteredItems]);
 

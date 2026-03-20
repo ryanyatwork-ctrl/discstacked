@@ -3,6 +3,7 @@ export type MediaTab = "movies" | "music-films" | "cds" | "books" | "games";
 export interface MediaItem {
   id: string;
   title: string;
+  sortTitle?: string;
   year?: number;
   format?: string;
   formats?: string[];

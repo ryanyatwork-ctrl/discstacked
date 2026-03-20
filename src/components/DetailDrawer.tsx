@@ -7,7 +7,7 @@ import { useUpdateItem, useDuplicateItem, DbMediaItem } from "@/hooks/useMediaIt
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ } from "lucide-react";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
 
@@ -24,6 +24,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [titleDraft, setTitleDraft] = useState("");
   const [editingYear, setEditingYear] = useState(false);
   const [yearDraft, setYearDraft] = useState("");
+  const [editingSortTitle, setEditingSortTitle] = useState(false);
+  const [sortTitleDraft, setSortTitleDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +94,22 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
     setEditingYear(false);
   };
 
+  const handleSaveSortTitle = async () => {
+    const trimmed = sortTitleDraft.trim();
+    const current = item.sortTitle || "";
+    if (trimmed === current) {
+      setEditingSortTitle(false);
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, sort_title: trimmed || null } as any);
+      toast({ title: trimmed ? "Sort title updated!" : "Sort title removed" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingSortTitle(false);
+  };
+
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
     setLocalFlags((prev) => ({ ...prev, [field]: value }));
     try {
@@ -143,6 +161,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
         watch_notes: item.watchNotes ?? null,
         media_type: item.mediaType ?? "movies",
         barcode: item.barcode ?? null,
+        sort_title: item.sortTitle ?? null,
       };
       await duplicateItem.mutateAsync(dbItem);
       toast({ title: "Item duplicated", description: "Edit the copy to set the correct title and year." });
@@ -252,7 +271,51 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               )}
             </div>
 
-            {/* Format Editor */}
+            {/* Sort Title */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <ArrowDownAZ className="w-3 h-3" /> Sort As
+              </p>
+              {editingSortTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={sortTitleDraft}
+                    onChange={(e) => setSortTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveSortTitle();
+                      if (e.key === "Escape") setEditingSortTitle(false);
+                    }}
+                    className="h-8 text-sm"
+                    placeholder="e.g. Allegiant"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={handleSaveSortTitle}>
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingSortTitle(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/sort">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => { setSortTitleDraft(item.sortTitle || ""); setEditingSortTitle(true); }}
+                  >
+                    {item.sortTitle || "Same as title"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/sort:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setSortTitleDraft(item.sortTitle || ""); setEditingSortTitle(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <FormatEditor
               formats={formats}
               mediaType={mediaType}

@@ -30,6 +30,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   return {
     id: db.id,
     title: db.title,
+    sortTitle: (db as any).sort_title ?? undefined,
     year: db.year ?? undefined,
     format: db.format ?? undefined,
     formats: formats && formats.length > 0 ? formats : db.format ? [db.format] : undefined,
@@ -99,13 +100,13 @@ export default function Index() {
     } else if (statusFilter === "digital") {
       items = items.filter((i) => i.digitalCopy);
     }
-    return items.sort((a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)));
+    return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
   }, [allItems, searchQuery, activeFormats, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      letters.add(groupLetter(item.title));
+      letters.add(groupLetter(item.title, item.sortTitle));
     });
     return letters;
   }, [filteredItems]);
@@ -113,7 +114,7 @@ export default function Index() {
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title);
+      const key = groupLetter(item.title, item.sortTitle);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
