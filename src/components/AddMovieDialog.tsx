@@ -156,6 +156,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
+    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline });
     setTmdbResults([]);
     setMultiSelect([]);
   };
