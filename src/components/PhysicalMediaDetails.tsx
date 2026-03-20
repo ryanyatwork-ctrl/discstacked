@@ -211,25 +211,11 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Select>
         </Field>
 
-        {/* Disc Contents */}
-        <Field label="Disc Contents">
-          <Input
-            value={d.disc_contents || ""}
-            onChange={(e) => updateField("disc_contents", e.target.value)}
-            placeholder="e.g. BD+DVD+Digital, 2×BD, BD only…"
-            className="h-8 text-sm"
-          />
-        </Field>
-
-        {/* Missing Discs */}
-        <Field label="Missing Discs">
-          <Input
-            value={d.missing_discs || ""}
-            onChange={(e) => updateField("missing_discs", e.target.value)}
-            placeholder="e.g. DVD disc missing"
-            className="h-8 text-sm"
-          />
-        </Field>
+        {/* Discs */}
+        <DiscEditor
+          discs={d.discs || []}
+          onChange={(discs) => setDraft((prev) => ({ ...prev, discs }))}
+        />
 
         {/* Digital Code */}
         <Field label="Digital Code">
