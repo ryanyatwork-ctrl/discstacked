@@ -17,7 +17,8 @@ import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { FetchArtworkButton } from "@/components/FetchArtworkButton";
-import { Users, LogIn, LogOut, LayoutGrid, List } from "lucide-react";
+import { Users, LogIn, LogOut, LayoutGrid, List, Pin, PinOff } from "lucide-react";
+import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,6 +70,7 @@ export default function Index() {
 
   const { user, signOut } = useAuth();
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
+  const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader();
 
   const allItems = useMemo(() => {
     if (user && dbItems && dbItems.length > 0) {
@@ -153,7 +155,11 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+      <header
+        className={`sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border transition-transform duration-300 ${
+          headerVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 min-w-0">
             <MobileMenu
@@ -189,6 +195,15 @@ export default function Index() {
                   onClick={() => signOut()}
                 >
                   <LogOut className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
+                  onClick={toggleHeaderPin}
+                  title={headerPinned ? "Unpin header" : "Pin header"}
+                >
+                  {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
                 </Button>
               </>
             ) : (
@@ -250,7 +265,7 @@ export default function Index() {
       </div>
 
       {/* Grid / List */}
-      <main className="px-4 pb-8 pr-8" ref={gridRef}>
+      <main className="px-4 pb-8" ref={gridRef}>
         {sortedLetters.map((letter) => (
           <div key={letter} id={`letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 sticky top-[120px] bg-background/95 backdrop-blur-sm py-1 z-10">
