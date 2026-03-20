@@ -24,6 +24,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [titleDraft, setTitleDraft] = useState("");
   const [editingYear, setEditingYear] = useState(false);
   const [yearDraft, setYearDraft] = useState("");
+  const [editingSortTitle, setEditingSortTitle] = useState(false);
+  const [sortTitleDraft, setSortTitleDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
