@@ -2,7 +2,7 @@ import { MediaItem } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers } from "lucide-react";
+import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 import { CollectionEditor } from "@/components/CollectionEditor";
 
