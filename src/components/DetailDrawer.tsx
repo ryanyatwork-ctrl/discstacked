@@ -22,9 +22,12 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [editingYear, setEditingYear] = useState(false);
+  const [yearDraft, setYearDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const yearInputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
   const duplicateItem = useDuplicateItem();
 
@@ -40,6 +43,13 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
       inputRef.current.select();
     }
   }, [editingTitle]);
+
+  useEffect(() => {
+    if (editingYear && yearInputRef.current) {
+      yearInputRef.current.focus();
+      yearInputRef.current.select();
+    }
+  }, [editingYear]);
 
   if (!item) return null;
 
@@ -61,6 +71,25 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
       toast({ title: "Update failed", variant: "destructive" });
     }
     setEditingTitle(false);
+  };
+
+  const handleSaveYear = async () => {
+    const parsed = yearDraft.trim() ? parseInt(yearDraft.trim()) : null;
+    if (parsed === (item.year ?? null)) {
+      setEditingYear(false);
+      return;
+    }
+    if (yearDraft.trim() && (isNaN(parsed!) || parsed! < 1888 || parsed! > 2099)) {
+      toast({ title: "Enter a valid year", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, year: parsed } as any);
+      toast({ title: "Year updated!" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingYear(false);
   };
 
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
@@ -187,7 +216,40 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
                   </Button>
                 </div>
               )}
-              {item.year && <span className="text-sm text-muted-foreground">{item.year}</span>}
+              {editingYear ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={yearInputRef}
+                    value={yearDraft}
+                    onChange={(e) => setYearDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveYear(); if (e.key === "Escape") setEditingYear(false); }}
+                    className="w-24 h-7 text-sm"
+                    placeholder="Year"
+                    type="number"
+                    min={1888}
+                    max={2099}
+                  />
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleSaveYear}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingYear(false)}>Cancel</Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/year">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => { setYearDraft(String(item.year ?? "")); setEditingYear(true); }}
+                  >
+                    {item.year || "Add year"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/year:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setYearDraft(String(item.year ?? "")); setEditingYear(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Format Editor */}
