@@ -1,5 +1,17 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export interface TmdbCast {
+  name: string;
+  character: string;
+  profile_url: string | null;
+}
+
+export interface TmdbCrew {
+  director: string[];
+  writer: string[];
+  producer: string[];
+}
+
 export interface TmdbResult {
   tmdb_id: number;
   title: string;
@@ -11,6 +23,8 @@ export interface TmdbResult {
   runtime?: number | null;
   tagline?: string | null;
   media_type?: string;
+  cast?: TmdbCast[];
+  crew?: TmdbCrew;
 }
 
 export async function searchTmdb(query: string, year?: number, searchType?: "movie" | "tv"): Promise<TmdbResult[]> {
