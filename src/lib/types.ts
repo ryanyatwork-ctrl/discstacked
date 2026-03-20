@@ -23,6 +23,7 @@ export interface MediaItem {
   platform?: string;
   barcode?: string;
   totalCopies?: number;
+  metadata?: Record<string, any>;
 }
 
 export const TABS: { id: MediaTab; label: string; icon: string }[] = [

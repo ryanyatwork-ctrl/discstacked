@@ -11,6 +11,7 @@ import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
+import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
@@ -323,6 +324,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               mediaType={mediaType}
               onToggle={handleFormatToggle}
             />
+
+            {/* Physical Media Details */}
+            <PhysicalMediaDetails item={item} />
 
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
