@@ -36,6 +36,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [lookingUp, setLookingUp] = useState(false);
   const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
+  const [tmdbMeta, setTmdbMeta] = useState<{ runtime?: number | null; tagline?: string | null }>({});
   const [multiSelect, setMultiSelect] = useState<TmdbResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
@@ -56,6 +57,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setWantToWatch(false);
     setTmdbResults([]);
     setSelectedPoster(null);
+    setTmdbMeta({});
     setMultiSelect([]);
     setMultiSelectMode(false);
   };
@@ -154,6 +156,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (result.year) setYear(String(result.year));
     if (result.genre) setGenre(result.genre);
     if (result.poster_url) setSelectedPoster(result.poster_url);
+    setTmdbMeta({ runtime: result.runtime, tagline: result.tagline });
     setTmdbResults([]);
     setMultiSelect([]);
   };
@@ -192,6 +195,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!title.trim() || !user) return;
     setSaving(true);
     try {
+      const metaPayload: Record<string, any> = {};
+      if (tmdbMeta.runtime) metaPayload.runtime = tmdbMeta.runtime;
+      if (tmdbMeta.tagline) metaPayload.tagline = tmdbMeta.tagline;
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
@@ -207,6 +213,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
+        metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       });
       if (error) throw error;
       toast({ title: "Added!", description: `${title} added to your collection.` });

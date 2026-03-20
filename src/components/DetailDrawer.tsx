@@ -7,7 +7,7 @@ import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/h
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
@@ -28,6 +28,10 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [yearDraft, setYearDraft] = useState("");
   const [editingSortTitle, setEditingSortTitle] = useState(false);
   const [sortTitleDraft, setSortTitleDraft] = useState("");
+  const [editingBarcode, setEditingBarcode] = useState(false);
+  const [barcodeDraft, setBarcodeDraft] = useState("");
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +44,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   useEffect(() => {
     setLocalFlags({});
     setLocalFormats(null);
+    setEditingBarcode(false);
+    setEditingTags(false);
   }, [item?.id]);
 
   useEffect(() => {
@@ -331,13 +337,131 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             {/* Box Set Sources */}
             <BoxSetSources item={item} />
 
+            {/* TMDB Metadata (genre, runtime, tagline) */}
+            <TmdbMetadata item={item} />
+
+            {/* Tags */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Tag className="w-3 h-3" /> Tags
+              </p>
+              {editingTags ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={tagsDraft}
+                    onChange={(e) => setTagsDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const tags = tagsDraft.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean);
+                        const currentMeta = (item as any).metadata || {};
+                        updateItem.mutateAsync({ id: item.id, metadata: { ...currentMeta, tags } } as any)
+                          .then(() => toast({ title: "Tags saved!" }))
+                          .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                        setEditingTags(false);
+                      }
+                      if (e.key === "Escape") setEditingTags(false);
+                    }}
+                    className="h-8 text-sm"
+                    placeholder="#marvel, #pixar, #romcom"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                    const tags = tagsDraft.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean);
+                    const currentMeta = (item as any).metadata || {};
+                    updateItem.mutateAsync({ id: item.id, metadata: { ...currentMeta, tags } } as any)
+                      .then(() => toast({ title: "Tags saved!" }))
+                      .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                    setEditingTags(false);
+                  }}>
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingTags(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 flex-wrap group/tags">
+                  {((item.metadata as any)?.tags as string[] || []).length > 0 ? (
+                    <>
+                      {((item.metadata as any).tags as string[]).map((tag: string) => (
+                        <Badge key={tag} variant="secondary" className="text-[10px]">#{tag}</Badge>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No tags</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/tags:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => {
+                      const existingTags = ((item.metadata as any)?.tags as string[]) || [];
+                      setTagsDraft(existingTags.map(t => `#${t}`).join(", "));
+                      setEditingTags(true);
+                    }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             {/* Barcode */}
-            {item.barcode && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">UPC / Barcode</p>
-                <p className="text-sm text-foreground font-mono">{item.barcode}</p>
-              </div>
-            )}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Barcode className="w-3 h-3" /> UPC / Barcode
+              </p>
+              {editingBarcode ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={barcodeDraft}
+                    onChange={(e) => setBarcodeDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const trimmed = barcodeDraft.trim();
+                        updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                          .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                          .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                        setEditingBarcode(false);
+                      }
+                      if (e.key === "Escape") setEditingBarcode(false);
+                    }}
+                    className="h-8 text-sm font-mono"
+                    placeholder="Enter UPC/barcode…"
+                    autoFocus
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+                    const trimmed = barcodeDraft.trim();
+                    updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                      .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                      .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                    setEditingBarcode(false);
+                  }}>
+                    <Check className="w-4 h-4 text-success" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingBarcode(false)}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/barcode">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-mono"
+                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
+                  >
+                    {item.barcode || "Add barcode"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/barcode:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
 
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
@@ -604,6 +728,43 @@ function BoxSetSources({ item }: { item: MediaItem }) {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function TmdbMetadata({ item }: { item: MediaItem }) {
+  const meta = (item as any).metadata || {};
+  const runtime = meta.runtime as number | undefined;
+  const tagline = meta.tagline as string | undefined;
+  const genre = item.genre;
+
+  if (!genre && !runtime && !tagline) return null;
+
+  const formatRuntime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {genre && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {genre.split(",").map((g) => (
+            <Badge key={g.trim()} variant="outline" className="text-[10px]">{g.trim()}</Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        {runtime && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {formatRuntime(runtime)}
+          </span>
+        )}
+      </div>
+      {tagline && (
+        <p className="text-xs text-muted-foreground italic">"{tagline}"</p>
       )}
     </div>
   );

@@ -64,6 +64,7 @@ export default function Index() {
   const [activeTab, setActiveTab] = useState<MediaTab>(() => getStored("ds-default-tab", "movies"));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"plex" | "digital" | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
@@ -85,6 +86,15 @@ export default function Index() {
     return generateMockData(activeTab);
   }, [activeTab, user, dbItems]);
 
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    allItems.forEach((item) => {
+      const tags = (item.metadata as any)?.tags as string[] | undefined;
+      if (tags) tags.forEach((t) => tagSet.add(t));
+    });
+    return [...tagSet].sort();
+  }, [allItems]);
+
   const filteredItems = useMemo(() => {
     let items = allItems;
     if (searchQuery) {
@@ -97,13 +107,20 @@ export default function Index() {
         return itemFormats.some((format) => activeFormats.includes(format));
       });
     }
+    if (activeTags.length > 0) {
+      items = items.filter((i) => {
+        const tags = (i.metadata as any)?.tags as string[] | undefined;
+        if (!tags) return false;
+        return activeTags.every((t) => tags.includes(t));
+      });
+    }
     if (statusFilter === "plex") {
       items = items.filter((i) => i.inPlex);
     } else if (statusFilter === "digital") {
       items = items.filter((i) => i.digitalCopy);
     }
     return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
-  }, [allItems, searchQuery, activeFormats, statusFilter]);
+  }, [allItems, searchQuery, activeFormats, activeTags, statusFilter]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
@@ -139,8 +156,15 @@ export default function Index() {
     setActiveTab(tab);
     setSearchQuery("");
     setActiveFormats([]);
+    setActiveTags([]);
     setStatusFilter(null);
     setActiveLetter(null);
+  }, []);
+
+  const handleTagToggle = useCallback((tag: string) => {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   }, []);
 
   const handleStatsClick = useCallback((type: "plex" | "digital" | "total") => {
@@ -217,6 +241,9 @@ export default function Index() {
               onSearchChange={setSearchQuery}
               activeFormats={activeFormats}
               onFormatToggle={handleFormatToggle}
+              availableTags={availableTags}
+              activeTags={activeTags}
+              onTagToggle={handleTagToggle}
             />
           </div>
           <AlphabetRail
@@ -253,7 +280,7 @@ export default function Index() {
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Loading..." : `${filteredItems.length} items`}
-          {activeFormats.length > 0 && ` · Filtered`}
+          {(activeFormats.length > 0 || activeTags.length > 0) && ` · Filtered`}
           {!user && " · Demo mode"}
         </p>
         <div className="flex items-center gap-1">
