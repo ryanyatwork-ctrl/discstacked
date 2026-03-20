@@ -195,6 +195,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!title.trim() || !user) return;
     setSaving(true);
     try {
+      const metaPayload: Record<string, any> = {};
+      if (tmdbMeta.runtime) metaPayload.runtime = tmdbMeta.runtime;
+      if (tmdbMeta.tagline) metaPayload.tagline = tmdbMeta.tagline;
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
@@ -210,6 +213,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
+        metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       });
       if (error) throw error;
       toast({ title: "Added!", description: `${title} added to your collection.` });
