@@ -110,7 +110,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           </div>
 
           {/* Edition & Case */}
-          {(meta.edition || meta.case_type) && (
+          {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers) && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               {meta.edition && (
                 <div>
@@ -136,6 +136,24 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                   <p className="text-sm text-foreground flex items-center gap-1">
                     <ConditionBadge condition={meta.condition} />
                   </p>
+                </div>
+              )}
+              {meta.distributor && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Distributor</span>
+                  <p className="text-sm text-foreground">{meta.distributor}</p>
+                </div>
+              )}
+              {meta.region && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Region</span>
+                  <p className="text-sm text-foreground">{meta.region}</p>
+                </div>
+              )}
+              {meta.disc_layers && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Layers</span>
+                  <p className="text-sm text-foreground">{meta.disc_layers}</p>
                 </div>
               )}
             </div>
