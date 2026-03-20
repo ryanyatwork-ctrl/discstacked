@@ -215,6 +215,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       const metaPayload: Record<string, any> = {};
       if (tmdbMeta.runtime) metaPayload.runtime = tmdbMeta.runtime;
       if (tmdbMeta.tagline) metaPayload.tagline = tmdbMeta.tagline;
+      if (tmdbMeta.overview) metaPayload.overview = tmdbMeta.overview;
+      if (tmdbMeta.cast) metaPayload.cast = tmdbMeta.cast;
+      if (tmdbMeta.crew) metaPayload.crew = tmdbMeta.crew;
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
