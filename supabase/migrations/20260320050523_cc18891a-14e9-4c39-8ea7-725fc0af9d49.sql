@@ -1,0 +1,1 @@
+ALTER TABLE public.media_items ADD COLUMN total_copies integer NOT NULL DEFAULT 1;
