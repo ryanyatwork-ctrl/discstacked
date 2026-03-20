@@ -289,7 +289,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
                     autoFocus
                   />
                   <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={handleSaveSortTitle}>
-                    <Check className="w-4 h-4 text-green-500" />
+                    <Check className="w-4 h-4 text-success" />
                   </Button>
                   <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => setEditingSortTitle(false)}>
                     <X className="w-4 h-4 text-muted-foreground" />
