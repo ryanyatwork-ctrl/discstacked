@@ -10,6 +10,8 @@ interface SharedDetailDrawerProps {
   item: MediaItem | null;
   open: boolean;
   onClose: () => void;
+  itemList?: MediaItem[];
+  onNavigate?: (item: MediaItem) => void;
 }
 
 const getFormatVariant = (f: string) =>
