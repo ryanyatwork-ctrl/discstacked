@@ -338,8 +338,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             {/* Physical Media Details */}
             <PhysicalMediaDetails item={item} />
 
-            {/* Box Set Sources */}
-            <BoxSetSources item={item} />
+            {/* Collection / Box Set */}
+            <CollectionEditor item={item} />
 
             {/* TMDB Metadata (genre, runtime, tagline) */}
             <TmdbMetadata item={item} />
