@@ -52,6 +52,9 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
               <span className={disc.missing ? "text-destructive line-through" : "text-foreground"}>
                 {disc.label || `Disc ${i + 1}`}
               </span>
+              {disc.aspectRatio && (
+                <span className="text-[10px] text-muted-foreground">({disc.aspectRatio})</span>
+              )}
               {disc.missing && (
                 <span className="flex items-center gap-0.5 text-destructive text-xs">
                   <AlertTriangle className="w-3 h-3" /> Missing
