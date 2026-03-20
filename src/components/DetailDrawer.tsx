@@ -200,7 +200,34 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
             <SheetTitle>{item.title}</SheetTitle>
           </SheetHeader>
 
-          <div className="space-y-6 pt-2">
+          {/* Navigation bar */}
+          <div className="flex items-center justify-between py-2 border-b border-border mb-2">
+            <Button variant="ghost" size="sm" onClick={onClose} className="gap-1 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!prevItem}
+                onClick={() => prevItem && onNavigate?.(prevItem)}
+                className="gap-1 text-muted-foreground hover:text-foreground"
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!nextItem}
+                onClick={() => nextItem && onNavigate?.(nextItem)}
+                className="gap-1 text-muted-foreground hover:text-foreground"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
             {/* Poster */}
             <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
               {item.posterUrl ? (
