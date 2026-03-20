@@ -88,7 +88,7 @@ export default function SharedCollection() {
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
-    filteredItems.forEach((item) => letters.add(groupLetter(item.title)));
+    filteredItems.forEach((item) => letters.add(groupLetter(item.title, item.sortTitle)));
     return letters;
   }, [filteredItems]);
 
