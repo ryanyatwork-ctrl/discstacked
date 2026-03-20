@@ -46,6 +46,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
     watchNotes: db.watch_notes ?? undefined,
     mediaType: db.media_type as MediaTab,
     barcode: (db as any).barcode ?? undefined,
+    totalCopies: (db as any).total_copies ?? 1,
   };
 }
 

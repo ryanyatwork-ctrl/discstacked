@@ -33,6 +33,7 @@ export type Database = {
           rating: number | null
           sort_title: string | null
           title: string
+          total_copies: number
           updated_at: string
           user_id: string
           want_to_watch: boolean
@@ -58,6 +59,7 @@ export type Database = {
           rating?: number | null
           sort_title?: string | null
           title: string
+          total_copies?: number
           updated_at?: string
           user_id: string
           want_to_watch?: boolean
@@ -83,6 +85,7 @@ export type Database = {
           rating?: number | null
           sort_title?: string | null
           title?: string
+          total_copies?: number
           updated_at?: string
           user_id?: string
           want_to_watch?: boolean

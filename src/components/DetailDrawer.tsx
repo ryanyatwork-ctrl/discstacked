@@ -3,11 +3,12 @@ import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useUpdateItem, useDuplicateItem, DbMediaItem } from "@/hooks/useMediaItems";
+import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
 
@@ -32,6 +33,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const yearInputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
   const duplicateItem = useDuplicateItem();
+  const deleteItem = useDeleteItem();
 
   // Reset local overrides when item changes
   useEffect(() => {
@@ -348,6 +350,44 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
             {/* Watch History */}
             <WatchHistory item={item} onUpdate={updateItem} />
 
+            {/* Copies */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Copies Owned
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={(item.totalCopies ?? 1) <= 1}
+                  onClick={async () => {
+                    const next = (item.totalCopies ?? 1) - 1;
+                    if (next < 1) return;
+                    try {
+                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
+                    } catch {
+                      toast({ title: "Update failed", variant: "destructive" });
+                    }
+                  }}
+                >−</Button>
+                <span className="text-sm font-medium text-foreground w-6 text-center">{item.totalCopies ?? 1}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={async () => {
+                    const next = (item.totalCopies ?? 1) + 1;
+                    try {
+                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
+                    } catch {
+                      toast({ title: "Update failed", variant: "destructive" });
+                    }
+                  }}
+                >+</Button>
+              </div>
+            </div>
+
             {/* Duplicate / Split */}
             <Button
               variant="outline"
@@ -368,6 +408,44 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
               <ExternalLink className="w-4 h-4 mr-2" />
               Find on Amazon
             </Button>
+
+            {/* Delete */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Item
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete "{item.title}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove this item from your collection. If you're merging duplicates, make sure you've already increased the copy count on the item you're keeping.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={async () => {
+                      try {
+                        await deleteItem.mutateAsync(item.id);
+                        toast({ title: "Item deleted", description: item.title });
+                        onClose();
+                      } catch {
+                        toast({ title: "Delete failed", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </SheetContent>
       </Sheet>
