@@ -190,11 +190,11 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           )}
 
           {/* TMDB Metadata */}
-          {(item.genre || meta.runtime || meta.tagline) && (
-            <div className="space-y-1.5">
+          {(item.genre || meta.runtime || meta.tagline || meta.cast?.length || meta.crew) && (
+            <div className="space-y-3">
               {item.genre && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {item.genre.split(",").map((g) => (
+                  {item.genre.split(",").map((g: string) => (
                     <Badge key={g.trim()} variant="outline" className="text-[10px]">{g.trim()}</Badge>
                   ))}
                 </div>
@@ -206,6 +206,54 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
               )}
               {meta.tagline && (
                 <p className="text-sm text-muted-foreground italic">"{meta.tagline}"</p>
+              )}
+              {meta.overview && (
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{meta.overview}</p>
+              )}
+              {/* Cast */}
+              {meta.cast && (meta.cast as any[]).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Cast</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {(meta.cast as any[]).slice(0, 6).map((c: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {c.profile_url ? (
+                          <img src={c.profile_url} alt={c.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-secondary shrink-0" />
+                        )}
+                        <span className="text-foreground font-medium truncate">{c.name}</span>
+                        {c.character && <span className="text-muted-foreground truncate">as {c.character}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Crew */}
+              {meta.crew && ((meta.crew as any).director?.length || (meta.crew as any).writer?.length || (meta.crew as any).producer?.length) && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Crew</p>
+                  <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-xs">
+                    {(meta.crew as any).director?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Director</span>
+                        <span className="text-foreground">{(meta.crew as any).director.join(", ")}</span>
+                      </>
+                    )}
+                    {(meta.crew as any).writer?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Writer</span>
+                        <span className="text-foreground">{(meta.crew as any).writer.join(", ")}</span>
+                      </>
+                    )}
+                    {(meta.crew as any).producer?.length > 0 && (
+                      <>
+                        <span className="text-muted-foreground font-medium">Producer</span>
+                        <span className="text-foreground">{(meta.crew as any).producer.join(", ")}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}
