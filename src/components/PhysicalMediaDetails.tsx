@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, X, Disc, Package, HardDrive, Shield } from "lucide-react";
-
+import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];
 const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Poor"];
 const DIGITAL_CODE_STATUSES = ["Not Included", "Included (Unused)", "Redeemed", "Expired"];
