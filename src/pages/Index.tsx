@@ -206,13 +206,20 @@ export default function Index() {
             )}
           </div>
         </div>
-        <div className="px-3 pb-2 sm:px-4 sm:pb-3">
-          <FilterBar
-            activeTab={activeTab}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            activeFormats={activeFormats}
-            onFormatToggle={handleFormatToggle}
+        <div className="px-3 pb-2 sm:px-4 sm:pb-3 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <FilterBar
+              activeTab={activeTab}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFormats={activeFormats}
+              onFormatToggle={handleFormatToggle}
+            />
+          </div>
+          <AlphabetRail
+            activeLetter={activeLetter}
+            onLetterClick={handleLetterClick}
+            availableLetters={availableLetters}
           />
         </div>
       </header>
