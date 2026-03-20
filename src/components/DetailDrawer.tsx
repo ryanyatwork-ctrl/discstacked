@@ -71,6 +71,11 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
 
   if (!item) return null;
 
+  // Prev/Next navigation
+  const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
+  const prevItem = currentIndex > 0 ? itemList![currentIndex - 1] : null;
+  const nextItem = currentIndex >= 0 && currentIndex < (itemList?.length ?? 0) - 1 ? itemList![currentIndex + 1] : null;
+
   const inPlex = localFlags.in_plex ?? item.inPlex;
   const digitalCopy = localFlags.digital_copy ?? item.digitalCopy;
   const wishlist = localFlags.wishlist ?? item.wishlist;
