@@ -28,6 +28,10 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   const [yearDraft, setYearDraft] = useState("");
   const [editingSortTitle, setEditingSortTitle] = useState(false);
   const [sortTitleDraft, setSortTitleDraft] = useState("");
+  const [editingBarcode, setEditingBarcode] = useState(false);
+  const [barcodeDraft, setBarcodeDraft] = useState("");
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +44,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
   useEffect(() => {
     setLocalFlags({});
     setLocalFormats(null);
+    setEditingBarcode(false);
+    setEditingTags(false);
   }, [item?.id]);
 
   useEffect(() => {
