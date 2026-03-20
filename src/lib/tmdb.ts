@@ -8,6 +8,8 @@ export interface TmdbResult {
   rating: number | null;
   overview: string | null;
   genre?: string | null;
+  runtime?: number | null;
+  tagline?: string | null;
   media_type?: string;
 }
 
