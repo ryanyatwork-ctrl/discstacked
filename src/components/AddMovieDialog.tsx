@@ -130,7 +130,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         if (data.year) setYear(String(data.year));
         if (data.genre) setGenre(data.genre);
         if (data.poster_url) setSelectedPoster(data.poster_url);
-        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline });
+        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline, overview: data.overview, cast: data.cast, crew: data.crew });
         toast({ title: "Found it!", description: data.title });
       } else if (data?.results?.length > 0) {
         setTmdbResults(data.results);
