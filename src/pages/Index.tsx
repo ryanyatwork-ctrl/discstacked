@@ -30,6 +30,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   return {
     id: db.id,
     title: db.title,
+    sortTitle: (db as any).sort_title ?? undefined,
     year: db.year ?? undefined,
     format: db.format ?? undefined,
     formats: formats && formats.length > 0 ? formats : db.format ? [db.format] : undefined,
