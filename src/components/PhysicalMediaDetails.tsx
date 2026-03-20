@@ -53,11 +53,20 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     try {
       const currentMeta = (item as any).metadata || {};
       const merged = { ...currentMeta, ...draft };
-      // Clean empty strings
+      // Clean empty strings (but keep arrays)
       Object.keys(merged).forEach((k) => {
         if (merged[k] === "" || merged[k] === undefined) delete merged[k];
       });
-      await updateItem.mutateAsync({ id: item.id, metadata: merged } as any);
+      // Derive formats from discs
+      const updatePayload: any = { id: item.id, metadata: merged };
+      if (draft.discs && draft.discs.length > 0) {
+        const discFormats = [...new Set(draft.discs.filter(d => !d.missing).map(d => d.format))];
+        if (discFormats.length > 0) {
+          updatePayload.formats = discFormats;
+          updatePayload.format = discFormats[0];
+        }
+      }
+      await updateItem.mutateAsync(updatePayload);
       toast({ title: "Details saved!" });
       setEditing(false);
     } catch {
