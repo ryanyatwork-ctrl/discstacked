@@ -24,7 +24,7 @@ interface DetailDrawerProps {
   onNavigate?: (item: MediaItem) => void;
 }
 
-export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawerProps) {
+export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNavigate }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
