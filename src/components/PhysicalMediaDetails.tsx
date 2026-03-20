@@ -21,8 +21,7 @@ interface PhysicalMediaDetailsProps {
 type MetadataFields = {
   edition?: string;
   case_type?: string;
-  disc_contents?: string;
-  missing_discs?: string;
+  discs?: DiscEntry[];
   condition?: string;
   slipcover?: string;
   digital_code_status?: string;
