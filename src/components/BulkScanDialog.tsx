@@ -3,12 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
 
 interface ScanQueueItem {
   barcode: string;
@@ -19,27 +21,44 @@ interface ScanQueueItem {
   posterUrl?: string | null;
   runtime?: number | null;
   tagline?: string | null;
+  artist?: string | null;
+  author?: string | null;
   format: string;
   selected: boolean;
   alreadyOwned?: boolean;
   existingTitle?: string;
+  extraMeta?: Record<string, any>;
 }
 
 interface BulkScanDialogProps {
   activeTab: MediaTab;
 }
 
+const TAB_LABELS: Record<MediaTab, string> = {
+  movies: "Bulk Barcode Scan",
+  "music-films": "Bulk Barcode Scan",
+  cds: "Bulk Barcode Scan — Music",
+  books: "Bulk ISBN Scan — Books",
+  games: "Bulk Scan — Games",
+};
+
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [defaultFormat, setDefaultFormat] = useState("Blu-ray");
+  const [defaultFormat, setDefaultFormat] = useState(FORMATS[activeTab]?.[0] || "");
+  const [manualBarcode, setManualBarcode] = useState("");
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const processedBarcodesRef = useRef(new Set<string>());
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Reset default format when tab changes
+  useEffect(() => {
+    setDefaultFormat(FORMATS[activeTab]?.[0] || "");
+  }, [activeTab]);
 
   const stopScanner = async () => {
     if (html5QrCodeRef.current) {
@@ -52,21 +71,48 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setScanning(false);
   };
 
-  const lookupBarcode = async (barcode: string) => {
+  const doLookup = async (barcode: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-        body: { barcode },
-      });
-      if (error) throw error;
-      if (data?.title) {
+      const result = await unifiedLookupBarcode(activeTab, barcode);
+      if (result.direct) {
         return {
           status: "found" as const,
-          title: data.title,
-          year: data.year,
-          genre: data.genre,
-          posterUrl: data.poster_url,
-          runtime: data.runtime,
-          tagline: data.tagline,
+          title: result.direct.title,
+          year: result.direct.year,
+          genre: result.direct.genre,
+          posterUrl: result.direct.cover_url,
+          runtime: result.direct.runtime,
+          tagline: result.direct.tagline,
+          artist: result.direct.artist,
+          author: result.direct.author,
+          extraMeta: {
+            ...(result.direct.overview ? { overview: result.direct.overview } : {}),
+            ...(result.direct.cast ? { cast: result.direct.cast } : {}),
+            ...(result.direct.crew ? { crew: result.direct.crew } : {}),
+            ...(result.direct.label ? { label: result.direct.label } : {}),
+            ...(result.direct.tracklist ? { tracklist: result.direct.tracklist } : {}),
+            ...(result.direct.page_count ? { page_count: result.direct.page_count } : {}),
+            ...(result.direct.publisher ? { publisher: result.direct.publisher } : {}),
+            ...(result.direct.isbn ? { isbn: result.direct.isbn } : {}),
+            ...(result.direct.platforms ? { platforms: result.direct.platforms } : {}),
+            ...(result.direct.developer ? { developer: result.direct.developer } : {}),
+            ...(result.direct.source ? { source: result.direct.source } : {}),
+          },
+        };
+      }
+      if (result.results && result.results.length > 0) {
+        const top = result.results[0];
+        return {
+          status: "found" as const,
+          title: top.title,
+          year: top.year,
+          genre: top.genre,
+          posterUrl: top.cover_url,
+          runtime: top.runtime,
+          tagline: top.tagline,
+          artist: top.artist,
+          author: top.author,
+          extraMeta: {},
         };
       }
       return { status: "not_found" as const };
@@ -142,8 +188,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             }
           }
 
-          // Lookup in background
-          const result = await lookupBarcode(decoded);
+          // Lookup in background using unified lookup
+          const result = await doLookup(decoded);
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
@@ -187,6 +233,44 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     );
   };
 
+  // Manual barcode entry
+  const handleManualAdd = async () => {
+    const code = manualBarcode.trim();
+    if (!code || processedBarcodesRef.current.has(code)) return;
+    processedBarcodesRef.current.add(code);
+    setManualBarcode("");
+
+    const newItem: ScanQueueItem = {
+      barcode: code,
+      status: "looking",
+      format: defaultFormat,
+      selected: true,
+    };
+    setQueue((prev) => [newItem, ...prev]);
+
+    // Check existing
+    let alreadyOwned = false;
+    let existingTitle: string | undefined;
+    if (user) {
+      const { data: existing } = await supabase
+        .from("media_items").select("title")
+        .eq("user_id", user.id).eq("barcode", code).limit(1);
+      if (existing && existing.length > 0) {
+        alreadyOwned = true;
+        existingTitle = existing[0].title;
+      }
+    }
+
+    const result = await doLookup(code);
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.barcode === code
+          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || result.title, selected: !alreadyOwned }
+          : item
+      )
+    );
+  };
+
   const handleCommit = async () => {
     const selected = queue.filter((item) => item.selected && item.status === "found" && item.title);
     if (selected.length === 0 || !user) return;
@@ -205,6 +289,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         metadata: {
           ...(item.runtime ? { runtime: item.runtime } : {}),
           ...(item.tagline ? { tagline: item.tagline } : {}),
+          ...(item.artist ? { artist: item.artist } : {}),
+          ...(item.author ? { author: item.author } : {}),
+          ...(item.extraMeta || {}),
         },
       }));
 
@@ -245,7 +332,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       </DialogTrigger>
       <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Bulk Barcode Scan</DialogTitle>
+          <DialogTitle className="text-foreground">{TAB_LABELS[activeTab]}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -281,6 +368,20 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               {queue.length > 0 ? "Resume Scanning" : "Start Scanning"}
             </Button>
           )}
+
+          {/* Manual barcode/ISBN entry */}
+          <div className="flex gap-2">
+            <Input
+              value={manualBarcode}
+              onChange={(e) => setManualBarcode(e.target.value)}
+              placeholder={activeTab === "books" ? "Type ISBN…" : "Type barcode/UPC…"}
+              className="flex-1 h-8 text-sm"
+              onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+            />
+            <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
+              <Keyboard className="h-3 h-3" /> Add
+            </Button>
+          </div>
 
           {/* Queue */}
           {queue.length > 0 && (
@@ -322,11 +423,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                       {item.status === "looking" ? (
                         <p className="text-sm text-muted-foreground">Looking up {item.barcode}…</p>
                       ) : item.status === "found" ? (
-                        <>
-                          <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
-                          </p>
+                         <>
+                           <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                           <p className="text-[10px] text-muted-foreground truncate">
+                             {item.artist || item.author || ""}{(item.artist || item.author) && item.year ? " · " : ""}
+                             {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
+                           </p>
                           {item.alreadyOwned && (
                             <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
                               <Copy className="w-3 h-3" />

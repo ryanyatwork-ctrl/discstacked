@@ -183,9 +183,21 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
             </div>
           )}
 
-          {/* TMDB Metadata */}
-          {(item.genre || meta.runtime || meta.tagline || meta.cast?.length || meta.crew) && (
+          {/* Metadata (all media types) */}
+          {(item.genre || meta.runtime || meta.tagline || meta.cast?.length || meta.crew
+            || meta.artist || meta.author || meta.tracklist?.length || meta.page_count
+            || meta.publisher || meta.label || meta.developer || meta.platforms?.length || meta.overview) && (
             <div className="space-y-3">
+              {/* Artist / Author */}
+              {(meta.artist || meta.author) && (
+                <div className="space-y-0.5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                    {meta.author ? "Author" : "Artist"}
+                  </p>
+                  <p className="text-sm text-foreground">{(meta.author || meta.artist) as string}</p>
+                </div>
+              )}
+
               {item.genre && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {item.genre.split(",").map((g: string) => (
@@ -193,17 +205,51 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                   ))}
                 </div>
               )}
-              {meta.runtime && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {formatRuntime(meta.runtime as number)}
-                </p>
+
+              <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                {meta.runtime && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {formatRuntime(meta.runtime as number)}
+                  </span>
+                )}
+                {meta.page_count && <span>{meta.page_count as number} pages</span>}
+                {meta.publisher && <span>Published by {meta.publisher as string}</span>}
+                {meta.label && <span>Label: {meta.label as string}</span>}
+                {meta.developer && <span>Developer: {meta.developer as string}</span>}
+                {meta.isbn && <span className="font-mono text-xs">ISBN: {meta.isbn as string}</span>}
+              </div>
+
+              {/* Platforms (games) */}
+              {meta.platforms && (meta.platforms as string[]).length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(meta.platforms as string[]).map((p) => (
+                    <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+                  ))}
+                </div>
               )}
+
               {meta.tagline && (
-                <p className="text-sm text-muted-foreground italic">"{meta.tagline}"</p>
+                <p className="text-sm text-muted-foreground italic">"{meta.tagline as string}"</p>
               )}
               {meta.overview && (
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{meta.overview}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{meta.overview as string}</p>
               )}
+
+              {/* Tracklist (music) */}
+              {meta.tracklist && (meta.tracklist as any[]).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Tracklist</p>
+                  <div className="text-xs max-h-32 overflow-y-auto space-y-0.5">
+                    {(meta.tracklist as any[]).map((t: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-muted-foreground">
+                        <span><span className="text-foreground">{t.position || i + 1}.</span> {t.title}</span>
+                        {t.duration && <span className="tabular-nums">{t.duration}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Cast */}
               {meta.cast && (meta.cast as any[]).length > 0 && (
                 <div className="space-y-1.5">
