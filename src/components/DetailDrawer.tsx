@@ -94,6 +94,22 @@ export function DetailDrawer({ item, open, onClose, onDuplicated }: DetailDrawer
     setEditingYear(false);
   };
 
+  const handleSaveSortTitle = async () => {
+    const trimmed = sortTitleDraft.trim();
+    const current = item.sortTitle || "";
+    if (trimmed === current) {
+      setEditingSortTitle(false);
+      return;
+    }
+    try {
+      await updateItem.mutateAsync({ id: item.id, sort_title: trimmed || null } as any);
+      toast({ title: trimmed ? "Sort title updated!" : "Sort title removed" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+    setEditingSortTitle(false);
+  };
+
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
     setLocalFlags((prev) => ({ ...prev, [field]: value }));
     try {
