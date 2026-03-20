@@ -369,6 +369,20 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             </Button>
           )}
 
+          {/* Manual barcode/ISBN entry */}
+          <div className="flex gap-2">
+            <Input
+              value={manualBarcode}
+              onChange={(e) => setManualBarcode(e.target.value)}
+              placeholder={activeTab === "books" ? "Type ISBN…" : "Type barcode/UPC…"}
+              className="flex-1 h-8 text-sm"
+              onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+            />
+            <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
+              <Keyboard className="h-3 h-3" /> Add
+            </Button>
+          </div>
+
           {/* Queue */}
           {queue.length > 0 && (
             <div className="space-y-2">
