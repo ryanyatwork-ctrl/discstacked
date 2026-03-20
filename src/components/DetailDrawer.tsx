@@ -3,7 +3,7 @@ import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useUpdateItem, useDuplicateItem, DbMediaItem } from "@/hooks/useMediaItems";
+import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
