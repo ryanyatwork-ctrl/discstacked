@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
 import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
+import { CollectionEditor } from "@/components/CollectionEditor";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
