@@ -104,6 +104,22 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!upc.trim()) return;
     setLookingUp(true);
     try {
+      // Check if barcode already exists in collection
+      if (user) {
+        const { data: existing } = await supabase
+          .from("media_items")
+          .select("title")
+          .eq("user_id", user.id)
+          .eq("barcode", upc.trim())
+          .limit(1);
+        if (existing && existing.length > 0) {
+          toast({
+            title: "Already in collection",
+            description: `"${existing[0].title}" has this barcode. You can still add it if this is a different copy.`,
+          });
+        }
+      }
+
       // Use the edge function for UPC lookup
       const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
         body: { barcode: upc },
@@ -114,6 +130,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         if (data.year) setYear(String(data.year));
         if (data.genre) setGenre(data.genre);
         if (data.poster_url) setSelectedPoster(data.poster_url);
+        if (data.runtime || data.tagline) setTmdbMeta({ runtime: data.runtime, tagline: data.tagline });
         toast({ title: "Found it!", description: data.title });
       } else if (data?.results?.length > 0) {
         setTmdbResults(data.results);
