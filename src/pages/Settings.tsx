@@ -607,18 +607,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
             };
             if (top.genre && !item.genre) updatePayload.genre = top.genre;
             if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
-          } else if (type === "books") {
-            updatedMeta = {
-              ...updatedMeta,
-              author: top.author || currentMeta.author,
-              page_count: top.page_count || currentMeta.page_count,
-              publisher: top.publisher || currentMeta.publisher,
-              isbn: top.isbn || currentMeta.isbn,
-              overview: top.description || currentMeta.overview,
-              source: top.source || currentMeta.source,
-            };
-            if (top.categories?.join && !item.genre) updatePayload.genre = top.categories.join(", ");
-            if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
           } else if (type === "games") {
             updatedMeta = {
               ...updatedMeta,
