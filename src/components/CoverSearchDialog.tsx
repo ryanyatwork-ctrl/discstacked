@@ -200,27 +200,38 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
               {/* Results */}
               {results.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
-                  {results.map((r) => (
-                    <button
-                      key={`${r.media_type}-${r.tmdb_id}`}
-                      onClick={() => handleSelectResult(r)}
-                      className="group relative rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
-                    >
-                      {r.poster_url ? (
-                        <img src={r.poster_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
-                      ) : (
-                        <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground p-2 text-center">{r.title}</p>
+                  {results.map((r) => {
+                    const coverUrl = 'poster_url' in r ? r.poster_url : 'cover_url' in r ? r.cover_url : null;
+                    const key = 'tmdb_id' in r ? `tmdb-${r.tmdb_id}` : r.id;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          if (isGame && coverUrl) {
+                            // For games, directly pick the cover (no alt posters)
+                            handlePickGameCover(r as GameResult);
+                          } else if ('tmdb_id' in r) {
+                            handleSelectResult(r as TmdbResult);
+                          }
+                        }}
+                        className="group relative rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
+                      >
+                        {coverUrl ? (
+                          <img src={coverUrl} alt={r.title} className="w-full aspect-[2/3] object-cover" />
+                        ) : (
+                          <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground p-2 text-center">{r.title}</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1.5">
+                          <p className="text-[10px] font-medium text-foreground truncate">{r.title}</p>
+                          <p className="text-[9px] text-muted-foreground">
+                            {r.year}{isGame ? "" : ` · ${'media_type' in r && (r.media_type === "tv" || r.media_type === "tv_season") ? "TV" : "Movie"}`}
+                          </p>
                         </div>
-                      )}
-                      <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1.5">
-                        <p className="text-[10px] font-medium text-foreground truncate">{r.title}</p>
-                        <p className="text-[9px] text-muted-foreground">
-                          {r.year} · {r.media_type === "tv" || r.media_type === "tv_season" ? "TV" : "Movie"}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
