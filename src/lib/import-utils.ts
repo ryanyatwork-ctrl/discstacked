@@ -100,6 +100,10 @@ export function mapClzRow(raw: Record<string, string>) {
         const q = parseInt(value, 10);
         if (!isNaN(q) && q > 0) mapped._quantity = q;
       }
+      // Promote artist to top-level for CD imports
+      if (metaKey === "artist") {
+        mapped._artist = cleanString(value);
+      }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
       detectedFormats.push(...detectFormats(value));
