@@ -225,8 +225,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(true);
     try {
       const metaPayload: Record<string, any> = { ...extraMeta };
-      if (artist && (isMusicTab || isBookTab)) {
-        metaPayload[isBookTab ? "author" : "artist"] = artist;
+      if (artist && isMusicTab) {
+        metaPayload["artist"] = artist;
       }
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
