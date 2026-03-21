@@ -9,6 +9,30 @@ import { toast } from "@/hooks/use-toast";
 import { Search, Upload, Loader2, ArrowLeft } from "lucide-react";
 import { MediaItem } from "@/lib/types";
 
+interface GameResult {
+  id: string;
+  title: string;
+  year: number | null;
+  cover_url: string | null;
+  genre: string | null;
+  rating: number | null;
+}
+
+async function searchGames(query: string): Promise<GameResult[]> {
+  const { data, error } = await supabase.functions.invoke("game-lookup", {
+    body: { query },
+  });
+  if (error) throw new Error(error.message);
+  return (data.results || []).map((r: any) => ({
+    id: r.id,
+    title: r.title,
+    year: r.year || null,
+    cover_url: r.cover_url || null,
+    genre: r.genre || null,
+    rating: r.rating || null,
+  }));
+}
+
 interface CoverSearchDialogProps {
   item: MediaItem;
   open: boolean;
