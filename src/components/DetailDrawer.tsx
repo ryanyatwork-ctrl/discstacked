@@ -13,6 +13,7 @@ import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
 import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
 import { CollectionEditor } from "@/components/CollectionEditor";
+import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
