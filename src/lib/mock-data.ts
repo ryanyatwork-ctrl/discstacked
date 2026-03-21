@@ -44,19 +44,7 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       format: ["CD", "Vinyl", "Cassette"][Math.floor(Math.random() * 3)],
     }));
   }
-  if (tab === "books") {
-    const books = [
-      "Atomic Habits", "Brave New World", "Catch-22", "Dune", "Ender's Game",
-      "Fahrenheit 451", "Gone Girl", "Hitchhiker's Guide", "It", "Jurassic Park",
-    ];
-    return books.map((title, i) => ({
-      id: `book-${i}`,
-      title,
-      author: "Author Name",
-      year: 1950 + Math.floor(Math.random() * 74),
-      format: ["Hardcover", "Paperback"][Math.floor(Math.random() * 2)],
-    }));
-  }
+  // Games (default fallthrough)
   const games = [
     "Astro Bot", "Baldur's Gate 3", "Cyberpunk 2077", "Death Stranding", "Elden Ring",
     "Final Fantasy XVI", "God of War Ragnarök", "Hades", "It Takes Two", "Jedi Survivor",

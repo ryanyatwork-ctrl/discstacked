@@ -173,8 +173,6 @@ export function CollectionStats({ items, isLoading, activeTab, onStatsClick, act
         return buildMovieCards(items);
       case "cds":
         return buildCDCards(items);
-      case "books":
-        return buildBookCards(items);
       case "games":
         return buildGameCards(items);
       default:

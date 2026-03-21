@@ -373,7 +373,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             <Input
               value={manualBarcode}
               onChange={(e) => setManualBarcode(e.target.value)}
-              placeholder={activeTab === "books" ? "Type ISBN…" : "Type barcode/UPC…"}
+              placeholder="Type barcode/UPC…"
               className="flex-1 h-8 text-sm"
               onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
             />

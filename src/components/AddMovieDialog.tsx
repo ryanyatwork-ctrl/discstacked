@@ -55,9 +55,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const isMovieTab = activeTab === "movies" || activeTab === "music-films";
   const isMusicTab = activeTab === "cds";
-  const isBookTab = activeTab === "books";
   const isGameTab = activeTab === "games";
-  const hasBarcode = isMovieTab || isMusicTab || isBookTab;
+  const hasBarcode = isMovieTab || isMusicTab;
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setBarcode("");
