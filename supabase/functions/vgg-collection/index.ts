@@ -6,9 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function fetchWithRetry(url: string, maxRetries = 6): Promise<Response> {
+async function fetchWithRetry(url: string, maxRetries = 6, bggToken?: string): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (bggToken) {
+    headers["Authorization"] = `Bearer ${bggToken}`;
+  }
   for (let i = 0; i < maxRetries; i++) {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers });
     if (res.status === 202) {
       const wait = (i + 1) * 5000;
       console.log(`VGG returned 202, retrying in ${wait}ms… (attempt ${i + 1}/${maxRetries})`);
@@ -122,10 +126,18 @@ Deno.serve(async (req) => {
     }
 
     // VGG uses the same xmlapi2 as BGG, just on videogamegeek.com
+    const bggToken = Deno.env.get("BGG_API_TOKEN");
+    if (!bggToken) {
+      return new Response(JSON.stringify({ success: false, error: "BGG API token not configured." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const url = `https://videogamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username.trim())}&own=1&stats=1&subtype=videogame`;
     console.log(`Fetching VGG collection for "${username}"`);
 
-    const res = await fetchWithRetry(url);
+    const res = await fetchWithRetry(url, 6, bggToken);
 
     if (res.status === 404 || res.status === 400) {
       return new Response(JSON.stringify({ success: false, error: `VGG user "${username}" not found.` }), {
