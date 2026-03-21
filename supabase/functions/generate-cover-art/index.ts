@@ -12,16 +12,25 @@ serve(async (req) => {
   }
 
   try {
-    const { artist, title, genre } = await req.json();
+    const { artist, title, genre, mediaType } = await req.json();
     if (!title) throw new Error("Title is required");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const displayText = artist ? `${artist} - ${title}` : title;
-    const genreHint = genre ? ` The genre is ${genre}.` : "";
+    const isGame = mediaType === "games";
+    const isMusic = !isGame;
 
-    const prompt = `Create a professional music album cover art for "${displayText}".${genreHint} The design should be visually striking with bold typography showing the artist name and album title prominently. Use creative graphic design, abstract art, or photographic elements that match the genre. Make it look like a real commercially released album cover. The text must be clearly legible. On a solid background.`;
+    let prompt: string;
+
+    if (isMusic) {
+      const displayText = artist ? `${artist} - ${title}` : title;
+      const genreHint = genre ? ` The genre is ${genre}.` : "";
+      prompt = `Create a professional, high-quality music album cover art for "${displayText}".${genreHint} The design should be visually striking and artistic. Use bold, creative graphic design with rich colors, dramatic lighting, and professional composition. The artist name "${artist || title}" and album title "${title}" should be incorporated as stylish typography that fits the aesthetic. Make it look like a real commercially released album cover with high production value. Style it as a square album cover. Use vivid colors and sharp details. On a solid background.`;
+    } else {
+      const displayText = title;
+      prompt = `Create a professional video game box art cover for "${displayText}". The design should be dramatic and eye-catching like a real AAA game cover, with dynamic composition, rich colors, and high detail. Include the game title "${title}" as bold, stylized typography. Make it look like authentic retail game packaging art. Use vivid colors and sharp details. On a solid background.`;
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -30,7 +39,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-pro-image-preview",
+        model: "google/gemini-3.1-flash-image-preview",
         messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
       }),
@@ -46,7 +55,7 @@ serve(async (req) => {
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted, please add funds" }), {
+        return new Response(JSON.stringify({ error: "Credits exhausted" }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -61,36 +70,8 @@ serve(async (req) => {
       throw new Error("No image generated");
     }
 
-    // Upload to Supabase storage
-    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-    const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const fileName = `ai-covers/${crypto.randomUUID()}.png`;
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const uploadRes = await fetch(
-      `${supabaseUrl}/storage/v1/object/cover-art/${fileName}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceKey}`,
-          "Content-Type": "image/png",
-          "x-upsert": "true",
-        },
-        body: imageBytes,
-      }
-    );
-
-    if (!uploadRes.ok) {
-      const uploadErr = await uploadRes.text();
-      console.error("Storage upload error:", uploadErr);
-      throw new Error("Failed to upload cover art");
-    }
-
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/cover-art/${fileName}`;
-
-    return new Response(JSON.stringify({ cover_url: publicUrl }), {
+    // Return base64 directly — client will handle storage upload
+    return new Response(JSON.stringify({ image_base64: imageUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
