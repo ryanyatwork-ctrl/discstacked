@@ -237,6 +237,17 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
                 <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
                   <ImageIcon className="w-12 h-12 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">No cover art</p>
+                  <GenerateCoverArtButton
+                    title={item.title}
+                    artist={item.metadata?.artist || item.artist}
+                    genre={item.genre}
+                    onGenerated={(url) => {
+                      updateItem.mutate({
+                        id: item.id,
+                        poster_url: url,
+                      } as any);
+                    }}
+                  />
                 </div>
               )}
               <Button
