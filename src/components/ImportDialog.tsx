@@ -40,8 +40,34 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       }
 
       const items = rawItems.map(mapClzRow);
+
+      // For CD imports, promote artist/label from metadata to top-level metadata fields
+      if (activeTab === "cds") {
+        for (const item of items) {
+          const meta = item.metadata || {};
+          if (item._artist) {
+            meta.artist = item._artist;
+            delete item._artist;
+          }
+          if (meta.label) {
+            // label already in metadata from COLUMN_MAP
+          }
+          if (meta.tracks) {
+            meta.track_count = meta.tracks;
+            delete meta.tracks;
+          }
+          if (meta.length) {
+            meta.total_length = meta.length;
+            delete meta.length;
+          }
+          item.metadata = meta;
+        }
+      }
+
       const merged = mergeDuplicates(items);
-      const expanded = expandBoxSets(merged);
+      const expanded = activeTab === "cds" ? merged : expandBoxSets(merged);
+
+      toast({ title: "Importing…", description: `Processing ${expanded.length} items…` });
 
       await importMutation.mutateAsync({
         items: expanded,
@@ -49,7 +75,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         replace: true,
       });
 
-      toast({ title: "Import complete", description: `${expanded.length} items imported (${items.length} rows merged) to ${TAB_LABELS[activeTab]}.` });
+      toast({ title: "Import complete", description: `${expanded.length} items imported (${items.length} rows processed) to ${TAB_LABELS[activeTab]}.` });
       setOpen(false);
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
@@ -57,6 +83,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
 
     if (fileRef.current) fileRef.current.value = "";
   };
+
+  const isCds = activeTab === "cds";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -74,7 +102,11 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             Upload a <strong>.csv</strong> or <strong>.json</strong> file. This will <strong>replace</strong> all existing items in {TAB_LABELS[activeTab]}.
           </p>
           <p className="text-xs text-muted-foreground">
-            Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Box sets and multi-movie titles are automatically detected and expanded.
+            {isCds ? (
+              <>Supports <code className="text-accent">CLZ Music Collector</code> exports (Artist, Title, Release Year, Format, Tracks, Length, Genre, Label) and standard CSV files.</>
+            ) : (
+              <>Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Box sets and multi-movie titles are automatically detected and expanded.</>
+            )}
           </p>
           <input
             ref={fileRef}
