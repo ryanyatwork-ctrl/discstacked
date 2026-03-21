@@ -684,3 +684,100 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
     </div>
   );
 }
+
+function GenerateAiCoversButton({ userId }: { userId: string }) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+
+  const handleGenerate = async () => {
+    setRunning(true);
+    setProgress("Finding items without cover art…");
+    try {
+      let allItems: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("media_items")
+          .select("id, title, poster_url, metadata, genre")
+          .eq("user_id", userId)
+          .is("poster_url", null)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allItems = allItems.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      if (allItems.length === 0) {
+        toast({ title: "All set!", description: "Every item already has cover art." });
+        setRunning(false);
+        setProgress("");
+        return;
+      }
+
+      setProgress(`Generating covers for ${allItems.length} items…`);
+      let generated = 0;
+
+      for (let i = 0; i < allItems.length; i++) {
+        const item = allItems[i];
+        const meta = item.metadata || {};
+        const artist = meta.artist || "";
+        const genre = item.genre || "";
+
+        try {
+          const { data, error } = await supabase.functions.invoke("generate-cover-art", {
+            body: { title: item.title, artist, genre },
+          });
+          if (error) throw error;
+          if (data?.cover_url) {
+            const { error: updErr } = await supabase
+              .from("media_items")
+              .update({ poster_url: data.cover_url })
+              .eq("id", item.id);
+            if (!updErr) generated++;
+          }
+        } catch {
+          // Skip failed generations
+        }
+
+        setProgress(`${i + 1}/${allItems.length} — generated ${generated} covers`);
+
+        // Rate limit: 2s between AI calls
+        if (i < allItems.length - 1) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      toast({
+        title: "AI cover generation complete!",
+        description: `Generated ${generated} covers for ${allItems.length} items.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2"
+        onClick={handleGenerate}
+        disabled={running}
+      >
+        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {running ? "Generating…" : "Generate AI Cover Art"}
+      </Button>
+      {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Creates AI-generated album covers for items without artwork. Uses artist name and title. Only affects items with no existing cover.
+      </p>
+    </div>
+  );
+}
