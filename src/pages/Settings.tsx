@@ -375,7 +375,7 @@ export default function Settings() {
           <BackfillDiscsButton userId={user.id} />
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">
-              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Books use Google Books/Open Library; Games use IGDB/RAWG.
+              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Games use IGDB/RAWG.
             </p>
             <BackfillTmdbButton userId={user.id} />
           </div>
@@ -385,6 +385,30 @@ export default function Settings() {
             </p>
             <GenerateAiCoversButton userId={user.id} />
           </div>
+        </section>
+
+        {/* VGG Import */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Import from VideoGameGeek
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Enter your VideoGameGeek username to import your owned video game collection directly.
+          </p>
+          <VggImportButton userId={user.id} />
+        </section>
+
+        {/* Unstacked Export */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export for Unstacked
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Export your collection in a format compatible with Unstacked for easy pricing, sale, and auction creation.
+          </p>
+          <UnstackedExportButton userId={user.id} />
         </section>
 
         {/* Sign Out */}
