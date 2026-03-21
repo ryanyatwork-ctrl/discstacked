@@ -39,7 +39,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         return;
       }
 
-      const items = rawItems.map(mapClzRow);
+      const items = rawItems.map(row => mapClzRow(row, activeTab));
 
       // For CD imports, promote artist/label from metadata to top-level metadata fields
       if (activeTab === "cds") {
