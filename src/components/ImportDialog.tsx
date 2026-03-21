@@ -73,8 +73,9 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         }
       }
 
-      const merged = mergeDuplicates(items);
-      const expanded = activeTab === "cds" ? merged : expandBoxSets(merged);
+      // Games: skip merging (each platform copy is unique) and box set expansion
+      const merged = activeTab === "games" ? items : mergeDuplicates(items);
+      const expanded = (activeTab === "cds" || activeTab === "games") ? merged : expandBoxSets(merged);
 
       toast({ title: "Importing…", description: `Processing ${expanded.length} items…` });
 
