@@ -23,7 +23,6 @@ const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; w
   movies: { title: "Movie", searchPlaceholder: "Movie title…", wantAction: "Want to Watch" },
   "music-films": { title: "Music Film", searchPlaceholder: "Concert / music film…", wantAction: "Want to Watch" },
   cds: { title: "Album", searchPlaceholder: "Artist or album…", wantAction: "Want to Listen" },
-  books: { title: "Book", searchPlaceholder: "Book title or author…", wantAction: "Want to Read" },
   games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },
 };
 
