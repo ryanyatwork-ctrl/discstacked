@@ -379,6 +379,12 @@ export default function Settings() {
             </p>
             <BackfillTmdbButton userId={user.id} />
           </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Generate AI cover art for items missing artwork. Uses the artist name and title to create unique album-style covers.
+            </p>
+            <GenerateAiCoversButton userId={user.id} />
+          </div>
         </section>
 
         {/* Sign Out */}
