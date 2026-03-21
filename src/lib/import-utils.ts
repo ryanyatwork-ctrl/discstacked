@@ -95,7 +95,7 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
-export function mapClzRow(raw: Record<string, string>) {
+export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   const mapped: Record<string, any> = {};
   const metadata: Record<string, string> = {};
   const detectedFormats: string[] = [];
@@ -121,6 +121,11 @@ export function mapClzRow(raw: Record<string, string>) {
       if (metaKey === "artist") {
         mapped._artist = cleanString(value);
       }
+      // For games, platform becomes the format
+      if (metaKey === "platform" && mediaType === "games") {
+        const platform = cleanString(value);
+        mapped._gamePlatform = platform;
+      }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
       detectedFormats.push(...detectFormats(value));
@@ -144,24 +149,31 @@ export function mapClzRow(raw: Record<string, string>) {
     }
   }
 
-  // Deduplicate detected formats
-  const uniqueFormats = [...new Set(detectedFormats)];
+  // For games, use platform as the format instead of media format detection
+  if (mediaType === "games" && mapped._gamePlatform) {
+    const platform = mapped._gamePlatform;
+    delete mapped._gamePlatform;
+    mapped.format = platform;
+    mapped._rowFormats = [platform];
+  } else {
+    // Deduplicate detected formats
+    const uniqueFormats = [...new Set(detectedFormats)];
 
-  // Alien format force: if title contains "Alien" and edition is special/collector's, assume Blu-ray
-  const title = (mapped.title || "").toLowerCase();
-  const edition = (metadata["edition"] || "").toLowerCase();
-  if (
-    ALIEN_TITLES.some(at => title === at || title.startsWith(at + " ")) &&
-    ALIEN_EDITIONS.some(ae => edition.includes(ae)) &&
-    !uniqueFormats.includes("DVD") &&
-    !uniqueFormats.includes("Blu-ray")
-  ) {
-    uniqueFormats.push("Blu-ray");
+    // Alien format force
+    const title = (mapped.title || "").toLowerCase();
+    const edition = (metadata["edition"] || "").toLowerCase();
+    if (
+      ALIEN_TITLES.some(at => title === at || title.startsWith(at + " ")) &&
+      ALIEN_EDITIONS.some(ae => edition.includes(ae)) &&
+      !uniqueFormats.includes("DVD") &&
+      !uniqueFormats.includes("Blu-ray")
+    ) {
+      uniqueFormats.push("Blu-ray");
+    }
+
+    mapped.format = uniqueFormats[0] || "DVD";
+    mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
   }
-
-  // Use all detected formats, default to DVD only if nothing detected
-  mapped.format = uniqueFormats[0] || "DVD";
-  mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
 
   if (Object.keys(metadata).length > 0) {
     mapped.metadata = metadata;
