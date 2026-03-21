@@ -6,9 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function fetchWithRetry(url: string, maxRetries = 6): Promise<Response> {
+async function fetchWithRetry(url: string, maxRetries = 6, bggToken?: string): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (bggToken) {
+    headers["Authorization"] = `Bearer ${bggToken}`;
+  }
   for (let i = 0; i < maxRetries; i++) {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers });
     if (res.status === 202) {
       const wait = (i + 1) * 5000;
       console.log(`VGG returned 202, retrying in ${wait}ms… (attempt ${i + 1}/${maxRetries})`);
