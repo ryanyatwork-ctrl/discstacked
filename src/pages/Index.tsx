@@ -179,7 +179,7 @@ export default function Index() {
     );
   }, []);
 
-  const handleStatsClick = useCallback((type: "plex" | "digital" | "total") => {
+  const handleStatsClick = useCallback((type: string) => {
     if (type === "total") {
       setStatusFilter(null);
       setActiveFormats([]);
