@@ -66,7 +66,7 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<"plex" | "digital" | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
@@ -115,10 +115,21 @@ export default function Index() {
         return activeTags.every((t) => tags.includes(t));
       });
     }
-    if (statusFilter === "plex") {
-      items = items.filter((i) => i.inPlex);
-    } else if (statusFilter === "digital") {
-      items = items.filter((i) => i.digitalCopy);
+    if (statusFilter) {
+      if (statusFilter === "plex") {
+        items = items.filter((i) => i.inPlex);
+      } else if (statusFilter === "digital") {
+        items = items.filter((i) => i.digitalCopy);
+      } else {
+        // Format/platform filter from stats cards
+        const kw = statusFilter.toLowerCase();
+        items = items.filter((i) => {
+          const formats = i.formats && i.formats.length > 0 ? i.formats : i.format ? [i.format] : [];
+          const meta = i.metadata as Record<string, any> | undefined;
+          const platforms = (meta?.platforms as string[]) ?? [];
+          return [...formats, ...platforms].some((f) => f.toLowerCase().includes(kw));
+        });
+      }
     }
     return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
   }, [allItems, searchQuery, activeFormats, activeTags, statusFilter]);
@@ -168,7 +179,7 @@ export default function Index() {
     );
   }, []);
 
-  const handleStatsClick = useCallback((type: "plex" | "digital" | "total") => {
+  const handleStatsClick = useCallback((type: string) => {
     if (type === "total") {
       setStatusFilter(null);
       setActiveFormats([]);
@@ -266,13 +277,13 @@ export default function Index() {
           }`}
         >
           <div className="relative">
-            <CollectionStats items={dbItems ?? []} isLoading={isLoading} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
+            <CollectionStats items={dbItems ?? []} isLoading={isLoading} activeTab={activeTab} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
             <button
-              onClick={toggleHeaderPin}
-              className="absolute top-3 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={(e) => { e.stopPropagation(); toggleHeaderPin(); }}
+              className="absolute top-7 right-5 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               title={headerPinned ? "Unpin stats ribbon" : "Pin stats ribbon"}
             >
-              {headerPinned ? <Pin className="h-3.5 w-3.5 text-primary" /> : <PinOff className="h-3.5 w-3.5" />}
+              {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
             </button>
           </div>
         </div>
