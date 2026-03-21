@@ -174,7 +174,7 @@ export default function Settings() {
     return null;
   }
 
-  const tabIcons = { movies: Film, tv: Tv, music: Music, games: Gamepad2, books: BookOpen };
+  const tabIcons = { movies: Film, tv: Tv, music: Music, games: Gamepad2 };
 
   return (
     <div className="min-h-screen bg-background">
