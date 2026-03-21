@@ -316,14 +316,14 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           </div>
 
-          {/* Artist / Author field for music & books */}
-          {(isMusicTab || isBookTab) && (
+          {/* Artist field for music */}
+          {isMusicTab && (
             <div className="space-y-2">
-              <Label className="text-foreground">{isBookTab ? "Author" : "Artist"}</Label>
+              <Label className="text-foreground">Artist</Label>
               <Input
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder={isBookTab ? "Author name…" : "Artist / band name…"}
+                placeholder="Artist / band name…"
               />
             </div>
           )}

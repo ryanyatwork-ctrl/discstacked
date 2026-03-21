@@ -84,33 +84,6 @@ export async function lookupBarcode(
     return {};
   }
 
-  if (activeTab === "books") {
-    const { data, error } = await supabase.functions.invoke("book-lookup", {
-      body: { barcode },
-    });
-    if (error) throw new Error(error.message);
-    if (data?.title) {
-      return {
-        direct: {
-          id: data.isbn || barcode,
-          title: data.title,
-          year: data.year || null,
-          cover_url: data.poster_url || null,
-          genre: data.genre || null,
-          author: data.author,
-          page_count: data.page_count,
-          publisher: data.publisher,
-          isbn: data.isbn,
-          description: data.description,
-        },
-      };
-    }
-    if (data?.results?.length > 0) {
-      return { results: data.results };
-    }
-    return {};
-  }
-
   if (activeTab === "cds") {
     const { data, error } = await supabase.functions.invoke("music-lookup", {
       body: { barcode },
