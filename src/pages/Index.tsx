@@ -272,8 +272,12 @@ export default function Index() {
         <WelcomeSection />
       ) : (
         <div
-          className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            headerVisible ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
+          className={`transition-all duration-300 ease-in-out ${
+            headerPinned
+              ? "sticky top-[57px] z-40 bg-background border-b border-border shadow-sm"
+              : headerVisible
+                ? "max-h-[300px] opacity-100"
+                : "max-h-0 opacity-0 overflow-hidden"
           }`}
         >
           <div className="relative">
@@ -281,7 +285,7 @@ export default function Index() {
             <button
               onClick={(e) => { e.stopPropagation(); toggleHeaderPin(); }}
               className="absolute top-7 right-5 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title={headerPinned ? "Unpin stats ribbon" : "Pin stats ribbon"}
+              title={headerPinned ? "Unpin stats ribbon (will auto-hide on scroll)" : "Pin stats ribbon (stays visible on scroll)"}
             >
               {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
             </button>
