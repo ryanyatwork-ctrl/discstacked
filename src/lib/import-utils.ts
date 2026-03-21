@@ -33,6 +33,11 @@ const COLUMN_MAP: Record<string, string> = {
   quantity: "_quantity",
   qty: "_quantity",
   subtitles: "_subtitles",
+  // CLZ Music Collector columns
+  artist: "_artist",
+  label: "_label",
+  tracks: "_tracks",
+  length: "_length",
 };
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
@@ -55,6 +60,19 @@ export function detectFormats(value: string): string[] {
   }
   if (v.includes("dvd")) {
     found.push("DVD");
+  }
+  // Music formats
+  if (v.includes("cd") || v.includes("compact disc")) {
+    found.push("CD");
+  }
+  if (v.includes("vinyl") || v.includes("lp") || v.includes("12\"") || v.includes("7\"")) {
+    found.push("Vinyl");
+  }
+  if (v.includes("cassette") || v.includes("tape")) {
+    found.push("Cassette");
+  }
+  if (v.includes("promo")) {
+    if (!found.includes("CD")) found.push("CD");
   }
   return found;
 }
@@ -94,6 +112,10 @@ export function mapClzRow(raw: Record<string, string>) {
       if (metaKey === "quantity") {
         const q = parseInt(value, 10);
         if (!isNaN(q) && q > 0) mapped._quantity = q;
+      }
+      // Promote artist to top-level for CD imports
+      if (metaKey === "artist") {
+        mapped._artist = cleanString(value);
       }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
