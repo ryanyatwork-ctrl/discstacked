@@ -279,11 +279,11 @@ export default function Index() {
           <div className="relative">
             <CollectionStats items={dbItems ?? []} isLoading={isLoading} activeTab={activeTab} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
             <button
-              onClick={toggleHeaderPin}
-              className="absolute top-3 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={(e) => { e.stopPropagation(); toggleHeaderPin(); }}
+              className="absolute top-7 right-5 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               title={headerPinned ? "Unpin stats ribbon" : "Pin stats ribbon"}
             >
-              {headerPinned ? <Pin className="h-3.5 w-3.5 text-primary" /> : <PinOff className="h-3.5 w-3.5" />}
+              {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
             </button>
           </div>
         </div>
