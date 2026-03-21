@@ -37,6 +37,11 @@ const COLUMN_MAP: Record<string, string> = {
   label: "_label",
   tracks: "_tracks",
   length: "_length",
+  // CLZ Games columns
+  platform: "_platform",
+  platforms: "_platform",
+  developer: "_developer",
+  publisher: "_publisher",
 };
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
