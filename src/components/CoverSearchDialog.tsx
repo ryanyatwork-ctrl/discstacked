@@ -205,7 +205,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  placeholder="Search movies & TV shows…"
+                  placeholder={isGame ? "Search games…" : "Search movies & TV shows…"}
                   className="flex-1"
                 />
                 <Button onClick={handleSearch} disabled={searching} size="icon">
