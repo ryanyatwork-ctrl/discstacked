@@ -40,8 +40,9 @@ interface CoverSearchDialogProps {
 }
 
 export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProps) {
+  const isGame = item.mediaType === "games";
   const [query, setQuery] = useState(item.title);
-  const [results, setResults] = useState<TmdbResult[]>([]);
+  const [results, setResults] = useState<(TmdbResult | GameResult)[]>([]);
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingPosters, setLoadingPosters] = useState(false);
@@ -56,10 +57,18 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     setSelectedResult(null);
     setAltPosters([]);
     try {
-      const res = await searchTmdb(query, undefined);
-      setResults(res);
-      if (res.length === 0) {
-        toast({ title: "No results", description: "Try a different search term." });
+      if (isGame) {
+        const res = await searchGames(query);
+        setResults(res);
+        if (res.length === 0) {
+          toast({ title: "No results", description: "Try a different search term." });
+        }
+      } else {
+        const res = await searchTmdb(query, undefined);
+        setResults(res);
+        if (res.length === 0) {
+          toast({ title: "No results", description: "Try a different search term." });
+        }
       }
     } catch {
       toast({ title: "Search failed", variant: "destructive" });
