@@ -104,6 +104,22 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     }
   };
 
+  const handlePickGameCover = async (result: GameResult) => {
+    if (!result.cover_url) return;
+    try {
+      await updateItem.mutateAsync({
+        id: item.id,
+        poster_url: result.cover_url,
+        ...(result.genre ? { genre: result.genre } : {}),
+        ...(result.rating ? { rating: result.rating } : {}),
+      } as any);
+      toast({ title: "Cover updated!" });
+      onClose();
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
