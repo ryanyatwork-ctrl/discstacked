@@ -113,6 +113,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
           <p className="text-xs text-muted-foreground">
             {isCds ? (
               <>Supports <code className="text-accent">CLZ Music Collector</code> exports (Artist, Title, Release Year, Format, Tracks, Length, Genre, Label) and standard CSV files.</>
+            ) : activeTab === "games" ? (
+              <>Supports <code className="text-accent">CLZ Game Collector</code> exports (Title, Platform, Genre, Developer, Publisher) and standard CSV files. You can also import from VideoGameGeek in Settings.</>
             ) : (
               <>Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Box sets and multi-movie titles are automatically detected and expanded.</>
             )}
