@@ -61,6 +61,19 @@ export function detectFormats(value: string): string[] {
   if (v.includes("dvd")) {
     found.push("DVD");
   }
+  // Music formats
+  if (v.includes("cd") || v.includes("compact disc")) {
+    found.push("CD");
+  }
+  if (v.includes("vinyl") || v.includes("lp") || v.includes("12\"") || v.includes("7\"")) {
+    found.push("Vinyl");
+  }
+  if (v.includes("cassette") || v.includes("tape")) {
+    found.push("Cassette");
+  }
+  if (v.includes("promo")) {
+    if (!found.includes("CD")) found.push("CD");
+  }
   return found;
 }
 
