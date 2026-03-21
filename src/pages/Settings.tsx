@@ -411,6 +411,38 @@ export default function Settings() {
           <UnstackedExportButton userId={user.id} />
         </section>
 
+        {/* Support / Donate */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            ❤️ Support DiscStacked
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            If you enjoy using DiscStacked and want to show your support, consider buying us a coffee!
+          </p>
+          <div className="flex gap-2">
+            <a
+              href="https://paypal.me/yelltom"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button variant="outline" size="sm" className="w-full gap-2">
+                💙 PayPal
+              </Button>
+            </a>
+            <a
+              href="https://venmo.com/BellevilleSystems"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button variant="outline" size="sm" className="w-full gap-2">
+                💚 Venmo
+              </Button>
+            </a>
+          </div>
+        </section>
+
         {/* Sign Out */}
         <section>
           <Button
