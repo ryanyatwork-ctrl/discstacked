@@ -33,6 +33,11 @@ const COLUMN_MAP: Record<string, string> = {
   quantity: "_quantity",
   qty: "_quantity",
   subtitles: "_subtitles",
+  // CLZ Music Collector columns
+  artist: "_artist",
+  label: "_label",
+  tracks: "_tracks",
+  length: "_length",
 };
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
