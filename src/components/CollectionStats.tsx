@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Disc, Monitor, Download, CalendarDays, Music, BookOpen, Gamepad2 } from "lucide-react";
+import { Disc, Monitor, Download, CalendarDays, Music, Gamepad2 } from "lucide-react";
 import { DbMediaItem } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { cn } from "@/lib/utils";
