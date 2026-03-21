@@ -52,7 +52,7 @@ function generateStrongPassword(): string {
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
-type DefaultTab = "movies" | "tv" | "music" | "games" | "books";
+type DefaultTab = "movies" | "tv" | "music" | "games";
 
 function getStoredSetting<T>(key: string, fallback: T): T {
   try {
