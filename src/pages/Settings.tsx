@@ -540,7 +540,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           return !meta.cast || !meta.crew || !meta.runtime;
         }
         if (type === "cds") return !meta.artist && !meta.tracklist;
-        if (type === "books") return !meta.author && !meta.page_count;
         if (type === "games") return !meta.developer && !meta.platforms;
         return false;
       });
