@@ -277,7 +277,7 @@ export default function Index() {
           }`}
         >
           <div className="relative">
-            <CollectionStats items={dbItems ?? []} isLoading={isLoading} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
+            <CollectionStats items={dbItems ?? []} isLoading={isLoading} activeTab={activeTab} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
             <button
               onClick={toggleHeaderPin}
               className="absolute top-3 right-4 text-muted-foreground hover:text-foreground transition-colors"
