@@ -271,15 +271,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Barcode scanner (movies, music, books) */}
+          {/* Barcode scanner */}
           {hasBarcode && (
             <div className="space-y-2">
-              <Label className="text-foreground">Barcode / UPC{isBookTab ? " / ISBN" : ""}</Label>
+              <Label className="text-foreground">Barcode / UPC</Label>
               <div className="flex gap-2">
                 <Input
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
-                  placeholder={isBookTab ? "Scan or type ISBN…" : "Scan or type UPC…"}
+                  placeholder="Scan or type UPC…"
                   className="flex-1"
                   onKeyDown={(e) => e.key === "Enter" && handleBarcodeLookup(barcode)}
                 />
