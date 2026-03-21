@@ -560,9 +560,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           } else if (type === "cds") {
             lookupFn = "music-lookup";
             body = { query: item.title };
-          } else if (type === "books") {
-            lookupFn = "book-lookup";
-            body = { query: item.title };
           } else if (type === "games") {
             lookupFn = "game-lookup";
             body = { query: item.title };
