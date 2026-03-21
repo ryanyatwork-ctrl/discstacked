@@ -38,7 +38,6 @@ const TAB_LABELS: Record<MediaTab, string> = {
   movies: "Bulk Barcode Scan",
   "music-films": "Bulk Barcode Scan",
   cds: "Bulk Barcode Scan — Music",
-  books: "Bulk ISBN Scan — Books",
   games: "Bulk Scan — Games",
 };
 
