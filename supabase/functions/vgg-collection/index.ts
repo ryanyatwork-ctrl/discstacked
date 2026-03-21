@@ -122,10 +122,18 @@ Deno.serve(async (req) => {
     }
 
     // VGG uses the same xmlapi2 as BGG, just on videogamegeek.com
+    const bggToken = Deno.env.get("BGG_API_TOKEN");
+    if (!bggToken) {
+      return new Response(JSON.stringify({ success: false, error: "BGG API token not configured." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const url = `https://videogamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username.trim())}&own=1&stats=1&subtype=videogame`;
     console.log(`Fetching VGG collection for "${username}"`);
 
-    const res = await fetchWithRetry(url);
+    const res = await fetchWithRetry(url, 6, bggToken);
 
     if (res.status === 404 || res.status === 400) {
       return new Response(JSON.stringify({ success: false, error: `VGG user "${username}" not found.` }), {
