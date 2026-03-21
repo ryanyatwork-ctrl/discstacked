@@ -49,9 +49,6 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             meta.artist = item._artist;
             delete item._artist;
           }
-          if (meta.label) {
-            // label already in metadata from COLUMN_MAP
-          }
           if (meta.tracks) {
             meta.track_count = meta.tracks;
             delete meta.tracks;
@@ -59,6 +56,18 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
           if (meta.length) {
             meta.total_length = meta.length;
             delete meta.length;
+          }
+          item.metadata = meta;
+        }
+      }
+
+      // For Games imports, promote platform/developer/publisher into metadata
+      if (activeTab === "games") {
+        for (const item of items) {
+          const meta = item.metadata || {};
+          if (meta.platform) {
+            meta.platforms = [meta.platform];
+            delete meta.platform;
           }
           item.metadata = meta;
         }
