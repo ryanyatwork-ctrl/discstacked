@@ -1,10 +1,9 @@
 import { MediaTab } from "@/lib/types";
 
-export const TAB_LABELS: Record<MediaTab, string> = {
+export const TAB_LABELS: Record<string, string> = {
   movies: "Movies",
   "music-films": "Music Media",
   cds: "CDs",
-  books: "Books",
   games: "Games",
 };
 
@@ -38,6 +37,11 @@ const COLUMN_MAP: Record<string, string> = {
   label: "_label",
   tracks: "_tracks",
   length: "_length",
+  // CLZ Games columns
+  platform: "_platform",
+  platforms: "_platform",
+  developer: "_developer",
+  publisher: "_publisher",
 };
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Disc, Monitor, Download, CalendarDays, Music, BookOpen, Gamepad2 } from "lucide-react";
+import { Disc, Monitor, Download, CalendarDays, Music, Gamepad2 } from "lucide-react";
 import { DbMediaItem } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -118,33 +118,7 @@ function buildCDCards(items: DbMediaItem[]): StatCard[] {
   ];
 }
 
-function buildBookCards(items: DbMediaItem[]): StatCard[] {
-  const total = items.length;
-  const hardcover = countByFormat(items, ["hardcover"]);
-  const paperback = countByFormat(items, ["paperback"]);
-  const ebook = countByFormat(items, ["ebook", "kindle", "digital"]);
-  const audiobook = countByFormat(items, ["audiobook", "audio"]);
-  const comic = countByFormat(items, ["comic", "graphic novel", "manga"]);
-
-  const formatCards: { id: string; label: string; count: number }[] = [
-    { id: "hardcover", label: "Hardcover", count: hardcover },
-    { id: "paperback", label: "Paperback", count: paperback },
-    { id: "ebook", label: "eBook / Kindle", count: ebook },
-    { id: "audiobook", label: "Audiobook", count: audiobook },
-    { id: "comic", label: "Comics", count: comic },
-  ];
-
-  const topFormats = formatCards.sort((a, b) => b.count - a.count).slice(0, 3);
-
-  return [
-    { id: "total", icon: BookOpen, label: "Total Items", value: total.toLocaleString(), color: "text-primary", bg: "bg-primary/10", clickable: true },
-    ...topFormats.map((f) => ({
-      id: f.id, icon: BookOpen as typeof Disc, label: f.label,
-      value: f.count.toLocaleString(),
-      color: "text-primary", bg: "bg-primary/10", clickable: true,
-    })),
-  ];
-}
+// Books tab removed — no buildBookCards needed
 
 function buildGameCards(items: DbMediaItem[]): StatCard[] {
   const total = items.length;
@@ -199,8 +173,6 @@ export function CollectionStats({ items, isLoading, activeTab, onStatsClick, act
         return buildMovieCards(items);
       case "cds":
         return buildCDCards(items);
-      case "books":
-        return buildBookCards(items);
       case "games":
         return buildGameCards(items);
       default:

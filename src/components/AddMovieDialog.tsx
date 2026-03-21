@@ -23,7 +23,6 @@ const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; w
   movies: { title: "Movie", searchPlaceholder: "Movie title…", wantAction: "Want to Watch" },
   "music-films": { title: "Music Film", searchPlaceholder: "Concert / music film…", wantAction: "Want to Watch" },
   cds: { title: "Album", searchPlaceholder: "Artist or album…", wantAction: "Want to Listen" },
-  books: { title: "Book", searchPlaceholder: "Book title or author…", wantAction: "Want to Read" },
   games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },
 };
 
@@ -56,9 +55,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const isMovieTab = activeTab === "movies" || activeTab === "music-films";
   const isMusicTab = activeTab === "cds";
-  const isBookTab = activeTab === "books";
   const isGameTab = activeTab === "games";
-  const hasBarcode = isMovieTab || isMusicTab || isBookTab;
+  const hasBarcode = isMovieTab || isMusicTab;
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setBarcode("");
@@ -227,8 +225,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(true);
     try {
       const metaPayload: Record<string, any> = { ...extraMeta };
-      if (artist && (isMusicTab || isBookTab)) {
-        metaPayload[isBookTab ? "author" : "artist"] = artist;
+      if (artist && isMusicTab) {
+        metaPayload["artist"] = artist;
       }
       const { error } = await supabase.from("media_items").insert({
         user_id: user.id,
@@ -273,15 +271,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Barcode scanner (movies, music, books) */}
+          {/* Barcode scanner */}
           {hasBarcode && (
             <div className="space-y-2">
-              <Label className="text-foreground">Barcode / UPC{isBookTab ? " / ISBN" : ""}</Label>
+              <Label className="text-foreground">Barcode / UPC</Label>
               <div className="flex gap-2">
                 <Input
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
-                  placeholder={isBookTab ? "Scan or type ISBN…" : "Scan or type UPC…"}
+                  placeholder="Scan or type UPC…"
                   className="flex-1"
                   onKeyDown={(e) => e.key === "Enter" && handleBarcodeLookup(barcode)}
                 />
@@ -318,14 +316,14 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           </div>
 
-          {/* Artist / Author field for music & books */}
-          {(isMusicTab || isBookTab) && (
+          {/* Artist field for music */}
+          {isMusicTab && (
             <div className="space-y-2">
-              <Label className="text-foreground">{isBookTab ? "Author" : "Artist"}</Label>
+              <Label className="text-foreground">Artist</Label>
               <Input
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder={isBookTab ? "Author name…" : "Artist / band name…"}
+                placeholder="Artist / band name…"
               />
             </div>
           )}

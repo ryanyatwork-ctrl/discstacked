@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, BookOpen, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database, Sparkles } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database, Sparkles, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -52,7 +52,7 @@ function generateStrongPassword(): string {
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
-type DefaultTab = "movies" | "tv" | "music" | "games" | "books";
+type DefaultTab = "movies" | "tv" | "music" | "games";
 
 function getStoredSetting<T>(key: string, fallback: T): T {
   try {
@@ -174,7 +174,7 @@ export default function Settings() {
     return null;
   }
 
-  const tabIcons = { movies: Film, tv: Tv, music: Music, games: Gamepad2, books: BookOpen };
+  const tabIcons = { movies: Film, tv: Tv, music: Music, games: Gamepad2 };
 
   return (
     <div className="min-h-screen bg-background">
@@ -375,7 +375,7 @@ export default function Settings() {
           <BackfillDiscsButton userId={user.id} />
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">
-              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Books use Google Books/Open Library; Games use IGDB/RAWG.
+              Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Games use IGDB/RAWG.
             </p>
             <BackfillTmdbButton userId={user.id} />
           </div>
@@ -385,6 +385,30 @@ export default function Settings() {
             </p>
             <GenerateAiCoversButton userId={user.id} />
           </div>
+        </section>
+
+        {/* VGG Import */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Import from VideoGameGeek
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Enter your VideoGameGeek username to import your owned video game collection directly.
+          </p>
+          <VggImportButton userId={user.id} />
+        </section>
+
+        {/* Unstacked Export */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export for Unstacked
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Export your collection in a format compatible with Unstacked for easy pricing, sale, and auction creation.
+          </p>
+          <UnstackedExportButton userId={user.id} />
         </section>
 
         {/* Sign Out */}
@@ -540,7 +564,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           return !meta.cast || !meta.crew || !meta.runtime;
         }
         if (type === "cds") return !meta.artist && !meta.tracklist;
-        if (type === "books") return !meta.author && !meta.page_count;
         if (type === "games") return !meta.developer && !meta.platforms;
         return false;
       });
@@ -560,9 +583,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
             body = { query: item.title, year: item.year, search_type: "movie" };
           } else if (type === "cds") {
             lookupFn = "music-lookup";
-            body = { query: item.title };
-          } else if (type === "books") {
-            lookupFn = "book-lookup";
             body = { query: item.title };
           } else if (type === "games") {
             lookupFn = "game-lookup";
@@ -610,18 +630,6 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
               source: top.source || currentMeta.source,
             };
             if (top.genre && !item.genre) updatePayload.genre = top.genre;
-            if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
-          } else if (type === "books") {
-            updatedMeta = {
-              ...updatedMeta,
-              author: top.author || currentMeta.author,
-              page_count: top.page_count || currentMeta.page_count,
-              publisher: top.publisher || currentMeta.publisher,
-              isbn: top.isbn || currentMeta.isbn,
-              overview: top.description || currentMeta.overview,
-              source: top.source || currentMeta.source,
-            };
-            if (top.categories?.join && !item.genre) updatePayload.genre = top.categories.join(", ");
             if (top.cover_url && !item.poster_url) updatePayload.poster_url = top.cover_url;
           } else if (type === "games") {
             updatedMeta = {
@@ -777,6 +785,174 @@ function GenerateAiCoversButton({ userId }: { userId: string }) {
       {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
       <p className="text-[11px] text-muted-foreground">
         Creates AI-generated album covers for items without artwork. Uses artist name and title. Only affects items with no existing cover.
+      </p>
+    </div>
+  );
+}
+
+function VggImportButton({ userId }: { userId: string }) {
+  const [username, setUsername] = useState("");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+
+  const handleImport = async () => {
+    if (!username.trim()) return;
+    setRunning(true);
+    setProgress("Fetching VGG collection…");
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session) throw new Error("Not logged in");
+
+      const { data, error } = await supabase.functions.invoke("vgg-collection", {
+        body: { username: username.trim() },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || "Import failed");
+
+      const items = data.items || [];
+      if (items.length === 0) {
+        toast({ title: "Empty collection", description: `No owned games found for "${username}".` });
+        setRunning(false);
+        setProgress("");
+        return;
+      }
+
+      setProgress(`Found ${items.length} games. Importing…`);
+
+      // Chunk insert
+      const CHUNK = 500;
+      let inserted = 0;
+      for (let i = 0; i < items.length; i += CHUNK) {
+        const batch = items.slice(i, i + CHUNK);
+        const rows = batch.map((g: any) => ({
+          user_id: userId,
+          title: g.title,
+          year: g.yearPublished || null,
+          poster_url: g.imageUrl || null,
+          rating: g.rating || null,
+          media_type: "games",
+          formats: g.platforms && g.platforms.length > 0 ? g.platforms : [],
+          metadata: {
+            vgg_thing_id: g.vggThingId,
+            platforms: g.platforms || [],
+            source: "vgg",
+          },
+        }));
+
+        const { error: insertErr } = await supabase.from("media_items").insert(rows);
+        if (insertErr) throw insertErr;
+        inserted += batch.length;
+        setProgress(`Imported ${inserted} of ${items.length}…`);
+      }
+
+      toast({
+        title: "VGG import complete!",
+        description: `Imported ${inserted} games from "${username}".`,
+      });
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="VGG username…"
+          className="flex-1"
+          onKeyDown={(e) => e.key === "Enter" && handleImport()}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleImport}
+          disabled={running || !username.trim()}
+          className="gap-2"
+        >
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {running ? "Importing…" : "Import"}
+        </Button>
+      </div>
+      {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Imports games you own on VideoGameGeek. This adds to your existing Games collection (does not replace).
+      </p>
+    </div>
+  );
+}
+
+function UnstackedExportButton({ userId }: { userId: string }) {
+  const [running, setRunning] = useState(false);
+
+  const handleExport = async (format: "csv" | "json") => {
+    setRunning(true);
+    try {
+      let allItems: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("media_items")
+          .select("*")
+          .eq("user_id", userId)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allItems = allItems.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      if (allItems.length === 0) {
+        toast({ title: "Nothing to export", description: "Your collection is empty." });
+        setRunning(false);
+        return;
+      }
+
+      const { exportForUnstackedCSV, exportForUnstackedJSON } = await import("@/lib/unstacked-export");
+      if (format === "csv") {
+        exportForUnstackedCSV(allItems);
+      } else {
+        exportForUnstackedJSON(allItems);
+      }
+
+      toast({ title: "Export complete!", description: `Exported ${allItems.length} items for Unstacked.` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-2"
+          onClick={() => handleExport("csv")}
+          disabled={running}
+        >
+          <Download className="h-4 w-4" /> CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-2"
+          onClick={() => handleExport("json")}
+          disabled={running}
+        >
+          <Download className="h-4 w-4" /> JSON
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Exports all collections in Unstacked-compatible format for pricing, selling, and auction creation.
       </p>
     </div>
   );

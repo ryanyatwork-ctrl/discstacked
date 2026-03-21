@@ -49,9 +49,6 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             meta.artist = item._artist;
             delete item._artist;
           }
-          if (meta.label) {
-            // label already in metadata from COLUMN_MAP
-          }
           if (meta.tracks) {
             meta.track_count = meta.tracks;
             delete meta.tracks;
@@ -59,6 +56,18 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
           if (meta.length) {
             meta.total_length = meta.length;
             delete meta.length;
+          }
+          item.metadata = meta;
+        }
+      }
+
+      // For Games imports, promote platform/developer/publisher into metadata
+      if (activeTab === "games") {
+        for (const item of items) {
+          const meta = item.metadata || {};
+          if (meta.platform) {
+            meta.platforms = [meta.platform];
+            delete meta.platform;
           }
           item.metadata = meta;
         }
@@ -104,6 +113,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
           <p className="text-xs text-muted-foreground">
             {isCds ? (
               <>Supports <code className="text-accent">CLZ Music Collector</code> exports (Artist, Title, Release Year, Format, Tracks, Length, Genre, Label) and standard CSV files.</>
+            ) : activeTab === "games" ? (
+              <>Supports <code className="text-accent">CLZ Game Collector</code> exports (Title, Platform, Genre, Developer, Publisher) and standard CSV files. You can also import from VideoGameGeek in Settings.</>
             ) : (
               <>Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Box sets and multi-movie titles are automatically detected and expanded.</>
             )}

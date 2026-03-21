@@ -41,11 +41,11 @@ export async function searchMedia(
   if (activeTab === "movies" || activeTab === "music-films") {
     return searchTmdb(query, opts);
   }
-  if (activeTab === "books") {
-    return searchBooks(query, opts?.barcode);
-  }
   if (activeTab === "cds") {
     return searchMusic(query, opts?.barcode);
+  }
+  if (activeTab === "games") {
+    return searchGames(query);
   }
   if (activeTab === "games") {
     return searchGames(query);
@@ -80,33 +80,6 @@ export async function lookupBarcode(
     }
     if (data?.results?.length > 0) {
       return { results: data.results.map(mapTmdbResult) };
-    }
-    return {};
-  }
-
-  if (activeTab === "books") {
-    const { data, error } = await supabase.functions.invoke("book-lookup", {
-      body: { barcode },
-    });
-    if (error) throw new Error(error.message);
-    if (data?.title) {
-      return {
-        direct: {
-          id: data.isbn || barcode,
-          title: data.title,
-          year: data.year || null,
-          cover_url: data.poster_url || null,
-          genre: data.genre || null,
-          author: data.author,
-          page_count: data.page_count,
-          publisher: data.publisher,
-          isbn: data.isbn,
-          description: data.description,
-        },
-      };
-    }
-    if (data?.results?.length > 0) {
-      return { results: data.results };
     }
     return {};
   }
