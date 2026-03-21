@@ -9,6 +9,30 @@ import { toast } from "@/hooks/use-toast";
 import { Search, Upload, Loader2, ArrowLeft } from "lucide-react";
 import { MediaItem } from "@/lib/types";
 
+interface GameResult {
+  id: string;
+  title: string;
+  year: number | null;
+  cover_url: string | null;
+  genre: string | null;
+  rating: number | null;
+}
+
+async function searchGames(query: string): Promise<GameResult[]> {
+  const { data, error } = await supabase.functions.invoke("game-lookup", {
+    body: { query },
+  });
+  if (error) throw new Error(error.message);
+  return (data.results || []).map((r: any) => ({
+    id: r.id,
+    title: r.title,
+    year: r.year || null,
+    cover_url: r.cover_url || null,
+    genre: r.genre || null,
+    rating: r.rating || null,
+  }));
+}
+
 interface CoverSearchDialogProps {
   item: MediaItem;
   open: boolean;
@@ -16,8 +40,9 @@ interface CoverSearchDialogProps {
 }
 
 export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProps) {
+  const isGame = item.mediaType === "games";
   const [query, setQuery] = useState(item.title);
-  const [results, setResults] = useState<TmdbResult[]>([]);
+  const [results, setResults] = useState<(TmdbResult | GameResult)[]>([]);
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingPosters, setLoadingPosters] = useState(false);
@@ -32,10 +57,18 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     setSelectedResult(null);
     setAltPosters([]);
     try {
-      const res = await searchTmdb(query, undefined);
-      setResults(res);
-      if (res.length === 0) {
-        toast({ title: "No results", description: "Try a different search term." });
+      if (isGame) {
+        const res = await searchGames(query);
+        setResults(res);
+        if (res.length === 0) {
+          toast({ title: "No results", description: "Try a different search term." });
+        }
+      } else {
+        const res = await searchTmdb(query, undefined);
+        setResults(res);
+        if (res.length === 0) {
+          toast({ title: "No results", description: "Try a different search term." });
+        }
       }
     } catch {
       toast({ title: "Search failed", variant: "destructive" });
@@ -63,6 +96,22 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
         poster_url: posterUrl,
         ...(selectedResult.genre ? { genre: selectedResult.genre } : {}),
         ...(selectedResult.rating ? { rating: selectedResult.rating } : {}),
+      } as any);
+      toast({ title: "Cover updated!" });
+      onClose();
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  const handlePickGameCover = async (result: GameResult) => {
+    if (!result.cover_url) return;
+    try {
+      await updateItem.mutateAsync({
+        id: item.id,
+        poster_url: result.cover_url,
+        ...(result.genre ? { genre: result.genre } : {}),
+        ...(result.rating ? { rating: result.rating } : {}),
       } as any);
       toast({ title: "Cover updated!" });
       onClose();
@@ -156,7 +205,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  placeholder="Search movies & TV shows…"
+                  placeholder={isGame ? "Search games…" : "Search movies & TV shows…"}
                   className="flex-1"
                 />
                 <Button onClick={handleSearch} disabled={searching} size="icon">
@@ -167,27 +216,38 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
               {/* Results */}
               {results.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
-                  {results.map((r) => (
-                    <button
-                      key={`${r.media_type}-${r.tmdb_id}`}
-                      onClick={() => handleSelectResult(r)}
-                      className="group relative rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
-                    >
-                      {r.poster_url ? (
-                        <img src={r.poster_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
-                      ) : (
-                        <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground p-2 text-center">{r.title}</p>
+                  {results.map((r) => {
+                    const coverUrl = 'poster_url' in r ? r.poster_url : 'cover_url' in r ? r.cover_url : null;
+                    const key = 'tmdb_id' in r ? `tmdb-${r.tmdb_id}` : r.id;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          if (isGame && coverUrl) {
+                            // For games, directly pick the cover (no alt posters)
+                            handlePickGameCover(r as GameResult);
+                          } else if ('tmdb_id' in r) {
+                            handleSelectResult(r as TmdbResult);
+                          }
+                        }}
+                        className="group relative rounded-md overflow-hidden border border-border hover:border-primary transition-colors"
+                      >
+                        {coverUrl ? (
+                          <img src={coverUrl} alt={r.title} className="w-full aspect-[2/3] object-cover" />
+                        ) : (
+                          <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground p-2 text-center">{r.title}</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1.5">
+                          <p className="text-[10px] font-medium text-foreground truncate">{r.title}</p>
+                          <p className="text-[9px] text-muted-foreground">
+                            {r.year}{isGame ? "" : ` · ${'media_type' in r && (r.media_type === "tv" || r.media_type === "tv_season") ? "TV" : "Movie"}`}
+                          </p>
                         </div>
-                      )}
-                      <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1.5">
-                        <p className="text-[10px] font-medium text-foreground truncate">{r.title}</p>
-                        <p className="text-[9px] text-muted-foreground">
-                          {r.year} · {r.media_type === "tv" || r.media_type === "tv_season" ? "TV" : "Movie"}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
