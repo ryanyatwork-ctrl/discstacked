@@ -41,11 +41,11 @@ export async function searchMedia(
   if (activeTab === "movies" || activeTab === "music-films") {
     return searchTmdb(query, opts);
   }
-  if (activeTab === "books") {
-    return searchBooks(query, opts?.barcode);
-  }
   if (activeTab === "cds") {
     return searchMusic(query, opts?.barcode);
+  }
+  if (activeTab === "games") {
+    return searchGames(query);
   }
   if (activeTab === "games") {
     return searchGames(query);
