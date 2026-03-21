@@ -115,10 +115,21 @@ export default function Index() {
         return activeTags.every((t) => tags.includes(t));
       });
     }
-    if (statusFilter === "plex") {
-      items = items.filter((i) => i.inPlex);
-    } else if (statusFilter === "digital") {
-      items = items.filter((i) => i.digitalCopy);
+    if (statusFilter) {
+      if (statusFilter === "plex") {
+        items = items.filter((i) => i.inPlex);
+      } else if (statusFilter === "digital") {
+        items = items.filter((i) => i.digitalCopy);
+      } else {
+        // Format/platform filter from stats cards
+        const kw = statusFilter.toLowerCase();
+        items = items.filter((i) => {
+          const formats = i.formats && i.formats.length > 0 ? i.formats : i.format ? [i.format] : [];
+          const meta = i.metadata as Record<string, any> | undefined;
+          const platforms = (meta?.platforms as string[]) ?? [];
+          return [...formats, ...platforms].some((f) => f.toLowerCase().includes(kw));
+        });
+      }
     }
     return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
   }, [allItems, searchQuery, activeFormats, activeTags, statusFilter]);
