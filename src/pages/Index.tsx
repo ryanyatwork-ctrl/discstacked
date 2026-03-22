@@ -363,6 +363,7 @@ export default function Index() {
           </div>
         )}
       </main>
+      </div>
 
       {/* Mobile Bottom Tab Bar */}
       <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
