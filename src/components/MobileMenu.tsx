@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2 } from "lucide-react";
+import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -78,6 +78,7 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             )}
             <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
             <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
+            <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
             {isLoggedIn && onSignOut && (
               <>
                 <div className="my-3 border-t border-border" />
