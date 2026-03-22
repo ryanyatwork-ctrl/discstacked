@@ -270,6 +270,8 @@ export default function Index() {
         </div>
       </header>
 
+      {/* Scrollable content area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-16 md:pb-0">
       {/* Collapsible Stats Ribbon */}
       {!user ? (
         <WelcomeSection />
