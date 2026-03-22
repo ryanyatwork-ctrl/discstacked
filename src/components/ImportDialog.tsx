@@ -77,6 +77,14 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       const merged = activeTab === "games" ? items : mergeDuplicates(items);
       const expanded = (activeTab === "cds" || activeTab === "games") ? merged : expandBoxSets(merged);
 
+      // Strip internal fields that shouldn't be sent to the database
+      for (const item of expanded) {
+        delete item._rowFormats;
+        delete item._quantity;
+        delete item._artist;
+        delete item._gamePlatform;
+      }
+
       toast({ title: "Importing…", description: `Processing ${expanded.length} items…` });
 
       await importMutation.mutateAsync({
