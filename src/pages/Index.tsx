@@ -279,7 +279,7 @@ export default function Index() {
         <div
           className={`transition-all duration-300 ease-in-out ${
             headerPinned
-              ? "sticky top-[57px] z-40 bg-background border-b border-border shadow-sm"
+              ? "sticky top-0 z-40 bg-background border-b border-border shadow-sm"
               : headerVisible
                 ? "max-h-[300px] opacity-100"
                 : "max-h-0 opacity-0 overflow-hidden"
