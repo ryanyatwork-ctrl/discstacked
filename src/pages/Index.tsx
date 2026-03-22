@@ -71,6 +71,7 @@ export default function Index() {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
   const gridRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const { user, signOut } = useAuth();

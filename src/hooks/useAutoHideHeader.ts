@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, RefObject } from "react";
 
-export function useAutoHideHeader() {
+export function useAutoHideHeader(scrollRef?: RefObject<HTMLElement | null>) {
   const [pinned, setPinned] = useState(() => {
     try {
       return localStorage.getItem("ds-header-pinned") === "true";
@@ -24,12 +24,16 @@ export function useAutoHideHeader() {
   useEffect(() => {
     if (pinned) return;
 
+    const target = scrollRef?.current ?? window;
+    const getScrollY = () =>
+      scrollRef?.current ? scrollRef.current.scrollTop : window.scrollY;
+
     const onScroll = () => {
       if (ticking.current) return;
       ticking.current = true;
 
       requestAnimationFrame(() => {
-        const currentY = window.scrollY;
+        const currentY = getScrollY();
         const delta = currentY - lastScrollY.current;
 
         if (currentY < 60) {
@@ -45,9 +49,9 @@ export function useAutoHideHeader() {
       });
     };
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [pinned]);
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
+  }, [pinned, scrollRef]);
 
   return { visible: pinned || visible, pinned, togglePin };
 }
