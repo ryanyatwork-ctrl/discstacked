@@ -8,6 +8,7 @@ import { useUpdateItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Search, Upload, Loader2, ArrowLeft } from "lucide-react";
 import { MediaItem } from "@/lib/types";
+import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
 
 interface GameResult {
   id: string;
