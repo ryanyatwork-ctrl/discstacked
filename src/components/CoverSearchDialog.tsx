@@ -252,6 +252,24 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                 </div>
               )}
 
+              {/* AI Generate */}
+              <div className="border-t border-border pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Generate a unique AI cover:</p>
+                <GenerateCoverArtButton
+                  title={item.title}
+                  artist={(item.metadata as any)?.artist || (item as any).artist}
+                  genre={item.genre}
+                  mediaType={item.mediaType}
+                  onGenerated={(url) => {
+                    updateItem.mutate({ id: item.id, poster_url: url } as any);
+                    toast({ title: "AI cover applied!" });
+                    onClose();
+                  }}
+                  size="default"
+                  variant="outline"
+                />
+              </div>
+
               {/* Upload custom */}
               <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground mb-2">Or upload your own cover art:</p>
