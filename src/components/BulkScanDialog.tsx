@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard } from "lucide-react";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
@@ -45,9 +45,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [btMode, setBtMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [defaultFormat, setDefaultFormat] = useState(FORMATS[activeTab]?.[0] || "");
   const [manualBarcode, setManualBarcode] = useState("");
+  const manualInputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const processedBarcodesRef = useRef(new Set<string>());
@@ -350,37 +352,85 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             </Select>
           </div>
 
-          {/* Scanner */}
-          {scanning ? (
-            <div className="relative">
-              <div id="bulk-barcode-scanner" ref={scannerRef} className="w-full rounded-md overflow-hidden" />
-              <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={stopScanner}>
-                Stop Scanner
-              </Button>
-              <p className="text-xs text-muted-foreground text-center mt-1">
-                Keep scanning — each barcode is looked up automatically
+          {/* Scanner mode buttons */}
+          <div className="flex gap-2">
+            {scanning ? (
+              <div className="relative flex-1">
+                <div id="bulk-barcode-scanner" ref={scannerRef} className="w-full rounded-md overflow-hidden" />
+                <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={stopScanner}>
+                  Stop Scanner
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-1">
+                  Keep scanning — each barcode is looked up automatically
+                </p>
+              </div>
+            ) : (
+              <>
+                <Button variant={btMode ? "outline" : "outline"} className="flex-1 gap-2" onClick={() => { setBtMode(false); startScanner(); }}>
+                  <Camera className="h-4 w-4" />
+                  {queue.length > 0 ? "Resume Camera" : "Camera Scan"}
+                </Button>
+                <Button
+                  variant={btMode ? "default" : "outline"}
+                  className="flex-1 gap-2"
+                  onClick={() => {
+                    setBtMode((prev) => !prev);
+                    if (!btMode) {
+                      setTimeout(() => manualInputRef.current?.focus(), 100);
+                    }
+                  }}
+                >
+                  <Bluetooth className="h-4 w-4" />
+                  {btMode ? "BT Scanner Active" : "Bluetooth Scanner"}
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Bluetooth mode banner */}
+          {btMode && !scanning && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-center space-y-2">
+              <p className="text-sm font-medium text-foreground">Bluetooth Scanner Mode</p>
+              <p className="text-xs text-muted-foreground">
+                Scan barcodes with your paired BT scanner — each scan auto-submits
               </p>
+              <Input
+                ref={manualInputRef}
+                value={manualBarcode}
+                onChange={(e) => setManualBarcode(e.target.value)}
+                placeholder="Waiting for scan…"
+                className="h-10 text-center text-lg font-mono"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleManualAdd();
+                    setTimeout(() => manualInputRef.current?.focus(), 50);
+                  }
+                }}
+                onBlur={() => {
+                  // Re-focus after a short delay to keep input ready for BT scanner
+                  if (btMode) setTimeout(() => manualInputRef.current?.focus(), 200);
+                }}
+              />
             </div>
-          ) : (
-            <Button variant="outline" className="w-full gap-2" onClick={startScanner}>
-              <Camera className="h-4 w-4" />
-              {queue.length > 0 ? "Resume Scanning" : "Start Scanning"}
-            </Button>
           )}
 
-          {/* Manual barcode/ISBN entry */}
-          <div className="flex gap-2">
-            <Input
-              value={manualBarcode}
-              onChange={(e) => setManualBarcode(e.target.value)}
-              placeholder="Type barcode/UPC…"
-              className="flex-1 h-8 text-sm"
-              onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
-            />
-            <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
-              <Keyboard className="h-3 h-3" /> Add
-            </Button>
-          </div>
+          {/* Manual barcode/ISBN entry (always visible when not in BT mode) */}
+          {!btMode && (
+            <div className="flex gap-2">
+              <Input
+                ref={manualInputRef}
+                value={manualBarcode}
+                onChange={(e) => setManualBarcode(e.target.value)}
+                placeholder="Type barcode/UPC…"
+                className="flex-1 h-8 text-sm"
+                onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+              />
+              <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
+                <Keyboard className="h-3 h-3" /> Add
+              </Button>
+            </div>
+          )}
 
           {/* Queue */}
           {queue.length > 0 && (
