@@ -1,7 +1,12 @@
-import { Search, X, Tag } from "lucide-react";
+import { Search, X, Tag, SlidersHorizontal, Check } from "lucide-react";
 import { FORMATS, MediaTab } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 interface FilterBarProps {
   activeTab: MediaTab;
@@ -14,8 +19,11 @@ interface FilterBarProps {
   onTagToggle?: (tag: string) => void;
 }
 
+const INLINE_THRESHOLD = 7;
+
 export function FilterBar({ activeTab, searchQuery, onSearchChange, activeFormats, onFormatToggle, availableTags = [], activeTags = [], onTagToggle }: FilterBarProps) {
   const formats = FORMATS[activeTab];
+  const useDropdown = formats.length > INLINE_THRESHOLD;
 
   return (
     <div className="space-y-2">
@@ -35,24 +43,76 @@ export function FilterBar({ activeTab, searchQuery, onSearchChange, activeFormat
             </button>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
-          {formats.map((format) => (
-            <button
-              key={format}
-              onClick={() => onFormatToggle(format)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
-                activeFormats.includes(format)
-                  ? format === "4K" ? "bg-primary text-primary-foreground"
-                  : format === "Blu-ray" ? "bg-accent text-accent-foreground"
-                  : "bg-secondary text-foreground"
-                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+
+        {useDropdown ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Platform
+                {activeFormats.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px] leading-none font-bold">
+                    {activeFormats.length}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto">
+                {formats.map((format) => {
+                  const isActive = activeFormats.includes(format);
+                  return (
+                    <button
+                      key={format}
+                      onClick={() => onFormatToggle(format)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors text-left",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <span className={cn(
+                        "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border",
+                        isActive ? "border-primary-foreground" : "border-muted-foreground/40"
+                      )}>
+                        {isActive && <Check className="h-2.5 w-2.5" />}
+                      </span>
+                      {format}
+                    </button>
+                  );
+                })}
+              </div>
+              {activeFormats.length > 0 && (
+                <button
+                  onClick={() => activeFormats.forEach((f) => onFormatToggle(f))}
+                  className="w-full mt-2 pt-2 border-t border-border text-xs text-muted-foreground hover:text-foreground text-center"
+                >
+                  Clear all
+                </button>
               )}
-            >
-              {format}
-            </button>
-          ))}
-        </div>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            {formats.map((format) => (
+              <button
+                key={format}
+                onClick={() => onFormatToggle(format)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
+                  activeFormats.includes(format)
+                    ? format === "4K" ? "bg-primary text-primary-foreground"
+                    : format === "Blu-ray" ? "bg-accent text-accent-foreground"
+                    : "bg-secondary text-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {format}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {availableTags.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
