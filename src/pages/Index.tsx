@@ -195,9 +195,9 @@ export default function Index() {
   const sortedLetters = Object.keys(groupedItems).sort();
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
-      {/* Header — always visible */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header — always visible, no scroll */}
+      <header className="flex-none z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 min-w-0">
             <MobileMenu
