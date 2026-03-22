@@ -71,11 +71,12 @@ export default function Index() {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
   const gridRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const { user, signOut } = useAuth();
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
-  const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader();
+  const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
 
   const allItems = useMemo(() => {
     if (user && dbItems && dbItems.length > 0) {
@@ -161,7 +162,9 @@ export default function Index() {
   const handleLetterClick = useCallback((letter: string) => {
     setActiveLetter(letter);
     const el = document.getElementById(`letter-${letter}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el && scrollRef.current) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
   const handleTabChange = useCallback((tab: MediaTab) => {
@@ -192,9 +195,9 @@ export default function Index() {
   const sortedLetters = Object.keys(groupedItems).sort();
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
-      {/* Header — always visible */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header — always visible, no scroll */}
+      <header className="flex-none z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 min-w-0">
             <MobileMenu
@@ -267,6 +270,8 @@ export default function Index() {
         </div>
       </header>
 
+      {/* Scrollable content area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-16 md:pb-0">
       {/* Collapsible Stats Ribbon */}
       {!user ? (
         <WelcomeSection />
@@ -274,7 +279,7 @@ export default function Index() {
         <div
           className={`transition-all duration-300 ease-in-out ${
             headerPinned
-              ? "sticky top-[57px] z-40 bg-background border-b border-border shadow-sm"
+              ? "sticky top-0 z-40 bg-background border-b border-border shadow-sm"
               : headerVisible
                 ? "max-h-[300px] opacity-100"
                 : "max-h-0 opacity-0 overflow-hidden"
@@ -358,6 +363,7 @@ export default function Index() {
           </div>
         )}
       </main>
+      </div>
 
       {/* Mobile Bottom Tab Bar */}
       <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
