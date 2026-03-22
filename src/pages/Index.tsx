@@ -162,7 +162,9 @@ export default function Index() {
   const handleLetterClick = useCallback((letter: string) => {
     setActiveLetter(letter);
     const el = document.getElementById(`letter-${letter}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el && scrollRef.current) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
   const handleTabChange = useCallback((tab: MediaTab) => {
