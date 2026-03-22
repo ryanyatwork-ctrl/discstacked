@@ -78,6 +78,7 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             )}
             <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
             <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
+            <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
             {isLoggedIn && onSignOut && (
               <>
                 <div className="my-3 border-t border-border" />
