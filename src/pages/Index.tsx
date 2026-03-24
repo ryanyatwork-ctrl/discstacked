@@ -255,23 +255,24 @@ export default function Index() { // force rebuild
             )}
           </div>
         </div>
-        <div className="px-3 pb-2 sm:px-4 sm:pb-3 flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <FilterBar
-              activeTab={activeTab}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              activeFormats={activeFormats}
-              onFormatToggle={handleFormatToggle}
-              availableTags={availableTags}
-              activeTags={activeTags}
-              onTagToggle={handleTagToggle}
-            />
-          </div>
+        <div className="px-3 pb-1 sm:px-4 sm:pb-2">
+          <FilterBar
+            activeTab={activeTab}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeFormats={activeFormats}
+            onFormatToggle={handleFormatToggle}
+            availableTags={availableTags}
+            activeTags={activeTags}
+            onTagToggle={handleTagToggle}
+          />
+        </div>
+        <div className="px-2 sm:px-3 pb-2 border-b border-border/50">
           <AlphabetRail
             activeLetter={activeLetter}
             onLetterClick={handleLetterClick}
             availableLetters={availableLetters}
+            onClearLetter={() => setActiveLetter(null)}
           />
         </div>
       </header>
