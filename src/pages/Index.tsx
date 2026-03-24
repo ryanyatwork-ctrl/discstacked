@@ -341,7 +341,7 @@ export default function Index() {
             {viewMode === "covers" ? (
               <div className="poster-grid">
                 {groupedItems[letter].map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
+                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
                 ))}
               </div>
             ) : (
