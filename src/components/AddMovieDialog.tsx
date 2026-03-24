@@ -153,6 +153,11 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (r.genre) setGenre(r.genre);
     if (r.cover_url) setSelectedPoster(r.cover_url);
     if (r.artist || r.author) setArtist(r.artist || r.author || "");
+    // Auto-apply detected formats from barcode lookup
+    if (r.detected_formats && r.detected_formats.length > 0) {
+      setFormats(r.detected_formats);
+      setFormat(r.detected_formats[0]);
+    }
 
     const meta: Record<string, any> = {};
     if (r.runtime) meta.runtime = r.runtime;
