@@ -378,9 +378,9 @@ export default function Index() {
       <DetailDrawer
         item={selectedItem}
         open={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={() => setSelectedItemId(null)}
         itemList={filteredItems}
-        onNavigate={setSelectedItem}
+        onNavigate={(i) => setSelectedItemId(i.id)}
       />
     </div>
   );
