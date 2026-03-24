@@ -122,6 +122,7 @@ serve(async (req) => {
                   overview: t.overview || null,
                   media_type: "tv",
                   barcode_title: upcTitle,
+                  detected_formats,
                 }), {
                   headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
