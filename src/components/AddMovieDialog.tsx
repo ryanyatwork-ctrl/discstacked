@@ -31,6 +31,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
   const [format, setFormat] = useState("");
+  const [formats, setFormats] = useState<string[]>([]);
   const [barcode, setBarcode] = useState("");
   const [genre, setGenre] = useState("");
   const [notes, setNotes] = useState("");
