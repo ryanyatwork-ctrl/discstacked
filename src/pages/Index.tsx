@@ -67,7 +67,7 @@ export default function Index() {
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
   const gridRef = useRef<HTMLDivElement>(null);
@@ -87,6 +87,12 @@ export default function Index() {
     }
     return generateMockData(activeTab);
   }, [activeTab, user, dbItems]);
+
+  // Derive live selectedItem from latest data so edits are reflected immediately
+  const selectedItem = useMemo(() => {
+    if (!selectedItemId) return null;
+    return allItems.find((i) => i.id === selectedItemId) ?? null;
+  }, [selectedItemId, allItems]);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -335,13 +341,13 @@ export default function Index() {
             {viewMode === "covers" ? (
               <div className="poster-grid">
                 {groupedItems[letter].map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
+                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
                 ))}
               </div>
             ) : (
               <div className="flex flex-col">
                 {groupedItems[letter].map((item) => (
-                  <ListRow key={item.id} item={item} onClick={setSelectedItem} />
+                  <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
                 ))}
               </div>
             )}
@@ -372,9 +378,9 @@ export default function Index() {
       <DetailDrawer
         item={selectedItem}
         open={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={() => setSelectedItemId(null)}
         itemList={filteredItems}
-        onNavigate={setSelectedItem}
+        onNavigate={(i) => setSelectedItemId(i.id)}
       />
     </div>
   );
