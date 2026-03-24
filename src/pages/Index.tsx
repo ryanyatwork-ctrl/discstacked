@@ -347,7 +347,7 @@ export default function Index() {
             ) : (
               <div className="flex flex-col">
                 {groupedItems[letter].map((item) => (
-                  <ListRow key={item.id} item={item} onClick={setSelectedItem} />
+                  <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
                 ))}
               </div>
             )}
