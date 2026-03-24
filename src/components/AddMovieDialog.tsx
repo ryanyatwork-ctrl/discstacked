@@ -520,6 +520,29 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
             {saving ? "Adding…" : "Add to Collection"}
           </Button>
+
+          {/* Link to bulk scan */}
+          {hasBarcode && (
+            <p className="text-center text-xs text-muted-foreground">
+              Want to scan multiple items at once? Use the{" "}
+              <button
+                type="button"
+                className="text-primary underline hover:text-primary/80"
+                onClick={() => {
+                  setOpen(false);
+                  resetForm();
+                  // Small delay to let dialog close, then click the bulk scan button
+                  setTimeout(() => {
+                    const bulkBtn = document.querySelector('[title="Bulk Scan"]') as HTMLButtonElement;
+                    bulkBtn?.click();
+                  }, 300);
+                }}
+              >
+                Bulk Scan
+              </button>{" "}
+              button in the toolbar.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -46,26 +46,34 @@ serve(async (req) => {
           if (upcData.items?.length > 0) {
             const upcItem = upcData.items[0];
             const upcTitle = upcItem.title || "";
+            const upcCategory = upcItem.category || "";
+            const upcDescription = upcItem.description || "";
 
-            // Detect formats from UPC title
+            // Combine all text fields for format detection
+            const allText = `${upcTitle} ${upcCategory} ${upcDescription}`.toUpperCase();
             const detected_formats: string[] = [];
-            const titleUpper = upcTitle.toUpperCase();
-            if (titleUpper.includes("ULTRA HD") || titleUpper.includes("4K") || titleUpper.includes("UHD")) {
-              detected_formats.push("4K");
+
+            // Combo packs first (most specific)
+            if (/BLU-?RAY\s*\+\s*DVD/i.test(allText) || /DVD\s*\+\s*BLU-?RAY/i.test(allText)) {
+              detected_formats.push("Blu-ray", "DVD");
+            } else if (/4K.*BLU-?RAY|BLU-?RAY.*4K|UHD.*BLU-?RAY/i.test(allText)) {
+              detected_formats.push("4K", "Blu-ray");
+            } else {
+              if (allText.includes("ULTRA HD") || allText.includes("4K") || allText.includes("UHD")) {
+                detected_formats.push("4K");
+              }
+              if (allText.includes("BLU-RAY") || allText.includes("BLU RAY") || allText.includes("BLURAY")) {
+                detected_formats.push("Blu-ray");
+              }
+              if (allText.includes("DVD") && !detected_formats.includes("Blu-ray")) {
+                detected_formats.push("DVD");
+              }
             }
-            if (titleUpper.includes("BLU-RAY") || titleUpper.includes("BLU RAY") || titleUpper.includes("BLURAY")) {
-              detected_formats.push("Blu-ray");
-            }
-            if (titleUpper.includes("DVD") && !titleUpper.includes("BLU-RAY + DVD")) {
-              detected_formats.push("DVD");
-            }
-            // Combo packs: "Blu-ray + DVD" → both
-            if (/BLU-?RAY\s*\+\s*DVD/i.test(upcTitle)) {
-              if (!detected_formats.includes("Blu-ray")) detected_formats.push("Blu-ray");
-              if (!detected_formats.includes("DVD")) detected_formats.push("DVD");
-            }
-            if (detected_formats.length === 0 && (titleUpper.includes("DIGITAL") || titleUpper.includes("HD"))) {
+            if (detected_formats.length === 0 && (allText.includes("DIGITAL") || allText.includes("STREAMING"))) {
               detected_formats.push("Digital");
+            }
+            if (detected_formats.length === 0 && allText.includes("VHS")) {
+              detected_formats.push("VHS");
             }
 
             // Clean title: strip studio prefix "Studio Name - Title" pattern
