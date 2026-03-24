@@ -60,7 +60,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const hasBarcode = isMovieTab || isMusicTab;
 
   const resetForm = () => {
-    setTitle(""); setYear(""); setFormat(""); setBarcode("");
+    setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
     setGenre(""); setNotes(""); setArtist("");
     setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
