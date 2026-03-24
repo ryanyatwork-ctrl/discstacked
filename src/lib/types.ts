@@ -40,4 +40,4 @@ export const FORMATS: Record<MediaTab, string[]> = {
   games: ["PS5", "PS4", "PS3", "PS2", "Xbox Series X", "Xbox One", "Xbox 360", "Switch", "Wii U", "Wii", "3DS", "DS", "GameCube", "N64", "SNES", "NES", "Game Boy", "Sega Genesis", "Dreamcast", "Atari", "PC", "Steam", "Digital"],
 };
 
-export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+export const ALPHABET = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];

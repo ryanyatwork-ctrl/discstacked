@@ -63,7 +63,7 @@ export function AlphabetRail({ activeLetter, onLetterClick, availableLetters, on
   return (
     <div
       ref={scrollRef}
-      className="flex items-center gap-0.5 overflow-x-auto scrollbar-none py-1 px-1"
+      className="flex items-center justify-center gap-0.5 overflow-x-auto scrollbar-none py-1 px-1"
     >
       <button
         onClick={() => onClearLetter?.()}
