@@ -1,6 +1,14 @@
 import { ALPHABET } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useRef, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AlphabetRailProps {
   activeLetter: string | null;
@@ -10,16 +18,48 @@ interface AlphabetRailProps {
 }
 
 export function AlphabetRail({ activeLetter, onLetterClick, availableLetters, onClearLetter }: AlphabetRailProps) {
+  const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll active letter into view
   useEffect(() => {
-    if (activeLetter && scrollRef.current) {
+    if (!isMobile && activeLetter && scrollRef.current) {
       const btn = scrollRef.current.querySelector(`[data-letter="${activeLetter}"]`);
       btn?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
-  }, [activeLetter]);
+  }, [activeLetter, isMobile]);
 
+  // Mobile: compact dropdown
+  if (isMobile) {
+    return (
+      <Select
+        value={activeLetter ?? "__all__"}
+        onValueChange={(val) => {
+          if (val === "__all__") onClearLetter?.();
+          else onLetterClick(val);
+        }}
+      >
+        <SelectTrigger className="w-16 h-8 bg-card/90 backdrop-blur-sm border-border text-foreground text-xs font-semibold justify-center px-2 gap-1 shrink-0">
+          <SelectValue placeholder="A-Z" />
+        </SelectTrigger>
+        <SelectContent side="bottom" align="end" className="max-h-64 min-w-[3rem] w-14">
+          <SelectItem value="__all__" className="justify-center pl-2 pr-2 text-sm font-medium">
+            All
+          </SelectItem>
+          {ALPHABET.filter((l) => availableLetters.has(l)).map((letter) => (
+            <SelectItem
+              key={letter}
+              value={letter}
+              className="justify-center pl-2 pr-2 text-sm font-medium"
+            >
+              {letter}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  // Desktop: horizontal rail
   return (
     <div
       ref={scrollRef}
