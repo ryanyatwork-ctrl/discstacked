@@ -429,18 +429,56 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
-              <Select value={format || "none"} onValueChange={(v) => setFormat(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder={`None (${labels.wantAction.toLowerCase()})`} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None ({labels.wantAction.toLowerCase()})</SelectItem>
-                  {(FORMATS[activeTab] || []).map((f) => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!format && (
-                <p className="text-[10px] text-muted-foreground">No format → auto-add to {labels.wantAction}</p>
+              {formats.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {formats.map((f) => (
+                      <span key={f} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-primary/20 text-primary border border-primary/30">
+                        {f}
+                        <button onClick={() => {
+                          const next = formats.filter((x) => x !== f);
+                          setFormats(next);
+                          setFormat(next[0] || "");
+                        }} className="hover:text-destructive">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <Select value="" onValueChange={(v) => {
+                    if (v && !formats.includes(v)) {
+                      setFormats([...formats, v]);
+                      if (!format) setFormat(v);
+                    }
+                  }}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="+ Add format" /></SelectTrigger>
+                    <SelectContent>
+                      {(FORMATS[activeTab] || []).filter((f) => !formats.includes(f)).map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Auto-detected from barcode</p>
+                </div>
+              ) : (
+                <>
+                  <Select value={format || "none"} onValueChange={(v) => {
+                    const val = v === "none" ? "" : v;
+                    setFormat(val);
+                    setFormats(val ? [val] : []);
+                  }}>
+                    <SelectTrigger><SelectValue placeholder={`None (${labels.wantAction.toLowerCase()})`} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None ({labels.wantAction.toLowerCase()})</SelectItem>
+                      {(FORMATS[activeTab] || []).map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!format && (
+                    <p className="text-[10px] text-muted-foreground">No format → auto-add to {labels.wantAction}</p>
+                  )}
+                </>
               )}
+            </div>
             </div>
           </div>
 
