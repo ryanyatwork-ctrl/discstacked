@@ -46,10 +46,35 @@ serve(async (req) => {
           if (upcData.items?.length > 0) {
             const upcItem = upcData.items[0];
             const upcTitle = upcItem.title || "";
-            const cleanTitle = upcTitle
-              .replace(/\b(blu-?ray|dvd|4k|uhd|digital|hd|widescreen|fullscreen)\b/gi, "")
+
+            // Detect formats from UPC title
+            const detected_formats: string[] = [];
+            const titleUpper = upcTitle.toUpperCase();
+            if (titleUpper.includes("ULTRA HD") || titleUpper.includes("4K") || titleUpper.includes("UHD")) {
+              detected_formats.push("4K");
+            }
+            if (titleUpper.includes("BLU-RAY") || titleUpper.includes("BLU RAY") || titleUpper.includes("BLURAY")) {
+              detected_formats.push("Blu-ray");
+            }
+            if (titleUpper.includes("DVD") && !titleUpper.includes("BLU-RAY + DVD")) {
+              detected_formats.push("DVD");
+            }
+            // Combo packs: "Blu-ray + DVD" → both
+            if (/BLU-?RAY\s*\+\s*DVD/i.test(upcTitle)) {
+              if (!detected_formats.includes("Blu-ray")) detected_formats.push("Blu-ray");
+              if (!detected_formats.includes("DVD")) detected_formats.push("DVD");
+            }
+            if (detected_formats.length === 0 && (titleUpper.includes("DIGITAL") || titleUpper.includes("HD"))) {
+              detected_formats.push("Digital");
+            }
+
+            // Clean title: strip studio prefix "Studio Name - Title" pattern
+            let cleanTitle = upcTitle
+              .replace(/^[\w\s&.']+?\s*-\s*/i, "") // strip "Studio Name - " prefix
+              .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
               .replace(/\[.*?\]/g, "")
               .replace(/\(.*?\)/g, "")
+              .replace(/\s*[,+]\s*$/g, "") // trailing comma/plus
               .replace(/\s+/g, " ")
               .trim();
 
@@ -77,6 +102,7 @@ serve(async (req) => {
                   tagline: detail.tagline || null,
                   media_type: "movie",
                   barcode_title: upcTitle,
+                  detected_formats,
                 }), {
                   headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
@@ -96,14 +122,16 @@ serve(async (req) => {
                   overview: t.overview || null,
                   media_type: "tv",
                   barcode_title: upcTitle,
+                  detected_formats,
                 }), {
                   headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
               }
 
               return new Response(JSON.stringify({
-                title: upcTitle,
+                title: cleanTitle || upcTitle,
                 barcode_title: upcTitle,
+                detected_formats,
               }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               });

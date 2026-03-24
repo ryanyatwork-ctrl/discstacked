@@ -139,7 +139,7 @@ export default function SharedCollection() {
     );
   }
 
-  const name = profile.display_name || "Someone";
+  const name = profile.display_name || "A Collector";
   const initials = name.slice(0, 2).toUpperCase();
   const visibleTabs = TABS.filter((t) => sharedTabs.includes(t.id));
 

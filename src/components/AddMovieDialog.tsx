@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
   const [format, setFormat] = useState("");
+  const [formats, setFormats] = useState<string[]>([]);
   const [barcode, setBarcode] = useState("");
   const [genre, setGenre] = useState("");
   const [notes, setNotes] = useState("");
@@ -59,7 +60,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const hasBarcode = isMovieTab || isMusicTab;
 
   const resetForm = () => {
-    setTitle(""); setYear(""); setFormat(""); setBarcode("");
+    setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
     setGenre(""); setNotes(""); setArtist("");
     setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
@@ -152,6 +153,11 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (r.genre) setGenre(r.genre);
     if (r.cover_url) setSelectedPoster(r.cover_url);
     if (r.artist || r.author) setArtist(r.artist || r.author || "");
+    // Auto-apply detected formats from barcode lookup
+    if (r.detected_formats && r.detected_formats.length > 0) {
+      setFormats(r.detected_formats);
+      setFormat(r.detected_formats[0]);
+    }
 
     const meta: Record<string, any> = {};
     if (r.runtime) meta.runtime = r.runtime;
@@ -218,7 +224,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(false);
   };
 
-  const effectiveWantToWatch = !format ? true : wantToWatch;
+  const effectiveWantToWatch = (!format && formats.length === 0) ? true : wantToWatch;
 
   const handleSave = async () => {
     if (!title.trim() || !user) return;
@@ -232,8 +238,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         user_id: user.id,
         title: title.trim(),
         year: year ? parseInt(year) : null,
-        format: format || null,
-        formats: format ? [format] : [],
+        format: formats.length > 0 ? formats[0] : (format || null),
+        formats: formats.length > 0 ? formats : (format ? [format] : []),
         barcode: barcode || null,
         genre: genre || null,
         notes: notes || null,
@@ -423,17 +429,54 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
-              <Select value={format || "none"} onValueChange={(v) => setFormat(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder={`None (${labels.wantAction.toLowerCase()})`} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None ({labels.wantAction.toLowerCase()})</SelectItem>
-                  {(FORMATS[activeTab] || []).map((f) => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!format && (
-                <p className="text-[10px] text-muted-foreground">No format → auto-add to {labels.wantAction}</p>
+              {formats.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {formats.map((f) => (
+                      <span key={f} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-primary/20 text-primary border border-primary/30">
+                        {f}
+                        <button onClick={() => {
+                          const next = formats.filter((x) => x !== f);
+                          setFormats(next);
+                          setFormat(next[0] || "");
+                        }} className="hover:text-destructive">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <Select value="" onValueChange={(v) => {
+                    if (v && !formats.includes(v)) {
+                      setFormats([...formats, v]);
+                      if (!format) setFormat(v);
+                    }
+                  }}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="+ Add format" /></SelectTrigger>
+                    <SelectContent>
+                      {(FORMATS[activeTab] || []).filter((f) => !formats.includes(f)).map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Auto-detected from barcode</p>
+                </div>
+              ) : (
+                <>
+                  <Select value={format || "none"} onValueChange={(v) => {
+                    const val = v === "none" ? "" : v;
+                    setFormat(val);
+                    setFormats(val ? [val] : []);
+                  }}>
+                    <SelectTrigger><SelectValue placeholder={`None (${labels.wantAction.toLowerCase()})`} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None ({labels.wantAction.toLowerCase()})</SelectItem>
+                      {(FORMATS[activeTab] || []).map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!format && (
+                    <p className="text-[10px] text-muted-foreground">No format → auto-add to {labels.wantAction}</p>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -31,6 +31,7 @@ export interface MediaLookupResult {
   // Common
   barcode?: string | null;
   source?: string;
+  detected_formats?: string[];
 }
 
 export async function searchMedia(
@@ -75,6 +76,7 @@ export async function lookupBarcode(
           overview: data.overview,
           cast: data.cast,
           crew: data.crew,
+          detected_formats: data.detected_formats,
         },
       };
     }

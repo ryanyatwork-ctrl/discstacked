@@ -24,6 +24,7 @@ interface ScanQueueItem {
   artist?: string | null;
   author?: string | null;
   format: string;
+  formats: string[];
   selected: boolean;
   alreadyOwned?: boolean;
   existingTitle?: string;
@@ -76,6 +77,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     try {
       const result = await unifiedLookupBarcode(activeTab, barcode);
       if (result.direct) {
+        const detectedFormats = result.direct.detected_formats;
         return {
           status: "found" as const,
           title: result.direct.title,
@@ -86,6 +88,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           tagline: result.direct.tagline,
           artist: result.direct.artist,
           author: result.direct.author,
+          // Auto-apply detected formats if available
+          ...(detectedFormats && detectedFormats.length > 0 ? {
+            format: detectedFormats[0],
+            formats: detectedFormats,
+          } : {}),
           extraMeta: {
             ...(result.direct.overview ? { overview: result.direct.overview } : {}),
             ...(result.direct.cast ? { cast: result.direct.cast } : {}),
@@ -144,6 +151,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             barcode: decoded,
             status: "looking",
             format: defaultFormat,
+            formats: defaultFormat ? [defaultFormat] : [],
             selected: true,
           };
           setQueue((prev) => [newItem, ...prev]);
@@ -198,7 +206,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     ...item,
                     ...result,
                     alreadyOwned,
-                    existingTitle: existingTitle || result.title,
+                    existingTitle: existingTitle || ('title' in result ? result.title : undefined),
                     selected: !alreadyOwned, // deselect by default if already owned
                   }
                 : item
@@ -245,6 +253,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       barcode: code,
       status: "looking",
       format: defaultFormat,
+      formats: defaultFormat ? [defaultFormat] : [],
       selected: true,
     };
     setQueue((prev) => [newItem, ...prev]);
@@ -266,7 +275,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
-          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || result.title, selected: !alreadyOwned }
+          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
           : item
       )
     );
@@ -281,8 +290,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         user_id: user.id,
         title: item.title!,
         year: item.year ?? null,
-        format: item.format || null,
-        formats: item.format ? [item.format] : [],
+        format: item.formats.length > 0 ? item.formats[0] : (item.format || null),
+        formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
         genre: item.genre ?? null,
         poster_url: item.posterUrl ?? null,
         barcode: item.barcode,
