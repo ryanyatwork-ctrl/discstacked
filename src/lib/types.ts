@@ -34,8 +34,8 @@ export const TABS: { id: MediaTab; label: string; icon: string }[] = [
 ];
 
 export const FORMATS: Record<MediaTab, string[]> = {
-  movies: ["4K", "Blu-ray", "3D", "DVD", "Digital", "VHS"],
-  "music-films": ["4K", "Blu-ray", "3D", "DVD", "Digital", "VHS"],
+  movies: ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "UMD", "VHS"],
+  "music-films": ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "UMD", "VHS"],
   cds: ["CD", "Vinyl", "Cassette", "Digital"],
   games: ["PS5", "PS4", "PS3", "PS2", "Xbox Series X", "Xbox One", "Xbox 360", "Switch", "Wii U", "Wii", "3DS", "DS", "GameCube", "N64", "SNES", "NES", "Game Boy", "Sega Genesis", "Dreamcast", "Atari", "PC", "Steam", "Digital"],
 };
