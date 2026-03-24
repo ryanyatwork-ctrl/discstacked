@@ -102,6 +102,7 @@ serve(async (req) => {
                   tagline: detail.tagline || null,
                   media_type: "movie",
                   barcode_title: upcTitle,
+                  detected_formats,
                 }), {
                   headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
