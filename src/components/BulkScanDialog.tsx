@@ -77,6 +77,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     try {
       const result = await unifiedLookupBarcode(activeTab, barcode);
       if (result.direct) {
+        const detectedFormats = result.direct.detected_formats;
         return {
           status: "found" as const,
           title: result.direct.title,
@@ -87,6 +88,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           tagline: result.direct.tagline,
           artist: result.direct.artist,
           author: result.direct.author,
+          // Auto-apply detected formats if available
+          ...(detectedFormats && detectedFormats.length > 0 ? {
+            format: detectedFormats[0],
+            formats: detectedFormats,
+          } : {}),
           extraMeta: {
             ...(result.direct.overview ? { overview: result.direct.overview } : {}),
             ...(result.direct.cast ? { cast: result.direct.cast } : {}),
