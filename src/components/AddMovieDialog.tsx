@@ -479,7 +479,6 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                 </>
               )}
             </div>
-            </div>
           </div>
 
           {/* Genre */}
