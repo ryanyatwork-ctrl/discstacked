@@ -129,8 +129,9 @@ serve(async (req) => {
               }
 
               return new Response(JSON.stringify({
-                title: upcTitle,
+                title: cleanTitle || upcTitle,
                 barcode_title: upcTitle,
+                detected_formats,
               }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               });
