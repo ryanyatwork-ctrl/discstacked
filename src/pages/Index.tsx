@@ -88,6 +88,12 @@ export default function Index() {
     return generateMockData(activeTab);
   }, [activeTab, user, dbItems]);
 
+  // Derive live selectedItem from latest data so edits are reflected immediately
+  const selectedItem = useMemo(() => {
+    if (!selectedItemId) return null;
+    return allItems.find((i) => i.id === selectedItemId) ?? null;
+  }, [selectedItemId, allItems]);
+
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
     allItems.forEach((item) => {
