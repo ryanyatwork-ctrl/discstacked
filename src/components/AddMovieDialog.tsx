@@ -224,7 +224,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(false);
   };
 
-  const effectiveWantToWatch = !format ? true : wantToWatch;
+  const effectiveWantToWatch = (!format && formats.length === 0) ? true : wantToWatch;
 
   const handleSave = async () => {
     if (!title.trim() || !user) return;
