@@ -206,7 +206,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     ...item,
                     ...result,
                     alreadyOwned,
-                    existingTitle: existingTitle || result.title,
+                    existingTitle: existingTitle || ('title' in result ? result.title : undefined),
                     selected: !alreadyOwned, // deselect by default if already owned
                   }
                 : item
