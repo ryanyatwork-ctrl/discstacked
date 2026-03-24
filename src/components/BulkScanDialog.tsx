@@ -151,6 +151,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             barcode: decoded,
             status: "looking",
             format: defaultFormat,
+            formats: defaultFormat ? [defaultFormat] : [],
             selected: true,
           };
           setQueue((prev) => [newItem, ...prev]);
