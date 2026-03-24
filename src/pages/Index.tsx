@@ -67,7 +67,7 @@ export default function Index() {
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
   const gridRef = useRef<HTMLDivElement>(null);
