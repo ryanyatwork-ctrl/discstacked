@@ -24,6 +24,7 @@ interface ScanQueueItem {
   artist?: string | null;
   author?: string | null;
   format: string;
+  formats: string[];
   selected: boolean;
   alreadyOwned?: boolean;
   existingTitle?: string;
