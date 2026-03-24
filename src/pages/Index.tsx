@@ -61,7 +61,7 @@ function getStored<T>(key: string, fallback: T): T {
   } catch { return fallback; }
 }
 
-export default function Index() {
+export default function Index() { // force rebuild
   const [activeTab, setActiveTab] = useState<MediaTab>(() => getStored("ds-default-tab", "movies"));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
