@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
+import { useAdmin } from "@/hooks/useAdmin";
 import { exportAsCSV, exportAsJSON } from "@/lib/export-utils";
 import { DbMediaItem } from "@/hooks/useMediaItems";
 
