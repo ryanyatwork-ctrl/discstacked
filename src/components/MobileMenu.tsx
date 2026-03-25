@@ -55,7 +55,7 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
         </SheetTrigger>
         <SheetContent side="left" className="w-72 bg-card border-border">
           <SheetHeader>
-            <SheetTitle className="text-foreground text-left">DiscStacked</SheetTitle>
+            <SheetTitle className="text-foreground text-left">DiscStacked™</SheetTitle>
           </SheetHeader>
           <nav className="mt-6 space-y-1">
             {isLoggedIn && (

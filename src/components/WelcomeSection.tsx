@@ -64,7 +64,7 @@ export function WelcomeSection() {
         />
         <div className="space-y-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-            Welcome to <span className="text-primary">DiscStacked</span>
+            Welcome to <span className="text-primary">DiscStacked™</span>
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground max-w-lg leading-relaxed">
             Build and browse your own media collection. Connect with friends, explore their shelves, and let the randomizer pick your next watch.
