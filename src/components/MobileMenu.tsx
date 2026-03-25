@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail } from "lucide-react";
+import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
