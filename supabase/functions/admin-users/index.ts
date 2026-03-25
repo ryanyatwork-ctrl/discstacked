@@ -120,12 +120,25 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Verify setup password (stored as a secret)
+      const setupPassword = Deno.env.get("ADMIN_SETUP_PASSWORD");
+      if (!setupPassword || password !== setupPassword) {
+        return new Response(JSON.stringify({ error: "Incorrect admin setup password" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Grant admin to the calling user
       const { error } = await adminClient
         .from("user_roles")
         .insert({ user_id: user.id, role: "admin" });
 
       if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
