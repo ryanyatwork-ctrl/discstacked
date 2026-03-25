@@ -81,6 +81,9 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
             <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
             <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
+            {isAdmin && (
+              <MenuLink icon={Shield} label="Admin Dashboard" onClick={() => { setSheetOpen(false); navigate("/admin"); }} />
+            )}
             <div className="my-3 border-t border-border" />
             <p className="px-3 text-[10px] text-muted-foreground/60">
               © {new Date().getFullYear()} DiscStacked™ · <a href="/terms" className="underline">Terms</a> · <a href="/privacy" className="underline">Privacy</a>
