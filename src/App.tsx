@@ -10,6 +10,8 @@ import Profile from "./pages/Profile.tsx";
 import Settings from "./pages/Settings.tsx";
 import SharedCollection from "./pages/SharedCollection.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Terms from "./pages/Terms.tsx";
+import Privacy from "./pages/Privacy.tsx";
 import Analytics from "./components/Analytics.tsx";
 
 const queryClient = new QueryClient();
