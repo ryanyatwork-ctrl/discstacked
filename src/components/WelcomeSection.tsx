@@ -90,6 +90,10 @@ export function WelcomeSection() {
           </div>
         ))}
       </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <AppFooter />
+      </motion.div>
     </motion.div>
   );
 }
