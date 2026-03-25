@@ -14,37 +14,74 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const authHeader = req.headers.get("Authorization");
 
-    // Verify the caller is an admin using their JWT
-    const authHeader = req.headers.get("Authorization")!;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
+    const {
+      data: { claims },
+      error: authError,
+    } = await userClient.auth.getClaims(token);
+
+    if (authError || !claims?.sub) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Check admin role
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: roleData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .single();
+    const userId = claims.sub;
+    const { action, targetUserId, password } = await req.json();
 
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    if (action === "admin-status") {
+      const [{ count: adminCount, error: adminCountError }, { data: roleData, error: roleError }] = await Promise.all([
+        adminClient
+          .from("user_roles")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "admin"),
+        adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "admin")
+          .maybeSingle(),
+      ]);
+
+      if (adminCountError) throw adminCountError;
+      if (roleError) throw roleError;
+
+      return new Response(JSON.stringify({
+        adminExists: (adminCount ?? 0) > 0,
+        isAdmin: !!roleData,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { action, targetUserId, password } = await req.json();
-
     if (action === "list-users") {
+      const { data: roleData } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .single();
+
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Get all users from auth
       const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
       if (error) throw error;
@@ -91,7 +128,21 @@ Deno.serve(async (req) => {
 
     if (action === "delete-user") {
       if (!targetUserId) throw new Error("targetUserId required");
-      if (targetUserId === user.id) throw new Error("Cannot delete your own account");
+
+      const { data: roleData } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .single();
+
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (targetUserId === userId) throw new Error("Cannot delete your own account");
 
       // Delete media items (cascade will handle via user deletion)
       await adminClient.from("media_items").delete().eq("user_id", targetUserId);
@@ -131,7 +182,7 @@ Deno.serve(async (req) => {
       // Grant admin to the calling user
       const { error } = await adminClient
         .from("user_roles")
-        .insert({ user_id: user.id, role: "admin" });
+        .insert({ user_id: userId, role: "admin" });
 
       if (error) throw error;
 
