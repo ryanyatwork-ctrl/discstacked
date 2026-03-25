@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { AppFooter } from "@/components/AppFooter";
 
-const ADMIN_SETUP_PASSWORD = "DISCSTACKED-ADMIN-2026";
+// No hardcoded password — verified server-side via ADMIN_SETUP_PASSWORD secret
 
 interface AdminUser {
   id: string;
