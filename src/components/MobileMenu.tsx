@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail } from "lucide-react";
+import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
+import { useAdmin } from "@/hooks/useAdmin";
 import { exportAsCSV, exportAsJSON } from "@/lib/export-utils";
 import { DbMediaItem } from "@/hooks/useMediaItems";
 
@@ -21,6 +22,7 @@ interface MobileMenuProps {
 export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, isLoggedIn, allItems }: MobileMenuProps) {
   const navigate = useNavigate();
   const { profile } = useProfile();
+  const { isAdmin } = useAdmin();
   const [exportOpen, setExportOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -79,6 +81,9 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
             <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
             <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
+            {isAdmin && (
+              <MenuLink icon={Shield} label="Admin Dashboard" onClick={() => { setSheetOpen(false); navigate("/admin"); }} />
+            )}
             <div className="my-3 border-t border-border" />
             <p className="px-3 text-[10px] text-muted-foreground/60">
               © {new Date().getFullYear()} DiscStacked™ · <a href="/terms" className="underline">Terms</a> · <a href="/privacy" className="underline">Privacy</a>
