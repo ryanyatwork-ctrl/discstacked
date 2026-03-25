@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { action, targetUserId } = await req.json();
+    const { action, targetUserId, password } = await req.json();
 
     if (action === "list-users") {
       // Get all users from auth
