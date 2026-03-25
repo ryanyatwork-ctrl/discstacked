@@ -88,8 +88,6 @@ Deno.serve(async (req) => {
 
       // Get profiles
       const { data: profiles } = await adminClient.from("profiles").select("*");
-      // Get media item counts per user
-      const { data: mediaCounts } = await adminClient.rpc("admin_media_counts").catch(() => ({ data: null }));
 
       // Get item counts manually
       const { data: allItems } = await adminClient
