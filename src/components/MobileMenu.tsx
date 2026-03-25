@@ -55,7 +55,7 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
         </SheetTrigger>
         <SheetContent side="left" className="w-72 bg-card border-border">
           <SheetHeader>
-            <SheetTitle className="text-foreground text-left">DiscStacked</SheetTitle>
+            <SheetTitle className="text-foreground text-left">DiscStacked™</SheetTitle>
           </SheetHeader>
           <nav className="mt-6 space-y-1">
             {isLoggedIn && (
@@ -79,6 +79,10 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
             <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
             <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
+            <div className="my-3 border-t border-border" />
+            <p className="px-3 text-[10px] text-muted-foreground/60">
+              © {new Date().getFullYear()} DiscStacked™ · <a href="/terms" className="underline">Terms</a> · <a href="/privacy" className="underline">Privacy</a>
+            </p>
             {isLoggedIn && onSignOut && (
               <>
                 <div className="my-3 border-t border-border" />
