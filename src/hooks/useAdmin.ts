@@ -19,70 +19,92 @@ export function useAdmin() {
   const [loading, setLoading] = useState(true);
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
 
+  const invokeAdminUsers = async <T,>(body: Record<string, unknown>): Promise<T> => {
+    const { data, error } = await supabase.functions.invoke("admin-users", { body });
+
+    if (error) {
+      const response = (error as { context?: Response }).context;
+
+      if (response instanceof Response) {
+        try {
+          const payload = await response.clone().json();
+          if (payload?.error) {
+            throw new Error(payload.error);
+          }
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) {
+              throw new Error(text);
+            }
+          } catch {
+            // Fall through to default error below
+          }
+        }
+      }
+
+      throw error;
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data as T;
+  };
+
   useEffect(() => {
     if (!user) {
       setIsAdmin(false);
+      setAdminExists(null);
       setLoading(false);
       return;
     }
 
-    const checkRole = async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin");
-      
-      setIsAdmin(!!data && data.length > 0);
-      setLoading(false);
+    const loadAdminStatus = async () => {
+      try {
+        const data = await invokeAdminUsers<{ isAdmin: boolean; adminExists: boolean }>({
+          action: "admin-status",
+        });
+
+        setIsAdmin(data.isAdmin);
+        setAdminExists(data.adminExists);
+      } catch {
+        setIsAdmin(false);
+        setAdminExists(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    checkRole();
+    loadAdminStatus();
   }, [user]);
 
   const checkAdminExists = async () => {
     try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("role", "admin")
-        .limit(1);
-      const exists = !!data && data.length > 0;
-      setAdminExists(exists);
-      return exists;
+      const data = await invokeAdminUsers<{ adminExists: boolean }>({ action: "admin-status" });
+      setAdminExists(data.adminExists);
+      return data.adminExists;
     } catch {
-      // If RLS blocks, assume no admin or user can't see
       setAdminExists(null);
       return null;
     }
   };
 
   const setupAdmin = async (password: string) => {
-    const { data, error } = await supabase.functions.invoke("admin-users", {
-      body: { action: "setup-admin", password },
-    });
-    if (error) throw error;
-    if (data.error) throw new Error(data.error);
+    const data = await invokeAdminUsers<{ success: boolean }>({ action: "setup-admin", password });
     setIsAdmin(true);
+    setAdminExists(true);
     return data;
   };
 
   const listUsers = async (): Promise<AdminUser[]> => {
-    const { data, error } = await supabase.functions.invoke("admin-users", {
-      body: { action: "list-users" },
-    });
-    if (error) throw error;
-    if (data.error) throw new Error(data.error);
+    const data = await invokeAdminUsers<{ users: AdminUser[] }>({ action: "list-users" });
     return data.users;
   };
 
   const deleteUser = async (targetUserId: string) => {
-    const { data, error } = await supabase.functions.invoke("admin-users", {
-      body: { action: "delete-user", targetUserId },
-    });
-    if (error) throw error;
-    if (data.error) throw new Error(data.error);
-    return data;
+    return invokeAdminUsers<{ success: boolean }>({ action: "delete-user", targetUserId });
   };
 
   return { isAdmin, loading, adminExists, checkAdminExists, setupAdmin, listUsers, deleteUser };
