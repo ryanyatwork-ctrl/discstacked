@@ -22,6 +22,7 @@ interface MobileMenuProps {
 export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, isLoggedIn, allItems }: MobileMenuProps) {
   const navigate = useNavigate();
   const { profile } = useProfile();
+  const { isAdmin } = useAdmin();
   const [exportOpen, setExportOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
