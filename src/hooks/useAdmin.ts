@@ -57,9 +57,9 @@ export function useAdmin() {
     }
   };
 
-  const setupAdmin = async () => {
+  const setupAdmin = async (password: string) => {
     const { data, error } = await supabase.functions.invoke("admin-users", {
-      body: { action: "setup-admin" },
+      body: { action: "setup-admin", password },
     });
     if (error) throw error;
     if (data.error) throw new Error(data.error);

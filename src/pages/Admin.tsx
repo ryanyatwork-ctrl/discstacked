@@ -84,14 +84,11 @@ export default function Admin() {
   };
 
   const handleSetup = async () => {
-    if (setupPassword !== ADMIN_SETUP_PASSWORD) {
-      setSetupError("Incorrect admin setup password");
-      return;
-    }
+    if (!setupPassword) return;
     setSettingUp(true);
     setSetupError("");
     try {
-      await setupAdmin();
+      await setupAdmin(setupPassword);
       toast.success("Admin role activated!");
       setSetupMode(false);
     } catch (err: any) {
