@@ -37,10 +37,14 @@ export function GenerateCoverArtButton({
       if (!data?.image_base64) throw new Error("No image returned");
 
       // 2. Convert base64 to blob and upload via client (uses user's auth)
-      const base64 = data.image_base64.replace(/^data:image\/\w+;base64,/, "");
+      const raw = data.image_base64;
+      const base64 = raw.replace(/^data:image\/\w+;base64,/, "");
+      const mimeMatch = raw.match(/^data:(image\/\w+);base64,/);
+      const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const ext = mime === "image/png" ? "png" : "jpg";
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "image/png" });
-      const fileName = `ai-covers/${crypto.randomUUID()}.png`;
+      const blob = new Blob([bytes], { type: mime });
+      const fileName = `ai-covers/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("cover-art")
