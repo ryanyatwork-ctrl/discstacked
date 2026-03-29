@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { usePhysicalProductsForItem } from "@/hooks/usePhysicalProducts";
 import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -35,11 +36,6 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   const [yearDraft, setYearDraft] = useState("");
   const [editingSortTitle, setEditingSortTitle] = useState(false);
   const [sortTitleDraft, setSortTitleDraft] = useState("");
-  const [editingBarcode, setEditingBarcode] = useState(false);
-  const [barcodeDraft, setBarcodeDraft] = useState("");
-  const [scanningBarcode, setScanningBarcode] = useState(false);
-  const barcodeScannerRef = useRef<HTMLDivElement>(null);
-  const barcodeQrRef = useRef<any>(null);
   const [editingTags, setEditingTags] = useState(false);
   const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
@@ -54,7 +50,6 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   useEffect(() => {
     setLocalFlags({});
     setLocalFormats(null);
-    setEditingBarcode(false);
     setEditingTags(false);
   }, [item?.id]);
 
@@ -459,108 +454,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
               )}
             </div>
 
-            {/* Barcode */}
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-                <Barcode className="w-3 h-3" /> UPC / Barcode
-              </p>
-              {editingBarcode ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={barcodeDraft}
-                      onChange={(e) => setBarcodeDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          const trimmed = barcodeDraft.trim();
-                          updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
-                            .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
-                            .catch(() => toast({ title: "Update failed", variant: "destructive" }));
-                          setEditingBarcode(false);
-                        }
-                        if (e.key === "Escape") setEditingBarcode(false);
-                      }}
-                      className="h-8 text-sm font-mono"
-                      placeholder="Enter UPC/barcode…"
-                      autoFocus
-                    />
-                    <Button variant="outline" size="icon" className="shrink-0 h-8 w-8" onClick={async () => {
-                      setScanningBarcode(true);
-                      const { Html5Qrcode } = await import("html5-qrcode");
-                      await new Promise((r) => setTimeout(r, 100));
-                      const scanner = new Html5Qrcode("detail-barcode-scanner");
-                      barcodeQrRef.current = scanner;
-                      try {
-                        await scanner.start(
-                          { facingMode: "environment" },
-                          { fps: 10, qrbox: { width: 250, height: 100 } },
-                          async (decoded: string) => {
-                            setBarcodeDraft(decoded);
-                            try { await scanner.stop(); scanner.clear(); } catch {}
-                            barcodeQrRef.current = null;
-                            setScanningBarcode(false);
-                          },
-                          () => {}
-                        );
-                      } catch (err: any) {
-                        toast({ title: "Camera error", description: err.message, variant: "destructive" });
-                        setScanningBarcode(false);
-                      }
-                    }}>
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
-                      const trimmed = barcodeDraft.trim();
-                      updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
-                        .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
-                        .catch(() => toast({ title: "Update failed", variant: "destructive" }));
-                      setEditingBarcode(false);
-                    }}>
-                      <Check className="w-4 h-4 text-success" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
-                      if (barcodeQrRef.current) {
-                        try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
-                        barcodeQrRef.current = null;
-                      }
-                      setScanningBarcode(false);
-                      setEditingBarcode(false);
-                    }}>
-                      <X className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                  {scanningBarcode && (
-                    <div className="relative">
-                      <div id="detail-barcode-scanner" ref={barcodeScannerRef} className="w-full rounded-md overflow-hidden" />
-                      <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={() => {
-                        if (barcodeQrRef.current) {
-                          try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
-                          barcodeQrRef.current = null;
-                        }
-                        setScanningBarcode(false);
-                      }}>Stop</Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 group/barcode">
-                  <span
-                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-mono"
-                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
-                  >
-                    {item.barcode || "Add barcode"}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover/barcode:opacity-100 transition-opacity h-6 w-6"
-                    onClick={() => { setBarcodeDraft(item.barcode || ""); setEditingBarcode(true); }}
-                  >
-                    <Pencil className="w-3 h-3 text-muted-foreground" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Barcode — read from physical_product if available */}
+            <BarcodeSection item={item} />
 
             {/* Status flags */}
             <div className="grid grid-cols-2 gap-2">
@@ -577,43 +472,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
             {/* Watch History */}
             <WatchHistory item={item} onUpdate={updateItem} />
 
-            {/* Copies */}
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-                <Layers className="w-3 h-3" /> Copies Owned
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={(item.totalCopies ?? 1) <= 1}
-                  onClick={async () => {
-                    const next = (item.totalCopies ?? 1) - 1;
-                    if (next < 1) return;
-                    try {
-                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
-                    } catch {
-                      toast({ title: "Update failed", variant: "destructive" });
-                    }
-                  }}
-                >−</Button>
-                <span className="text-sm font-medium text-foreground w-6 text-center">{item.totalCopies ?? 1}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={async () => {
-                    const next = (item.totalCopies ?? 1) + 1;
-                    try {
-                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
-                    } catch {
-                      toast({ title: "Update failed", variant: "destructive" });
-                    }
-                  }}
-                >+</Button>
-              </div>
-            </div>
+            {/* Copies — driven by media_copies count */}
+            <CopiesCounter itemId={item.id} />
 
             {/* Add Edition */}
             <AddEditionButton item={item} formats={formats} onDuplicated={onDuplicated} />
@@ -760,6 +620,153 @@ function AddEditionButton({ item, formats, onDuplicated }: { item: MediaItem; fo
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+function BarcodeSection({ item }: { item: MediaItem }) {
+  const { data: physicalProducts } = usePhysicalProductsForItem(item.id);
+  const updateItem = useUpdateItem();
+  const [editingBarcode, setEditingBarcode] = useState(false);
+  const [barcodeDraft, setBarcodeDraft] = useState("");
+  const [scanningBarcode, setScanningBarcode] = useState(false);
+  const barcodeScannerRef = useRef<HTMLDivElement>(null);
+  const barcodeQrRef = useRef<any>(null);
+
+  // Get barcodes from physical products
+  const ppBarcodes = (physicalProducts || [])
+    .filter((pp: any) => pp.barcode)
+    .map((pp: any) => ({ barcode: pp.barcode, title: pp.product_title }));
+  
+  const displayBarcode = ppBarcodes.length > 0 ? ppBarcodes[0].barcode : item.barcode;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+        <Barcode className="w-3 h-3" /> UPC / Barcode
+      </p>
+      {ppBarcodes.length > 1 ? (
+        <div className="space-y-1">
+          {ppBarcodes.map((pb: any, i: number) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-sm font-mono text-foreground">{pb.barcode}</span>
+              <span className="text-[10px] text-muted-foreground">({pb.title})</span>
+            </div>
+          ))}
+        </div>
+      ) : editingBarcode ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Input
+              value={barcodeDraft}
+              onChange={(e) => setBarcodeDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const trimmed = barcodeDraft.trim();
+                  updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                    .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                    .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+                  setEditingBarcode(false);
+                }
+                if (e.key === "Escape") setEditingBarcode(false);
+              }}
+              className="h-8 text-sm font-mono"
+              placeholder="Enter UPC/barcode…"
+              autoFocus
+            />
+            <Button variant="outline" size="icon" className="shrink-0 h-8 w-8" onClick={async () => {
+              setScanningBarcode(true);
+              const { Html5Qrcode } = await import("html5-qrcode");
+              await new Promise((r) => setTimeout(r, 100));
+              const scanner = new Html5Qrcode("detail-barcode-scanner");
+              barcodeQrRef.current = scanner;
+              try {
+                await scanner.start(
+                  { facingMode: "environment" },
+                  { fps: 10, qrbox: { width: 250, height: 100 } },
+                  async (decoded: string) => {
+                    setBarcodeDraft(decoded);
+                    try { await scanner.stop(); scanner.clear(); } catch {}
+                    barcodeQrRef.current = null;
+                    setScanningBarcode(false);
+                  },
+                  () => {}
+                );
+              } catch (err: any) {
+                toast({ title: "Camera error", description: err.message, variant: "destructive" });
+                setScanningBarcode(false);
+              }
+            }}>
+              <Camera className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+              const trimmed = barcodeDraft.trim();
+              updateItem.mutateAsync({ id: item.id, barcode: trimmed || null } as any)
+                .then(() => toast({ title: trimmed ? "Barcode saved!" : "Barcode removed" }))
+                .catch(() => toast({ title: "Update failed", variant: "destructive" }));
+              setEditingBarcode(false);
+            }}>
+              <Check className="w-4 h-4 text-success" />
+            </Button>
+            <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => {
+              if (barcodeQrRef.current) {
+                try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
+                barcodeQrRef.current = null;
+              }
+              setScanningBarcode(false);
+              setEditingBarcode(false);
+            }}>
+              <X className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+          {scanningBarcode && (
+            <div className="relative">
+              <div id="detail-barcode-scanner" ref={barcodeScannerRef} className="w-full rounded-md overflow-hidden" />
+              <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={() => {
+                if (barcodeQrRef.current) {
+                  try { barcodeQrRef.current.stop(); barcodeQrRef.current.clear(); } catch {}
+                  barcodeQrRef.current = null;
+                }
+                setScanningBarcode(false);
+              }}>Stop</Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 group/barcode">
+          <span
+            className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-mono"
+            onClick={() => { setBarcodeDraft(displayBarcode || ""); setEditingBarcode(true); }}
+          >
+            {displayBarcode || "Add barcode"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="opacity-0 group-hover/barcode:opacity-100 transition-opacity h-6 w-6"
+            onClick={() => { setBarcodeDraft(displayBarcode || ""); setEditingBarcode(true); }}
+          >
+            <Pencil className="w-3 h-3 text-muted-foreground" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CopiesCounter({ itemId }: { itemId: string }) {
+  const { data: physicalProducts } = usePhysicalProductsForItem(itemId);
+  const count = physicalProducts?.length ?? 0;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+        <Layers className="w-3 h-3" /> Copies Owned
+      </p>
+      <span className="text-sm font-medium text-foreground">{count || "—"}</span>
+      {count === 0 && (
+        <p className="text-[10px] text-muted-foreground">No physical products linked yet</p>
+      )}
+    </div>
   );
 }
 
