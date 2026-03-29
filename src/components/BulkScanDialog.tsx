@@ -79,13 +79,25 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setScanning(false);
   };
 
-  const doLookup = async (barcode: string) => {
+  const doLookup = async (barcode: string): Promise<{ status: string; multiMovie?: MultiMovieResult; [key: string]: any }> => {
     try {
       const result = await unifiedLookupBarcode(activeTab, barcode);
+
+      // Multi-movie set detected
+      if (result.multiMovie) {
+        return {
+          status: "multi_movie",
+          title: result.multiMovie.collection_name || result.multiMovie.product_title,
+          multiMovie: result.multiMovie,
+          formats: result.multiMovie.detected_formats,
+          format: result.multiMovie.detected_formats[0] || "",
+        };
+      }
+
       if (result.direct) {
         const detectedFormats = result.direct.detected_formats;
         return {
-          status: "found" as const,
+          status: "found",
           title: result.direct.title,
           year: result.direct.year,
           genre: result.direct.genre,
@@ -94,7 +106,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           tagline: result.direct.tagline,
           artist: result.direct.artist,
           author: result.direct.author,
-          // Auto-apply detected formats if available
+          tmdb_id: result.direct.tmdb_id,
           ...(detectedFormats && detectedFormats.length > 0 ? {
             format: detectedFormats[0],
             formats: detectedFormats,
@@ -117,7 +129,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       if (result.results && result.results.length > 0) {
         const top = result.results[0];
         return {
-          status: "found" as const,
+          status: "found",
           title: top.title,
           year: top.year,
           genre: top.genre,
@@ -126,12 +138,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           tagline: top.tagline,
           artist: top.artist,
           author: top.author,
+          tmdb_id: top.tmdb_id,
           extraMeta: {},
         };
       }
-      return { status: "not_found" as const };
+      return { status: "not_found" };
     } catch {
-      return { status: "error" as const };
+      return { status: "error" };
     }
   };
 
