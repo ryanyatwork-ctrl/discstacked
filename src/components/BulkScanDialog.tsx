@@ -49,7 +49,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [scanning, setScanning] = useState(false);
   const [btMode, setBtMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [defaultFormat, setDefaultFormat] = useState(FORMATS[activeTab]?.[0] || "");
+  const [defaultFormat, setDefaultFormat] = useState("");
   const [manualBarcode, setManualBarcode] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
@@ -60,7 +60,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
   // Reset default format when tab changes
   useEffect(() => {
-    setDefaultFormat(FORMATS[activeTab]?.[0] || "");
+    setDefaultFormat("");
   }, [activeTab]);
 
   const stopScanner = async () => {
@@ -148,11 +148,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           processedBarcodesRef.current.add(decoded);
 
           // Add to queue immediately as "looking"
+          const fallback = defaultFormat && defaultFormat !== "auto" ? defaultFormat : "";
           const newItem: ScanQueueItem = {
             barcode: decoded,
             status: "looking",
-            format: defaultFormat,
-            formats: defaultFormat ? [defaultFormat] : [],
+            format: fallback,
+            formats: fallback ? [fallback] : [],
             selected: true,
           };
           setQueue((prev) => [newItem, ...prev]);
@@ -268,11 +269,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     processedBarcodesRef.current.add(code);
     setManualBarcode("");
 
+    const fallback = defaultFormat && defaultFormat !== "auto" ? defaultFormat : "";
     const newItem: ScanQueueItem = {
       barcode: code,
       status: "looking",
-      format: defaultFormat,
-      formats: defaultFormat ? [defaultFormat] : [],
+      format: fallback,
+      formats: fallback ? [fallback] : [],
       selected: true,
     };
     setQueue((prev) => [newItem, ...prev]);
@@ -372,25 +374,27 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           <ScanBarcode className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">{TAB_LABELS[activeTab]}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Default format */}
+          {/* Default format (optional fallback) */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Default format:</span>
+            <span className="text-xs text-muted-foreground">Fallback format:</span>
             <Select value={defaultFormat} onValueChange={setDefaultFormat}>
-              <SelectTrigger className="h-8 w-32 text-sm">
-                <SelectValue />
+              <SelectTrigger className="h-8 w-36 text-sm">
+                <SelectValue placeholder="Auto-detect" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="auto">Auto-detect</SelectItem>
                 {(FORMATS[activeTab] || []).map((f) => (
                   <SelectItem key={f} value={f}>{f}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <span className="text-[10px] text-muted-foreground">Only used if barcode lookup can't detect format</span>
           </div>
 
           {/* Scanner mode buttons */}
@@ -527,11 +531,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                             </p>
                           )}
                           {!item.alreadyOwned && item.differentEdition && (
-                            <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
-                              <Layers className="w-3 h-3" />
-                              Different edition — you own "{item.existingTitle}" already
-                            </p>
-                          )}
+                             <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                               <Layers className="w-3 h-3" />
+                               Different edition — you own "{item.existingTitle}" already (possibly different format/release)
+                             </p>
+                           )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
