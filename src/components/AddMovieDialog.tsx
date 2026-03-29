@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Camera, Loader2, Search, Check, Eye, Copy, Layers } from "lucide-react";
+import { Plus, Camera, Loader2, Search, Check, Eye, Copy, Layers, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { searchMedia, lookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
+import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
+import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
