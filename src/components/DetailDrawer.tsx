@@ -478,43 +478,8 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
             {/* Watch History */}
             <WatchHistory item={item} onUpdate={updateItem} />
 
-            {/* Copies */}
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-                <Layers className="w-3 h-3" /> Copies Owned
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={(item.totalCopies ?? 1) <= 1}
-                  onClick={async () => {
-                    const next = (item.totalCopies ?? 1) - 1;
-                    if (next < 1) return;
-                    try {
-                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
-                    } catch {
-                      toast({ title: "Update failed", variant: "destructive" });
-                    }
-                  }}
-                >−</Button>
-                <span className="text-sm font-medium text-foreground w-6 text-center">{item.totalCopies ?? 1}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={async () => {
-                    const next = (item.totalCopies ?? 1) + 1;
-                    try {
-                      await updateItem.mutateAsync({ id: item.id, total_copies: next } as any);
-                    } catch {
-                      toast({ title: "Update failed", variant: "destructive" });
-                    }
-                  }}
-                >+</Button>
-              </div>
-            </div>
+            {/* Copies — driven by media_copies count */}
+            <CopiesCounter itemId={item.id} />
 
             {/* Add Edition */}
             <AddEditionButton item={item} formats={formats} onDuplicated={onDuplicated} />
