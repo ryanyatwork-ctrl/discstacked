@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { usePhysicalProductsForItem } from "@/hooks/usePhysicalProducts";
 import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
