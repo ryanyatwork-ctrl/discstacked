@@ -196,7 +196,10 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 space-y-4">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 space-y-6">
+        {/* Data Cleanup Tools */}
+        <CleanupTools />
+
         <div className="flex items-center justify-between">
           <h2 className="text-foreground font-semibold">Registered Users</h2>
           <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loadingUsers}>
