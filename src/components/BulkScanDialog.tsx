@@ -218,6 +218,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             if (titleMatch && titleMatch.length > 0) {
               differentEdition = true;
               existingTitle = titleMatch[0].title;
+              existingFormats = titleMatch[0].formats || [];
             }
           }
           
