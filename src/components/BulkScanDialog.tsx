@@ -200,6 +200,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
           // Lookup in background using unified lookup
           const result = await doLookup(decoded);
+          
+          // If not already owned by barcode, check if we own the same title (different edition)
+          let differentEdition = false;
+          if (!alreadyOwned && user && 'title' in result && result.title) {
+            const { data: titleMatch } = await supabase
+              .from("media_items")
+              .select("title, formats")
+              .eq("user_id", user.id)
+              .eq("media_type", activeTab)
+              .ilike("title", result.title)
+              .limit(1);
+            if (titleMatch && titleMatch.length > 0) {
+              differentEdition = true;
+              existingTitle = titleMatch[0].title;
+            }
+          }
+          
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
@@ -207,8 +224,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     ...item,
                     ...result,
                     alreadyOwned,
+                    differentEdition,
                     existingTitle: existingTitle || ('title' in result ? result.title : undefined),
-                    selected: !alreadyOwned, // deselect by default if already owned
+                    selected: !alreadyOwned, // keep selected even for different editions
                   }
                 : item
             )
