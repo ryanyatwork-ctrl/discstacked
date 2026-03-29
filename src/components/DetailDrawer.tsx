@@ -36,11 +36,6 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   const [yearDraft, setYearDraft] = useState("");
   const [editingSortTitle, setEditingSortTitle] = useState(false);
   const [sortTitleDraft, setSortTitleDraft] = useState("");
-  const [editingBarcode, setEditingBarcode] = useState(false);
-  const [barcodeDraft, setBarcodeDraft] = useState("");
-  const [scanningBarcode, setScanningBarcode] = useState(false);
-  const barcodeScannerRef = useRef<HTMLDivElement>(null);
-  const barcodeQrRef = useRef<any>(null);
   const [editingTags, setEditingTags] = useState(false);
   const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
