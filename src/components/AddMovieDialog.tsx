@@ -525,19 +525,28 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                 </div>
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {multiMovieResult.movies.map((movie, i) => (
-                  <div key={i} className="flex gap-2 items-start p-2 rounded-md bg-background border border-border">
-                    {movie.poster_url ? (
-                      <img src={movie.poster_url} alt={movie.title} className="w-10 h-14 rounded object-cover shrink-0" />
-                    ) : (
-                      <div className="w-10 h-14 rounded bg-secondary shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">{movie.title}</p>
-                      {movie.year && <p className="text-[10px] text-muted-foreground">{movie.year}</p>}
+                {multiMovieResult.movies.map((movie, i) => {
+                  const ownedFormats = movie.tmdb_id ? multiMovieOwned[movie.tmdb_id] : undefined;
+                  const isOwned = ownedFormats !== undefined;
+                  return (
+                    <div key={i} className={`relative flex gap-2 items-start p-2 rounded-md bg-background border ${isOwned ? "border-warning/50" : "border-border"}`}>
+                      {isOwned && (
+                        <Badge variant="outline" className="absolute -top-2 -right-1 text-[8px] bg-warning/20 text-warning border-warning/40 px-1.5 py-0">
+                          Already owned{ownedFormats.length > 0 ? ` (${ownedFormats.join(", ")})` : ""}
+                        </Badge>
+                      )}
+                      {movie.poster_url ? (
+                        <img src={movie.poster_url} alt={movie.title} className="w-10 h-14 rounded object-cover shrink-0" />
+                      ) : (
+                        <div className="w-10 h-14 rounded bg-secondary shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{movie.title}</p>
+                        {movie.year && <p className="text-[10px] text-muted-foreground">{movie.year}</p>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <Button onClick={handleAddMultiMovie} disabled={multiMovieSaving} className="w-full gap-2">
                 {multiMovieSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
