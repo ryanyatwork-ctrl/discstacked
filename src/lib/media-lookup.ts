@@ -54,6 +54,8 @@ export type BarcodeLookupResult = {
   direct?: MediaLookupResult;
   results?: MediaLookupResult[];
   multiMovie?: MultiMovieResult;
+  partialTitle?: string;
+  partialFormats?: string[];
 };
 
 export async function searchMedia(
