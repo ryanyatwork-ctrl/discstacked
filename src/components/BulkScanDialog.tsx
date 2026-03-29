@@ -513,6 +513,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                               {!item.selected && " — tap ✓ to add anyway"}
                             </p>
                           )}
+                          {!item.alreadyOwned && item.differentEdition && (
+                            <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                              <Layers className="w-3 h-3" />
+                              Different edition — you own "{item.existingTitle}" already
+                            </p>
+                          )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
