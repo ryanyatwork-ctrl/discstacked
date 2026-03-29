@@ -15,7 +15,7 @@ import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/u
 
 interface ScanQueueItem {
   barcode: string;
-  status: "looking" | "found" | "not_found" | "error";
+  status: "looking" | "found" | "not_found" | "error" | "multi_movie";
   title?: string;
   year?: number | null;
   genre?: string | null;
@@ -24,6 +24,7 @@ interface ScanQueueItem {
   tagline?: string | null;
   artist?: string | null;
   author?: string | null;
+  tmdb_id?: number | null;
   format: string;
   formats: string[];
   selected: boolean;
@@ -32,6 +33,8 @@ interface ScanQueueItem {
   existingTitle?: string;
   existingFormats?: string[];
   extraMeta?: Record<string, any>;
+  // Multi-movie fields
+  multiMovie?: MultiMovieResult;
 }
 
 interface BulkScanDialogProps {
