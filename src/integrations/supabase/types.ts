@@ -14,12 +14,55 @@ export type Database = {
   }
   public: {
     Tables: {
+      media_copies: {
+        Row: {
+          created_at: string
+          disc_label: string | null
+          format: string | null
+          id: string
+          media_item_id: string
+          physical_product_id: string
+        }
+        Insert: {
+          created_at?: string
+          disc_label?: string | null
+          format?: string | null
+          id?: string
+          media_item_id: string
+          physical_product_id: string
+        }
+        Update: {
+          created_at?: string
+          disc_label?: string | null
+          format?: string | null
+          id?: string
+          media_item_id?: string
+          physical_product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_copies_media_item_id_fkey"
+            columns: ["media_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_copies_physical_product_id_fkey"
+            columns: ["physical_product_id"]
+            isOneToOne: false
+            referencedRelation: "physical_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_items: {
         Row: {
           amazon_tag: string | null
           barcode: string | null
           created_at: string
           digital_copy: boolean
+          external_id: string | null
           format: string | null
           formats: string[] | null
           genre: string | null
@@ -46,6 +89,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string
           digital_copy?: boolean
+          external_id?: string | null
           format?: string | null
           formats?: string[] | null
           genre?: string | null
@@ -72,6 +116,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string
           digital_copy?: boolean
+          external_id?: string | null
           format?: string | null
           formats?: string[] | null
           genre?: string | null
@@ -92,6 +137,63 @@ export type Database = {
           watch_notes?: string | null
           wishlist?: boolean
           year?: number | null
+        }
+        Relationships: []
+      }
+      physical_products: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          disc_count: number | null
+          edition: string | null
+          formats: string[] | null
+          id: string
+          is_multi_title: boolean | null
+          media_type: string
+          metadata: Json | null
+          notes: string | null
+          product_title: string
+          purchase_date: string | null
+          purchase_location: string | null
+          purchase_price: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          disc_count?: number | null
+          edition?: string | null
+          formats?: string[] | null
+          id?: string
+          is_multi_title?: boolean | null
+          media_type: string
+          metadata?: Json | null
+          notes?: string | null
+          product_title: string
+          purchase_date?: string | null
+          purchase_location?: string | null
+          purchase_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          disc_count?: number | null
+          edition?: string | null
+          formats?: string[] | null
+          id?: string
+          is_multi_title?: boolean | null
+          media_type?: string
+          metadata?: Json | null
+          notes?: string | null
+          product_title?: string
+          purchase_date?: string | null
+          purchase_location?: string | null
+          purchase_price?: number | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

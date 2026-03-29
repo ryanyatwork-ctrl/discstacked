@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Camera, Loader2, Search, Check, Eye, Copy, Layers } from "lucide-react";
+import { Plus, Camera, Loader2, Search, Check, Eye, Copy, Layers, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { searchMedia, lookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
+import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
+import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -50,6 +51,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [multiSelect, setMultiSelect] = useState<MediaLookupResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [ownershipWarning, setOwnershipWarning] = useState<{ type: "barcode" | "title"; existingTitle: string; existingFormats: string[] } | null>(null);
+  const [multiMovieResult, setMultiMovieResult] = useState<MultiMovieResult | null>(null);
+  const [multiMovieSaving, setMultiMovieSaving] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
@@ -67,6 +70,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
     setMultiSelect([]); setMultiSelectMode(false); setOwnershipWarning(null);
+    setMultiMovieResult(null); setMultiMovieSaving(false);
   };
 
   const stopScanner = async () => {
@@ -137,13 +141,18 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const handleBarcodeLookup = async (upc: string) => {
     if (!upc.trim()) return;
     setLookingUp(true);
+    setMultiMovieResult(null);
     try {
       await checkOwnership(undefined, upc.trim());
 
       const result = await lookupBarcode(activeTab, upc);
-      if (result.direct) {
+
+      // Multi-movie set detected
+      if (result.multiMovie) {
+        setMultiMovieResult(result.multiMovie);
+        toast({ title: "Multi-Movie Set Detected!", description: `${result.multiMovie.product_title} — ${result.multiMovie.movies.length} titles found` });
+      } else if (result.direct) {
         applyResult(result.direct);
-        // Check title ownership after applying
         await checkOwnership(result.direct.title, upc.trim());
         toast({ title: "Found it!", description: result.direct.title });
       } else if (result.results && result.results.length > 0) {
@@ -255,6 +264,37 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const effectiveWantToWatch = (!format && formats.length === 0) ? true : wantToWatch;
 
+  const handleAddMultiMovie = async () => {
+    if (!multiMovieResult || !user) return;
+    setMultiMovieSaving(true);
+    try {
+      const { mediaItemIds } = await createMultiMovieProduct(
+        user.id,
+        {
+          barcode: barcode || null,
+          productTitle: multiMovieResult.collection_name || multiMovieResult.product_title,
+          formats: multiMovieResult.detected_formats,
+          mediaType: activeTab,
+          discCount: multiMovieResult.movies.length,
+        },
+        multiMovieResult.movies.map(m => ({
+          tmdb_id: m.tmdb_id,
+          title: m.title,
+          year: m.year,
+          poster_url: m.poster_url,
+          overview: m.overview || null,
+        }))
+      );
+      toast({ title: "Added!", description: `${multiMovieResult.movies.length} titles added from "${multiMovieResult.product_title}"` });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      resetForm();
+      setOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add", description: err.message, variant: "destructive" });
+    }
+    setMultiMovieSaving(false);
+  };
+
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
@@ -263,12 +303,16 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       if (artist && isMusicTab) {
         metaPayload["artist"] = artist;
       }
-      const { error } = await supabase.from("media_items").insert({
+
+      const tmdbId = extraMeta.tmdb_id || null;
+      const effectiveFormats = formats.length > 0 ? formats : (format ? [format] : []);
+
+      const { data: newItem, error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
         year: year ? parseInt(year) : null,
-        format: formats.length > 0 ? formats[0] : (format || null),
-        formats: formats.length > 0 ? formats : (format ? [format] : []),
+        format: effectiveFormats[0] || null,
+        formats: effectiveFormats,
         barcode: barcode || null,
         genre: genre || null,
         notes: notes || null,
@@ -278,9 +322,24 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
+        external_id: tmdbId ? String(tmdbId) : null,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
-      });
+      } as any).select().single();
       if (error) throw error;
+
+      // Also create a physical_product + media_copy record
+      try {
+        await createPhysicalProductForItem(user.id, newItem.id, {
+          barcode: barcode || null,
+          productTitle: title.trim(),
+          formats: effectiveFormats,
+          mediaType: activeTab,
+          format: effectiveFormats[0] || null,
+        });
+      } catch (ppErr) {
+        console.warn("Physical product creation failed (non-critical):", ppErr);
+      }
+
       toast({ title: "Added!", description: `${title} added to your collection.` });
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
       resetForm();
@@ -419,8 +478,47 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           )}
 
+          {/* Multi-Movie Set Detected */}
+          {multiMovieResult && (
+            <div className="rounded-lg border-2 border-primary/50 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">Multi-Movie Set Detected</p>
+                  <p className="text-xs text-muted-foreground">{multiMovieResult.collection_name || multiMovieResult.product_title}</p>
+                </div>
+              </div>
+              {multiMovieResult.detected_formats.length > 0 && (
+                <div className="flex gap-1">
+                  {multiMovieResult.detected_formats.map(f => (
+                    <span key={f} className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary/20 text-primary border border-primary/30">{f}</span>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {multiMovieResult.movies.map((movie, i) => (
+                  <div key={i} className="flex gap-2 items-start p-2 rounded-md bg-background border border-border">
+                    {movie.poster_url ? (
+                      <img src={movie.poster_url} alt={movie.title} className="w-10 h-14 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-14 rounded bg-secondary shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{movie.title}</p>
+                      {movie.year && <p className="text-[10px] text-muted-foreground">{movie.year}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleAddMultiMovie} disabled={multiMovieSaving} className="w-full gap-2">
+                {multiMovieSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add All {multiMovieResult.movies.length} Movies to Collection
+              </Button>
+            </div>
+          )}
+
           {/* Ownership warning */}
-          {ownershipWarning && (
+          {ownershipWarning && !multiMovieResult && (
             <div className={`flex items-start gap-2 rounded-md border p-3 ${
               ownershipWarning.type === "barcode" 
                 ? "border-warning/40 bg-warning/10" 

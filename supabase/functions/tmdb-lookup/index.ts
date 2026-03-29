@@ -5,6 +5,49 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Keywords that indicate a multi-movie physical product
+const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|2-film|3-film|4-film|5-film|6-film|2-movie|3-movie|4-movie|5-movie|6-movie)\b/i;
+
+async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
+  const [detailRes, creditsRes] = await Promise.all([
+    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=en-US`),
+    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`),
+  ]);
+  const detail = await detailRes.json();
+  const credits = creditsRes.ok ? await creditsRes.json() : {};
+
+  const cast = (credits.cast || []).slice(0, 10).map((c: any) => ({
+    name: c.name,
+    character: c.character,
+    profile_url: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
+  }));
+  const director = (credits.crew || []).filter((c: any) => c.job === "Director").map((c: any) => c.name);
+  const writer = (credits.crew || []).filter((c: any) => c.job === "Writer" || c.job === "Screenplay").map((c: any) => c.name);
+  const producer = (credits.crew || []).filter((c: any) => c.job === "Producer").map((c: any) => c.name);
+
+  return {
+    tmdb_id: detail.id,
+    title: detail.title,
+    year: detail.release_date ? parseInt(detail.release_date.substring(0, 4)) : null,
+    poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
+    genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
+    rating: detail.vote_average || null,
+    overview: detail.overview || null,
+    runtime: detail.runtime || null,
+    tagline: detail.tagline || null,
+    media_type: "movie",
+    cast,
+    crew: { director, writer, producer },
+  };
+}
+
+async function searchTmdbMovie(query: string, apiKey: string) {
+  const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.results || [];
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -12,9 +55,7 @@ serve(async (req) => {
 
   try {
     const TMDB_API_KEY = Deno.env.get("TMDB_API_KEY");
-    if (!TMDB_API_KEY) {
-      throw new Error("TMDB_API_KEY not configured");
-    }
+    if (!TMDB_API_KEY) throw new Error("TMDB_API_KEY not configured");
 
     const { query, year, tmdb_id, search_type, barcode, get_posters } = await req.json();
 
@@ -49,66 +90,131 @@ serve(async (req) => {
             const upcCategory = upcItem.category || "";
             const upcDescription = upcItem.description || "";
 
-            // Combine all text fields for format detection
             const allText = `${upcTitle} ${upcCategory} ${upcDescription}`.toUpperCase();
             const detected_formats: string[] = [];
 
-            // Combo packs first (most specific)
             if (/BLU-?RAY\s*\+\s*DVD/i.test(allText) || /DVD\s*\+\s*BLU-?RAY/i.test(allText)) {
               detected_formats.push("Blu-ray", "DVD");
             } else if (/4K.*BLU-?RAY|BLU-?RAY.*4K|UHD.*BLU-?RAY/i.test(allText)) {
               detected_formats.push("4K", "Blu-ray");
             } else {
-              if (allText.includes("ULTRA HD") || allText.includes("4K") || allText.includes("UHD")) {
-                detected_formats.push("4K");
-              }
-              if (allText.includes("BLU-RAY") || allText.includes("BLU RAY") || allText.includes("BLURAY")) {
-                detected_formats.push("Blu-ray");
-              }
-              if (allText.includes("DVD") && !detected_formats.includes("Blu-ray")) {
-                detected_formats.push("DVD");
-              }
+              if (allText.includes("ULTRA HD") || allText.includes("4K") || allText.includes("UHD")) detected_formats.push("4K");
+              if (allText.includes("BLU-RAY") || allText.includes("BLU RAY") || allText.includes("BLURAY")) detected_formats.push("Blu-ray");
+              if (allText.includes("DVD") && !detected_formats.includes("Blu-ray")) detected_formats.push("DVD");
             }
-            if (detected_formats.length === 0 && (allText.includes("DIGITAL") || allText.includes("STREAMING"))) {
-              detected_formats.push("Digital");
-            }
-            if (detected_formats.length === 0 && allText.includes("VHS")) {
-              detected_formats.push("VHS");
-            }
+            if (detected_formats.length === 0 && (allText.includes("DIGITAL") || allText.includes("STREAMING"))) detected_formats.push("Digital");
+            if (detected_formats.length === 0 && allText.includes("VHS")) detected_formats.push("VHS");
 
-            // Clean title: strip studio prefix "Studio Name - Title" pattern
+            // Clean title
             let cleanTitle = upcTitle
-              .replace(/^[\w\s&.']+?\s*-\s*/i, "") // strip "Studio Name - " prefix
+              .replace(/^[\w\s&.']+?\s*-\s*/i, "")
               .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
               .replace(/\[.*?\]/g, "")
               .replace(/\(.*?\)/g, "")
-              .replace(/\s*[,+]\s*$/g, "") // trailing comma/plus
+              .replace(/\s*[,+]\s*$/g, "")
               .replace(/\s+/g, " ")
               .trim();
 
-            if (cleanTitle) {
-              const movieUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
-              const movieRes = await fetch(movieUrl);
-              const movieData = await movieRes.json();
+            // --- MULTI-MOVIE DETECTION ---
+            const hasSlash = cleanTitle.includes(" / ");
+            const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
 
-              if (movieData.results?.length > 0) {
-                const m = movieData.results[0];
-                const detailRes = await fetch(
-                  `https://api.themoviedb.org/3/movie/${m.id}?api_key=${TMDB_API_KEY}&language=en-US`
-                );
-                const detail = await detailRes.json();
+            if (hasSlash || hasMultiKeyword) {
+              let movieTitles: string[] = [];
+
+              if (hasSlash) {
+                movieTitles = cleanTitle.split(" / ").map(t => t.trim()).filter(Boolean);
+              }
+
+              // For collection keywords without slash, try TMDB collection search
+              if (!hasSlash && hasMultiKeyword) {
+                // Strip the collection keyword to get the franchise name
+                const franchiseName = cleanTitle
+                  .replace(MULTI_MOVIE_KEYWORDS, "")
+                  .replace(/\s*:\s*$/, "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+
+                // Search TMDB for collections
+                const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(franchiseName)}&language=en-US`;
+                const collRes = await fetch(collUrl);
+                const collData = await collRes.json();
+
+                if (collData.results?.length > 0) {
+                  const collId = collData.results[0].id;
+                  const collDetailRes = await fetch(
+                    `https://api.themoviedb.org/3/collection/${collId}?api_key=${TMDB_API_KEY}&language=en-US`
+                  );
+                  const collDetail = await collDetailRes.json();
+
+                  if (collDetail.parts?.length > 0) {
+                    const multiMovies = collDetail.parts.map((p: any) => ({
+                      tmdb_id: p.id,
+                      title: p.title,
+                      year: p.release_date ? parseInt(p.release_date.substring(0, 4)) : null,
+                      poster_url: p.poster_path ? `https://image.tmdb.org/t/p/w500${p.poster_path}` : null,
+                      overview: p.overview || null,
+                    }));
+
+                    return new Response(JSON.stringify({
+                      is_multi_movie: true,
+                      product_title: cleanTitle || upcTitle,
+                      barcode_title: upcTitle,
+                      detected_formats,
+                      collection_name: collDetail.name,
+                      multi_movies: multiMovies,
+                    }), {
+                      headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
+                  }
+                }
+              }
+
+              // For slash-separated titles, look up each individually
+              if (movieTitles.length > 1) {
+                const multiMovies: any[] = [];
+                for (const mt of movieTitles) {
+                  const results = await searchTmdbMovie(mt, TMDB_API_KEY);
+                  if (results.length > 0) {
+                    const m = results[0];
+                    multiMovies.push({
+                      tmdb_id: m.id,
+                      title: m.title,
+                      year: m.release_date ? parseInt(m.release_date.substring(0, 4)) : null,
+                      poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
+                      overview: m.overview || null,
+                    });
+                  } else {
+                    multiMovies.push({
+                      tmdb_id: null,
+                      title: mt,
+                      year: null,
+                      poster_url: null,
+                      overview: null,
+                    });
+                  }
+                }
 
                 return new Response(JSON.stringify({
-                  tmdb_id: detail.id,
-                  title: detail.title,
-                  year: detail.release_date ? parseInt(detail.release_date.substring(0, 4)) : null,
-                  poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
-                  genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
-                  rating: detail.vote_average || null,
-                  overview: detail.overview || null,
-                  runtime: detail.runtime || null,
-                  tagline: detail.tagline || null,
-                  media_type: "movie",
+                  is_multi_movie: true,
+                  product_title: cleanTitle || upcTitle,
+                  barcode_title: upcTitle,
+                  detected_formats,
+                  multi_movies: multiMovies,
+                }), {
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+            }
+
+            // --- SINGLE MOVIE LOOKUP (existing logic) ---
+            if (cleanTitle) {
+              const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY);
+              if (movieResults.length > 0) {
+                const m = movieResults[0];
+                const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
+                return new Response(JSON.stringify({
+                  ...detail,
                   barcode_title: upcTitle,
                   detected_formats,
                 }), {
@@ -116,6 +222,7 @@ serve(async (req) => {
                 });
               }
 
+              // Try TV
               const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
               const tvRes = await fetch(tvUrl);
               const tvData = await tvRes.json();
@@ -158,37 +265,39 @@ serve(async (req) => {
     // Fetch details by tmdb_id
     if (tmdb_id) {
       const type = search_type === "tv" ? "tv" : "movie";
+      if (type === "movie") {
+        const detail = await fetchTmdbMovieDetails(tmdb_id, TMDB_API_KEY);
+        return new Response(JSON.stringify(detail), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       const [detailRes, creditsRes] = await Promise.all([
-        fetch(`https://api.themoviedb.org/3/${type}/${tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`),
-        fetch(`https://api.themoviedb.org/3/${type}/${tmdb_id}/credits?api_key=${TMDB_API_KEY}&language=en-US`),
+        fetch(`https://api.themoviedb.org/3/tv/${tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`),
+        fetch(`https://api.themoviedb.org/3/tv/${tmdb_id}/credits?api_key=${TMDB_API_KEY}&language=en-US`),
       ]);
       const detail = await detailRes.json();
       const credits = creditsRes.ok ? await creditsRes.json() : {};
-
-      const title = type === "tv" ? detail.name : detail.title;
-      const releaseDate = type === "tv" ? detail.first_air_date : detail.release_date;
-
       const cast = (credits.cast || []).slice(0, 10).map((c: any) => ({
         name: c.name,
         character: c.character,
         profile_url: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
       }));
-
       const director = (credits.crew || []).filter((c: any) => c.job === "Director").map((c: any) => c.name);
       const writer = (credits.crew || []).filter((c: any) => c.job === "Writer" || c.job === "Screenplay").map((c: any) => c.name);
       const producer = (credits.crew || []).filter((c: any) => c.job === "Producer").map((c: any) => c.name);
 
       return new Response(JSON.stringify({
         tmdb_id: detail.id,
-        title,
-        year: releaseDate ? parseInt(releaseDate.substring(0, 4)) : null,
+        title: detail.name,
+        year: detail.first_air_date ? parseInt(detail.first_air_date.substring(0, 4)) : null,
         poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
         genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
         rating: detail.vote_average || null,
         overview: detail.overview || null,
-        runtime: detail.runtime || detail.episode_run_time?.[0] || null,
+        runtime: detail.episode_run_time?.[0] || null,
         tagline: detail.tagline || null,
-        media_type: type,
+        media_type: "tv",
         cast,
         crew: { director, writer, producer },
       }), {
@@ -197,13 +306,10 @@ serve(async (req) => {
     }
 
     // Search by query
-    if (!query) {
-      throw new Error("Either 'query', 'tmdb_id', or 'barcode' is required");
-    }
+    if (!query) throw new Error("Either 'query', 'tmdb_id', or 'barcode' is required");
 
     const results: any[] = [];
 
-    // Search movies (return up to 10)
     if (search_type !== "tv") {
       let movieUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
       if (year) movieUrl += `&year=${year}`;
@@ -222,7 +328,6 @@ serve(async (req) => {
       }
     }
 
-    // Search TV shows (return up to 10)
     if (search_type !== "movie") {
       let tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
       if (year) tvUrl += `&first_air_date_year=${year}`;
@@ -246,11 +351,9 @@ serve(async (req) => {
     if (seasonMatch) {
       const showName = seasonMatch[1].trim();
       const seasonNum = parseInt(seasonMatch[2]);
-      
       const showUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
       const showRes = await fetch(showUrl);
       const showData = await showRes.json();
-      
       if (showData.results?.length > 0) {
         const show = showData.results[0];
         const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;
