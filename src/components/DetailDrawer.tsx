@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
