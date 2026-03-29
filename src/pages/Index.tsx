@@ -159,6 +159,18 @@ export default function Index() { // force rebuild
     return groups;
   }, [filteredItems]);
 
+  // Group items by base title for editions view
+  const editionGroups = useMemo(() => {
+    const groups: Record<string, MediaItem[]> = {};
+    filteredItems.forEach((item) => {
+      // Use the base title (without edition) as the grouping key
+      const baseTitle = item.title;
+      if (!groups[baseTitle]) groups[baseTitle] = [];
+      groups[baseTitle].push(item);
+    });
+    return groups;
+  }, [filteredItems]);
+
   const handleFormatToggle = useCallback((format: string) => {
     setActiveFormats((prev) =>
       prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
