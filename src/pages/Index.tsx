@@ -52,7 +52,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   };
 }
 
-type ViewMode = "covers" | "list";
+type ViewMode = "covers" | "list" | "editions";
 
 function getStored<T>(key: string, fallback: T): T {
   try {
