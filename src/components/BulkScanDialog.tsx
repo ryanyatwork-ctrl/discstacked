@@ -532,18 +532,25 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                              {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
                            </p>
                           {item.alreadyOwned && (
-                            <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
-                              <Copy className="w-3 h-3" />
-                              Already in collection{item.existingTitle ? ` as "${item.existingTitle}"` : ""}
-                              {!item.selected && " — tap ✓ to add anyway"}
-                            </p>
-                          )}
-                          {!item.alreadyOwned && item.differentEdition && (
-                             <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
-                               <Layers className="w-3 h-3" />
-                               Different edition — you own "{item.existingTitle}" already (possibly different format/release)
+                             <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
+                               <Copy className="w-3 h-3" />
+                               Already in collection as "{item.existingTitle}"
+                               {item.existingFormats && item.existingFormats.length > 0 && (
+                                 <span className="font-semibold">({item.existingFormats.join(", ")})</span>
+                               )}
+                               {!item.selected && " — tap ✓ to add anyway"}
                              </p>
                            )}
+                           {!item.alreadyOwned && item.differentEdition && (
+                              <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                                <Layers className="w-3 h-3" />
+                                You own "{item.existingTitle}"
+                                {item.existingFormats && item.existingFormats.length > 0 && (
+                                  <span className="font-semibold">on {item.existingFormats.join(", ")}</span>
+                                )}
+                                — this is a different edition
+                              </p>
+                            )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
