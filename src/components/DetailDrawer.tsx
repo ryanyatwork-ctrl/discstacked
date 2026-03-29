@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { MediaItem, MediaTab, FORMATS } from "@/lib/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -770,19 +771,35 @@ function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnTyp
 
 function FetchDetailsButton({ item }: { item: MediaItem }) {
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<MediaLookupResult[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const updateItem = useUpdateItem();
   const mediaType = (item.mediaType || "movies") as MediaTab;
 
   const handleFetch = async () => {
     setLoading(true);
     try {
-      const results = await searchMedia(mediaType, item.title, { year: item.year ?? undefined });
-      if (!results.length) {
+      const res = await searchMedia(mediaType, item.title, { year: item.year ?? undefined });
+      if (!res.length) {
         toast({ title: "No results found", description: "Try editing the title first, then fetch again.", variant: "destructive" });
         setLoading(false);
         return;
       }
-      const best = results[0];
+      setResults(res.slice(0, 5));
+      setSelectedIdx(0);
+      setPreviewOpen(true);
+    } catch (e: any) {
+      toast({ title: "Lookup failed", description: e.message, variant: "destructive" });
+    }
+    setLoading(false);
+  };
+
+  const handleAccept = async () => {
+    const best = results[selectedIdx];
+    if (!best) return;
+    setLoading(true);
+    try {
       const currentMeta = (item as any).metadata || {};
       const newMeta: Record<string, any> = { ...currentMeta };
       if (best.overview) newMeta.overview = best.overview;
@@ -808,24 +825,93 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       if (best.year && !item.year) updates.year = best.year;
 
       await updateItem.mutateAsync(updates);
-      toast({ title: "Details updated!", description: `Found metadata for "${best.title}"` });
+      toast({ title: "Details updated!", description: `Applied metadata from "${best.title}"` });
     } catch (e: any) {
-      toast({ title: "Lookup failed", description: e.message, variant: "destructive" });
+      toast({ title: "Update failed", description: e.message, variant: "destructive" });
     }
     setLoading(false);
+    setPreviewOpen(false);
   };
 
+  const selected = results[selectedIdx];
+
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleFetch}
-      disabled={loading}
-      className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
-    >
-      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-      {loading ? "Searching..." : "Fetch Details"}
-    </Button>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleFetch}
+        disabled={loading}
+        className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+      >
+        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+        {loading ? "Searching..." : "Fetch Details"}
+      </Button>
+
+      <AlertDialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <AlertDialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Select the correct match</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose a result below and tap "Apply" to update this item's details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {results.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {results.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedIdx(i)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium transition-colors border",
+                    i === selectedIdx
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
+                  )}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selected && (
+            <div className="space-y-3 py-2">
+              <div className="flex gap-3">
+                {selected.cover_url && (
+                  <img src={selected.cover_url} alt={selected.title} className="w-16 h-24 rounded object-cover shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{selected.title}</p>
+                  {selected.year && <p className="text-xs text-muted-foreground">{selected.year}</p>}
+                  {selected.genre && <p className="text-xs text-muted-foreground">{selected.genre}</p>}
+                  {(selected as any).artist && <p className="text-xs text-muted-foreground">{(selected as any).artist}</p>}
+                  {(selected as any).author && <p className="text-xs text-muted-foreground">{(selected as any).author}</p>}
+                </div>
+              </div>
+              {(selected.overview || (selected as any).description) && (
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
+                  {selected.overview || (selected as any).description}
+                </p>
+              )}
+              {selected.cast && selected.cast.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Cast:</span> {selected.cast.slice(0, 4).map(c => c.name).join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAccept} disabled={loading}>
+              {loading ? "Applying..." : "Apply"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
