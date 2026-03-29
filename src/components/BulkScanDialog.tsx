@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers } from "lucide-react";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult } from "@/lib/media-lookup";
+import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
+import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
 
 interface ScanQueueItem {
   barcode: string;
