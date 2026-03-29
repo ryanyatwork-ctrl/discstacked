@@ -79,7 +79,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setScanning(false);
   };
 
-  const doLookup = async (barcode: string): Promise<{ status: string; multiMovie?: MultiMovieResult; [key: string]: any }> => {
+  const doLookup = async (barcode: string): Promise<Partial<ScanQueueItem>> => {
     try {
       const result = await unifiedLookupBarcode(activeTab, barcode);
 
