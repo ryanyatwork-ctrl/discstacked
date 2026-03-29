@@ -252,20 +252,22 @@ serve(async (req) => {
         // UPCitemdb failed, try next source
       }
 
-      // ========== SOURCE 2: Open Food Facts (covers some media UPCs) ==========
+      // ========== SOURCE 2: Barcodelookup.com ==========
       try {
-        const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,categories_tags`);
-        if (offRes.ok) {
-          const offData = await offRes.json();
-          if (offData.status === 1 && offData.product?.product_name) {
-            const offTitle = offData.product.product_name;
-            const offBrand = offData.product.brands || "";
-            const offAllText = `${offTitle} ${offBrand}`;
-            const offFormats = upcFormats.length > 0 ? upcFormats : detectFormats(offAllText);
-            const offCleanTitle = cleanProductTitle(offTitle);
+        const bclRes = await fetch(`https://api.barcodelookup.com/v3/products?barcode=${encodeURIComponent(barcode)}&formatted=y&key=`);
+        // Free tier returns 403 without key, but trial may work for some
+        if (bclRes.ok) {
+          const bclData = await bclRes.json();
+          if (bclData.products?.length > 0) {
+            const bclItem = bclData.products[0];
+            const bclTitle = bclItem.title || bclItem.product_name || "";
+            const bclDesc = bclItem.description || bclItem.category || "";
+            const bclAllText = `${bclTitle} ${bclDesc}`;
+            const bclFormats = upcFormats.length > 0 ? upcFormats : detectFormats(bclAllText);
+            const bclCleanTitle = cleanProductTitle(bclTitle);
 
-            if (offCleanTitle) {
-              const result = await processBarcodeTitle(offCleanTitle, offTitle, offFormats);
+            if (bclCleanTitle) {
+              const result = await processBarcodeTitle(bclCleanTitle, bclTitle, bclFormats);
               if (result) {
                 return new Response(JSON.stringify(result), {
                   headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -275,14 +277,94 @@ serve(async (req) => {
           }
         }
       } catch {
-        // Open Food Facts failed, try next source
+        // Barcodelookup failed, try next source
       }
 
-      // ========== SOURCE 3: Direct TMDB search using barcode as query (last resort) ==========
-      // If we got a partial title from any source, try a broader TMDB search
+      // ========== SOURCE 3: Open Library ISBN lookup ==========
+      try {
+        const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(barcode)}&format=json&jscmd=data`);
+        if (olRes.ok) {
+          const olData = await olRes.json();
+          const olKey = Object.keys(olData)[0];
+          if (olKey && olData[olKey]?.title) {
+            const olTitle = olData[olKey].title;
+            const olCleanTitle = cleanProductTitle(olTitle);
+            const olFormats = upcFormats.length > 0 ? upcFormats : [];
+
+            if (olCleanTitle) {
+              const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats);
+              if (result) {
+                return new Response(JSON.stringify(result), {
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // Open Library failed, try next source
+      }
+
+      // ========== SOURCE 4: TMDB direct UPC/EAN lookup ==========
+      try {
+        const findRes = await fetch(`https://api.themoviedb.org/3/find/${encodeURIComponent(barcode)}?api_key=${TMDB_API_KEY}&external_source=upc&language=en-US`);
+        if (findRes.ok) {
+          const findData = await findRes.json();
+          const movieResults = findData.movie_results || [];
+          const tvResults = findData.tv_results || [];
+
+          if (movieResults.length > 0) {
+            const m = movieResults[0];
+            const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
+            const formats = upcFormats.length > 0 ? upcFormats : [];
+            return new Response(JSON.stringify({ ...detail, barcode_title: m.title, detected_formats: formats }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (tvResults.length > 0) {
+            const t = tvResults[0];
+            const formats = upcFormats.length > 0 ? upcFormats : [];
+            return new Response(JSON.stringify({
+              tmdb_id: t.id,
+              title: t.name,
+              year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
+              poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
+              rating: t.vote_average || null,
+              overview: t.overview || null,
+              media_type: "tv",
+              barcode_title: t.name,
+              detected_formats: formats,
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+      } catch {
+        // TMDB find failed, try fuzzy fallback
+      }
+
+      // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
       const fallbackTitle = upcCleanTitle || "";
       if (fallbackTitle) {
-        // We already tried exact TMDB match in processBarcodeTitle, so return partial data
+        // Try movie search with high confidence threshold
+        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY);
+        if (movieResults.length > 0) {
+          const best = movieResults[0];
+          const bestTitle = (best.title || "").toLowerCase();
+          const searchTitle = fallbackTitle.toLowerCase();
+          // Require the search title to appear substantially in the result title or vice versa
+          const isHighConfidence = bestTitle.includes(searchTitle) || searchTitle.includes(bestTitle) ||
+            bestTitle.split(/\s+/).filter((w: string) => searchTitle.includes(w)).length >= Math.max(1, Math.floor(searchTitle.split(/\s+/).length * 0.6));
+
+          if (isHighConfidence) {
+            const detail = await fetchTmdbMovieDetails(best.id, TMDB_API_KEY);
+            return new Response(JSON.stringify({ ...detail, barcode_title: upcTitle, detected_formats: upcFormats }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
+        // No high-confidence match — return partial data for soft-fail UI
         return new Response(JSON.stringify({
           title: fallbackTitle,
           barcode_title: upcTitle,
