@@ -49,6 +49,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [extraMeta, setExtraMeta] = useState<Record<string, any>>({});
   const [multiSelect, setMultiSelect] = useState<MediaLookupResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [ownershipWarning, setOwnershipWarning] = useState<{ type: "barcode" | "title"; existingTitle: string; existingFormats: string[] } | null>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
