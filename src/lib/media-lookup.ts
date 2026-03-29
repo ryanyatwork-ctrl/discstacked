@@ -48,8 +48,8 @@ export async function searchMedia(
   if (activeTab === "games") {
     return searchGames(query);
   }
-  if (activeTab === "games") {
-    return searchGames(query);
+  if (activeTab === "books") {
+    return searchBooks(query, opts?.barcode);
   }
   return [];
 }
