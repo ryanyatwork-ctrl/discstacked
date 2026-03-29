@@ -615,6 +615,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
               </div>
             </div>
 
+            {/* Add Edition */}
+            <AddEditionButton item={item} formats={formats} onDuplicated={onDuplicated} />
+
             {/* Duplicate / Split */}
             <Button
               variant="outline"
