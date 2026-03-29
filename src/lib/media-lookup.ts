@@ -54,6 +54,8 @@ export type BarcodeLookupResult = {
   direct?: MediaLookupResult;
   results?: MediaLookupResult[];
   multiMovie?: MultiMovieResult;
+  partialTitle?: string;
+  partialFormats?: string[];
 };
 
 export async function searchMedia(
@@ -111,6 +113,13 @@ export async function lookupBarcode(
     }
     if (data?.results?.length > 0) {
       return { results: data.results.map(mapTmdbResult) };
+    }
+    // Barcode not found or partial match — return partial data for soft-fail UX
+    if (data?.barcode_not_found || (data?.title && !data?.tmdb_id)) {
+      return {
+        partialTitle: data.title || "",
+        partialFormats: data.detected_formats || [],
+      };
     }
     return {};
   }
