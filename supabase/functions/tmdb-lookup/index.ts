@@ -129,14 +129,32 @@ serve(async (req) => {
               .replace(/\s+/g, " ")
               .trim();
 
-            const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(franchiseName)}&language=en-US`;
-            const collRes = await fetch(collUrl);
-            const collData = await collRes.json();
+            // Try multiple search queries: full title first, then franchise name
+            const searchQueries = [cleanTitle, franchiseName].filter(Boolean);
+            let bestCollection: any = null;
 
-            if (collData.results?.length > 0) {
-              const collId = collData.results[0].id;
+            for (const sq of searchQueries) {
+              const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(sq)}&language=en-US`;
+              const collRes = await fetch(collUrl);
+              const collData = await collRes.json();
+
+              if (collData.results?.length > 0) {
+                // Find a collection whose name contains the franchise name (confidence check)
+                const fn = franchiseName.toLowerCase();
+                const matched = collData.results.find((c: any) => {
+                  const cn = (c.name || "").toLowerCase();
+                  return cn.includes(fn) || fn.includes(cn.replace(/\s*collection\s*/i, "").trim());
+                });
+                if (matched) {
+                  bestCollection = matched;
+                  break;
+                }
+              }
+            }
+
+            if (bestCollection) {
               const collDetailRes = await fetch(
-                `https://api.themoviedb.org/3/collection/${collId}?api_key=${TMDB_API_KEY}&language=en-US`
+                `https://api.themoviedb.org/3/collection/${bestCollection.id}?api_key=${TMDB_API_KEY}&language=en-US`
               );
               const collDetail = await collDetailRes.json();
 
