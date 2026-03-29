@@ -8,7 +8,7 @@ import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/h
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft, Search, RefreshCw } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft, Search, RefreshCw, Plus } from "lucide-react";
 import { searchMedia, MediaLookupResult } from "@/lib/media-lookup";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
