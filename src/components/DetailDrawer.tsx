@@ -7,7 +7,8 @@ import { useUpdateItem, useDuplicateItem, useDeleteItem, DbMediaItem } from "@/h
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft, Search, RefreshCw } from "lucide-react";
+import { searchMedia, MediaLookupResult } from "@/lib/media-lookup";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
@@ -767,6 +768,67 @@ function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnTyp
 }
 
 
+function FetchDetailsButton({ item }: { item: MediaItem }) {
+  const [loading, setLoading] = useState(false);
+  const updateItem = useUpdateItem();
+  const mediaType = (item.mediaType || "movies") as MediaTab;
+
+  const handleFetch = async () => {
+    setLoading(true);
+    try {
+      const results = await searchMedia(mediaType, item.title, { year: item.year ?? undefined });
+      if (!results.length) {
+        toast({ title: "No results found", description: "Try editing the title first, then fetch again.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      const best = results[0];
+      const currentMeta = (item as any).metadata || {};
+      const newMeta: Record<string, any> = { ...currentMeta };
+      if (best.overview) newMeta.overview = best.overview;
+      if (best.runtime) newMeta.runtime = best.runtime;
+      if (best.tagline) newMeta.tagline = best.tagline;
+      if (best.cast?.length) newMeta.cast = best.cast;
+      if (best.crew) newMeta.crew = best.crew;
+      if (best.artist) newMeta.artist = best.artist;
+      if (best.label) newMeta.label = best.label;
+      if (best.tracklist?.length) newMeta.tracklist = best.tracklist;
+      if (best.author) newMeta.author = best.author;
+      if (best.page_count) newMeta.page_count = best.page_count;
+      if (best.publisher) newMeta.publisher = best.publisher;
+      if (best.isbn) newMeta.isbn = best.isbn;
+      if (best.description) newMeta.overview = best.description;
+      if (best.platforms?.length) newMeta.platforms = best.platforms;
+      if (best.developer) newMeta.developer = best.developer;
+
+      const updates: any = { id: item.id, metadata: newMeta };
+      if (best.genre) updates.genre = best.genre;
+      if (best.rating) updates.rating = best.rating;
+      if (best.cover_url && !item.posterUrl) updates.poster_url = best.cover_url;
+      if (best.year && !item.year) updates.year = best.year;
+
+      await updateItem.mutateAsync(updates);
+      toast({ title: "Details updated!", description: `Found metadata for "${best.title}"` });
+    } catch (e: any) {
+      toast({ title: "Lookup failed", description: e.message, variant: "destructive" });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleFetch}
+      disabled={loading}
+      className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+    >
+      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+      {loading ? "Searching..." : "Fetch Details"}
+    </Button>
+  );
+}
+
 function TmdbMetadata({ item }: { item: MediaItem }) {
   const meta = (item as any).metadata || {};
   const runtime = meta.runtime as number | undefined;
@@ -795,7 +857,15 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
     || artist || label || tracklist?.length || author || pageCount || publisher
     || platforms?.length || developer;
 
-  if (!hasAny) return null;
+  if (!hasAny) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Details</p>
+        <p className="text-sm text-muted-foreground">No metadata yet</p>
+        <FetchDetailsButton item={item} />
+      </div>
+    );
+  }
 
   const formatRuntime = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -912,6 +982,9 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
           </div>
         </div>
       ) : null}
+
+      {/* Re-fetch details */}
+      <FetchDetailsButton item={item} />
     </div>
   );
 }
