@@ -158,8 +158,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       } else if (result.results && result.results.length > 0) {
         setSearchResults(result.results);
         toast({ title: "Multiple results found", description: "Select the correct one below." });
+      } else if (result.partialTitle) {
+        // Barcode found a product name but no TMDB match — pre-populate for the user
+        setTitle(result.partialTitle);
+        if (result.partialFormats?.length) setFormats(result.partialFormats);
+        toast({ title: "Barcode not recognized", description: "Please verify the title below and search manually.", variant: "default" });
       } else {
-        toast({ title: "Not found", description: "No match for that barcode. Try searching by title.", variant: "destructive" });
+        toast({ title: "Barcode not recognized", description: "Please enter the title below and search.", variant: "default" });
       }
     } catch {
       toast({ title: "Lookup failed", variant: "destructive" });
