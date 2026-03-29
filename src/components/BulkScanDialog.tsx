@@ -29,6 +29,7 @@ interface ScanQueueItem {
   alreadyOwned?: boolean;
   differentEdition?: boolean;
   existingTitle?: string;
+  existingFormats?: string[];
   extraMeta?: Record<string, any>;
 }
 
