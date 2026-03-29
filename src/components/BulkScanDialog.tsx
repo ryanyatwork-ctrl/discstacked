@@ -574,6 +574,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     <div className="flex-1 min-w-0">
                       {item.status === "looking" ? (
                         <p className="text-sm text-muted-foreground">Looking up {item.barcode}…</p>
+                      ) : item.status === "multi_movie" && item.multiMovie ? (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <Package className="w-3 h-3 text-primary" />
+                            <p className="text-sm font-medium text-primary truncate">{item.multiMovie.collection_name || item.multiMovie.product_title}</p>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {item.multiMovie.movies.length} movies: {item.multiMovie.movies.map(m => m.title).join(", ")}
+                          </p>
+                          {item.multiMovie.detected_formats.length > 0 && (
+                            <div className="flex gap-1 mt-0.5">
+                              {item.multiMovie.detected_formats.map(f => (
+                                <span key={f} className="px-1 py-0 rounded text-[9px] font-medium bg-primary/20 text-primary">{f}</span>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : item.status === "found" ? (
                          <>
                            <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
