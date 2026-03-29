@@ -4,8 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Shield, Trash2, Users, Loader2, AlertTriangle, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { ArrowLeft, Shield, Trash2, Users, Loader2, AlertTriangle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
