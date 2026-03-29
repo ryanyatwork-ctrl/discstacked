@@ -49,7 +49,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [scanning, setScanning] = useState(false);
   const [btMode, setBtMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [defaultFormat, setDefaultFormat] = useState(FORMATS[activeTab]?.[0] || "");
+  const [defaultFormat, setDefaultFormat] = useState("");
   const [manualBarcode, setManualBarcode] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
