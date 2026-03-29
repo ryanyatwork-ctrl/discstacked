@@ -438,7 +438,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     }
   }, [open]);
 
-  const selectedCount = queue.filter((q) => q.selected && q.status === "found").length;
+  const selectedCount = queue.filter((q) => q.selected && (q.status === "found" || q.status === "multi_movie")).length;
   const lookingCount = queue.filter((q) => q.status === "looking").length;
 
   return (
