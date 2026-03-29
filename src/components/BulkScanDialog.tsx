@@ -29,6 +29,7 @@ interface ScanQueueItem {
   alreadyOwned?: boolean;
   differentEdition?: boolean;
   existingTitle?: string;
+  existingFormats?: string[];
   extraMeta?: Record<string, any>;
 }
 
@@ -174,16 +175,18 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           // Check if already in collection
           let alreadyOwned = false;
           let existingTitle: string | undefined;
+          let existingFormats: string[] | undefined;
           if (user) {
             const { data: existing } = await supabase
               .from("media_items")
-              .select("title")
+              .select("title, formats")
               .eq("user_id", user.id)
               .eq("barcode", decoded)
               .limit(1);
             if (existing && existing.length > 0) {
               alreadyOwned = true;
               existingTitle = existing[0].title;
+              existingFormats = existing[0].formats || [];
               // Play a different warning tone
               try {
                 const ctx = new AudioContext();
@@ -215,6 +218,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             if (titleMatch && titleMatch.length > 0) {
               differentEdition = true;
               existingTitle = titleMatch[0].title;
+              existingFormats = titleMatch[0].formats || [];
             }
           }
           
@@ -227,7 +231,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     alreadyOwned,
                     differentEdition,
                     existingTitle: existingTitle || ('title' in result ? result.title : undefined),
-                    selected: !alreadyOwned, // keep selected even for different editions
+                    existingFormats,
+                    selected: !alreadyOwned,
                   }
                 : item
             )
@@ -282,13 +287,15 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     // Check existing
     let alreadyOwned = false;
     let existingTitle: string | undefined;
+    let existingFormats: string[] | undefined;
     if (user) {
       const { data: existing } = await supabase
-        .from("media_items").select("title")
+        .from("media_items").select("title, formats")
         .eq("user_id", user.id).eq("barcode", code).limit(1);
       if (existing && existing.length > 0) {
         alreadyOwned = true;
         existingTitle = existing[0].title;
+        existingFormats = existing[0].formats || [];
       }
     }
 
@@ -297,19 +304,20 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     let differentEdition = false;
     if (!alreadyOwned && user && 'title' in result && result.title) {
       const { data: titleMatch } = await supabase
-        .from("media_items").select("title")
+        .from("media_items").select("title, formats")
         .eq("user_id", user.id).eq("media_type", activeTab)
         .ilike("title", result.title).limit(1);
       if (titleMatch && titleMatch.length > 0) {
         differentEdition = true;
         existingTitle = existingTitle || titleMatch[0].title;
+        existingFormats = existingFormats || titleMatch[0].formats || [];
       }
     }
     
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
-          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
+          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), existingFormats, selected: !alreadyOwned }
           : item
       )
     );
@@ -524,18 +532,25 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                              {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
                            </p>
                           {item.alreadyOwned && (
-                            <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
-                              <Copy className="w-3 h-3" />
-                              Already in collection{item.existingTitle ? ` as "${item.existingTitle}"` : ""}
-                              {!item.selected && " — tap ✓ to add anyway"}
-                            </p>
-                          )}
-                          {!item.alreadyOwned && item.differentEdition && (
-                             <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
-                               <Layers className="w-3 h-3" />
-                               Different edition — you own "{item.existingTitle}" already (possibly different format/release)
+                             <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
+                               <Copy className="w-3 h-3" />
+                               Already in collection as "{item.existingTitle}"
+                               {item.existingFormats && item.existingFormats.length > 0 && (
+                                 <span className="font-semibold">({item.existingFormats.join(", ")})</span>
+                               )}
+                               {!item.selected && " — tap ✓ to add anyway"}
                              </p>
                            )}
+                           {!item.alreadyOwned && item.differentEdition && (
+                              <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                                <Layers className="w-3 h-3" />
+                                You own "{item.existingTitle}"
+                                {item.existingFormats && item.existingFormats.length > 0 && (
+                                  <span className="font-semibold">on {item.existingFormats.join(", ")}</span>
+                                )}
+                                — this is a different edition
+                              </p>
+                            )}
                         </>
                       ) : (
                         <p className="text-sm text-destructive">
