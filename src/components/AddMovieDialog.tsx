@@ -141,13 +141,18 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const handleBarcodeLookup = async (upc: string) => {
     if (!upc.trim()) return;
     setLookingUp(true);
+    setMultiMovieResult(null);
     try {
       await checkOwnership(undefined, upc.trim());
 
       const result = await lookupBarcode(activeTab, upc);
-      if (result.direct) {
+
+      // Multi-movie set detected
+      if (result.multiMovie) {
+        setMultiMovieResult(result.multiMovie);
+        toast({ title: "Multi-Movie Set Detected!", description: `${result.multiMovie.product_title} — ${result.multiMovie.movies.length} titles found` });
+      } else if (result.direct) {
         applyResult(result.direct);
-        // Check title ownership after applying
         await checkOwnership(result.direct.title, upc.trim());
         toast({ title: "Found it!", description: result.direct.title });
       } else if (result.results && result.results.length > 0) {
