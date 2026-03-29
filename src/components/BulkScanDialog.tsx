@@ -388,22 +388,6 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Default format (optional fallback) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Fallback format:</span>
-            <Select value={defaultFormat} onValueChange={setDefaultFormat}>
-              <SelectTrigger className="h-8 w-36 text-sm">
-                <SelectValue placeholder="Auto-detect" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Auto-detect</SelectItem>
-                {(FORMATS[activeTab] || []).map((f) => (
-                  <SelectItem key={f} value={f}>{f}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-[10px] text-muted-foreground">Only used if barcode lookup can't detect format</span>
-          </div>
 
           {/* Scanner mode buttons */}
           <div className="flex gap-2">
