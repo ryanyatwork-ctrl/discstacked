@@ -304,12 +304,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     let differentEdition = false;
     if (!alreadyOwned && user && 'title' in result && result.title) {
       const { data: titleMatch } = await supabase
-        .from("media_items").select("title")
+        .from("media_items").select("title, formats")
         .eq("user_id", user.id).eq("media_type", activeTab)
         .ilike("title", result.title).limit(1);
       if (titleMatch && titleMatch.length > 0) {
         differentEdition = true;
         existingTitle = existingTitle || titleMatch[0].title;
+        existingFormats = existingFormats || titleMatch[0].formats || [];
       }
     }
     
