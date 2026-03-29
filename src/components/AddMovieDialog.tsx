@@ -150,6 +150,11 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       // Multi-movie set detected
       if (result.multiMovie) {
         setMultiMovieResult(result.multiMovie);
+        // Auto-select detected formats into the format picker
+        if (result.multiMovie.detected_formats?.length) {
+          setFormats(result.multiMovie.detected_formats);
+          setFormat(result.multiMovie.detected_formats[0]);
+        }
         toast({ title: "Multi-Movie Set Detected!", description: `${result.multiMovie.product_title} — ${result.multiMovie.movies.length} titles found` });
       } else if (result.direct) {
         applyResult(result.direct);
