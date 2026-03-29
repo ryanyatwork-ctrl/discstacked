@@ -95,12 +95,24 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         )}
       </div>
 
+      {/* Edition badge */}
+      {(item.metadata as any)?.edition && (
+        <div className="absolute bottom-1.5 left-1.5">
+          <Badge variant="outline" className="text-[9px] bg-background/80 backdrop-blur-sm border-border/60 text-foreground">
+            {(item.metadata as any).edition}
+          </Badge>
+        </div>
+      )}
+
       {/* Hover overlay - only on poster cards */}
       {hasPoster && (
         <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end p-2">
           <div>
             <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{item.title}</p>
             {item.year && <p className="text-[10px] text-muted-foreground mt-0.5">{item.year}</p>}
+            {(item.metadata as any)?.edition && (
+              <p className="text-[10px] text-primary mt-0.5">{(item.metadata as any).edition}</p>
+            )}
           </div>
         </div>
       )}
