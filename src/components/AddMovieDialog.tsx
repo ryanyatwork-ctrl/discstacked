@@ -66,7 +66,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setGenre(""); setNotes(""); setArtist("");
     setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
-    setMultiSelect([]); setMultiSelectMode(false);
+    setMultiSelect([]); setMultiSelectMode(false); setOwnershipWarning(null);
   };
 
   const stopScanner = async () => {
