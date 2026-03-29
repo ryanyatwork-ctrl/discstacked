@@ -287,13 +287,15 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     // Check existing
     let alreadyOwned = false;
     let existingTitle: string | undefined;
+    let existingFormats: string[] | undefined;
     if (user) {
       const { data: existing } = await supabase
-        .from("media_items").select("title")
+        .from("media_items").select("title, formats")
         .eq("user_id", user.id).eq("barcode", code).limit(1);
       if (existing && existing.length > 0) {
         alreadyOwned = true;
         existingTitle = existing[0].title;
+        existingFormats = existing[0].formats || [];
       }
     }
 
