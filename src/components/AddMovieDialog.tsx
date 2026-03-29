@@ -100,26 +100,51 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     }
   };
 
+  const checkOwnership = async (checkTitle?: string, checkBarcode?: string) => {
+    if (!user) return;
+    // Check by barcode first
+    if (checkBarcode) {
+      const { data: existing } = await supabase
+        .from("media_items").select("title, formats")
+        .eq("user_id", user.id).eq("barcode", checkBarcode.trim()).limit(1);
+      if (existing && existing.length > 0) {
+        setOwnershipWarning({
+          type: "barcode",
+          existingTitle: existing[0].title,
+          existingFormats: existing[0].formats || [],
+        });
+        return;
+      }
+    }
+    // Check by title (different edition)
+    if (checkTitle) {
+      const { data: titleMatch } = await supabase
+        .from("media_items").select("title, formats")
+        .eq("user_id", user.id).eq("media_type", activeTab)
+        .ilike("title", checkTitle.trim()).limit(1);
+      if (titleMatch && titleMatch.length > 0) {
+        setOwnershipWarning({
+          type: "title",
+          existingTitle: titleMatch[0].title,
+          existingFormats: titleMatch[0].formats || [],
+        });
+        return;
+      }
+    }
+    setOwnershipWarning(null);
+  };
+
   const handleBarcodeLookup = async (upc: string) => {
     if (!upc.trim()) return;
     setLookingUp(true);
     try {
-      // Check for existing item with this barcode
-      if (user) {
-        const { data: existing } = await supabase
-          .from("media_items").select("title")
-          .eq("user_id", user.id).eq("barcode", upc.trim()).limit(1);
-        if (existing && existing.length > 0) {
-          toast({
-            title: "Already in collection",
-            description: `"${existing[0].title}" has this barcode. You can still add it if this is a different copy.`,
-          });
-        }
-      }
+      await checkOwnership(undefined, upc.trim());
 
       const result = await lookupBarcode(activeTab, upc);
       if (result.direct) {
         applyResult(result.direct);
+        // Check title ownership after applying
+        await checkOwnership(result.direct.title, upc.trim());
         toast({ title: "Found it!", description: result.direct.title });
       } else if (result.results && result.results.length > 0) {
         setSearchResults(result.results);
