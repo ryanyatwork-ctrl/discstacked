@@ -60,7 +60,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
   // Reset default format when tab changes
   useEffect(() => {
-    setDefaultFormat(FORMATS[activeTab]?.[0] || "");
+    setDefaultFormat("");
   }, [activeTab]);
 
   const stopScanner = async () => {
