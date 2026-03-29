@@ -216,6 +216,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     applyResult(result);
     setSearchResults([]);
     setMultiSelect([]);
+    // Check ownership by title
+    checkOwnership(result.title, barcode || undefined);
   };
 
   const handleBatchAdd = async () => {
