@@ -982,6 +982,9 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
           </div>
         </div>
       ) : null}
+
+      {/* Re-fetch details */}
+      <FetchDetailsButton item={item} />
     </div>
   );
 }
