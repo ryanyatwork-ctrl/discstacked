@@ -231,7 +231,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     alreadyOwned,
                     differentEdition,
                     existingTitle: existingTitle || ('title' in result ? result.title : undefined),
-                    selected: !alreadyOwned, // keep selected even for different editions
+                    existingFormats,
+                    selected: !alreadyOwned,
                   }
                 : item
             )
