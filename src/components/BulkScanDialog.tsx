@@ -291,10 +291,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     }
 
     const result = await doLookup(code);
+    
+    let differentEdition = false;
+    if (!alreadyOwned && user && 'title' in result && result.title) {
+      const { data: titleMatch } = await supabase
+        .from("media_items").select("title")
+        .eq("user_id", user.id).eq("media_type", activeTab)
+        .ilike("title", result.title).limit(1);
+      if (titleMatch && titleMatch.length > 0) {
+        differentEdition = true;
+        existingTitle = existingTitle || titleMatch[0].title;
+      }
+    }
+    
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
-          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
+          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
           : item
       )
     );
