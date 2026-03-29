@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth } from "lucide-react";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
@@ -27,6 +27,7 @@ interface ScanQueueItem {
   formats: string[];
   selected: boolean;
   alreadyOwned?: boolean;
+  differentEdition?: boolean;
   existingTitle?: string;
   extraMeta?: Record<string, any>;
 }
@@ -199,6 +200,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
           // Lookup in background using unified lookup
           const result = await doLookup(decoded);
+          
+          // If not already owned by barcode, check if we own the same title (different edition)
+          let differentEdition = false;
+          if (!alreadyOwned && user && 'title' in result && result.title) {
+            const { data: titleMatch } = await supabase
+              .from("media_items")
+              .select("title, formats")
+              .eq("user_id", user.id)
+              .eq("media_type", activeTab)
+              .ilike("title", result.title)
+              .limit(1);
+            if (titleMatch && titleMatch.length > 0) {
+              differentEdition = true;
+              existingTitle = titleMatch[0].title;
+            }
+          }
+          
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
@@ -206,8 +224,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     ...item,
                     ...result,
                     alreadyOwned,
+                    differentEdition,
                     existingTitle: existingTitle || ('title' in result ? result.title : undefined),
-                    selected: !alreadyOwned, // deselect by default if already owned
+                    selected: !alreadyOwned, // keep selected even for different editions
                   }
                 : item
             )
@@ -272,10 +291,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     }
 
     const result = await doLookup(code);
+    
+    let differentEdition = false;
+    if (!alreadyOwned && user && 'title' in result && result.title) {
+      const { data: titleMatch } = await supabase
+        .from("media_items").select("title")
+        .eq("user_id", user.id).eq("media_type", activeTab)
+        .ilike("title", result.title).limit(1);
+      if (titleMatch && titleMatch.length > 0) {
+        differentEdition = true;
+        existingTitle = existingTitle || titleMatch[0].title;
+      }
+    }
+    
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
-          ? { ...item, ...result, alreadyOwned, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
+          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
           : item
       )
     );
@@ -492,6 +524,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                               <Copy className="w-3 h-3" />
                               Already in collection{item.existingTitle ? ` as "${item.existingTitle}"` : ""}
                               {!item.selected && " — tap ✓ to add anyway"}
+                            </p>
+                          )}
+                          {!item.alreadyOwned && item.differentEdition && (
+                            <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                              <Layers className="w-3 h-3" />
+                              Different edition — you own "{item.existingTitle}" already
                             </p>
                           )}
                         </>

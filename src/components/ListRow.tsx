@@ -22,7 +22,12 @@ export function ListRow({ item, onClick }: ListRowProps) {
       onClick={() => onClick(item)}
       className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/60 transition-colors text-left group"
     >
-      <span className="flex-1 text-sm font-medium text-foreground truncate">{item.title}</span>
+      <span className="flex-1 text-sm font-medium text-foreground truncate">
+        {item.title}
+        {(item.metadata as any)?.edition && (
+          <span className="ml-1.5 text-[10px] text-primary font-normal">({(item.metadata as any).edition})</span>
+        )}
+      </span>
       {item.year && <span className="text-xs text-muted-foreground shrink-0">{item.year}</span>}
       {formatBadges.length > 0 && (
         <div className="flex items-center gap-1 shrink-0 max-w-[10rem] flex-wrap justify-end">
