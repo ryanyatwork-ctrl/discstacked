@@ -341,36 +341,85 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   };
 
   const handleCommit = async () => {
-    const selected = queue.filter((item) => item.selected && item.status === "found" && item.title);
-    if (selected.length === 0 || !user) return;
+    const singleItems = queue.filter((item) => item.selected && item.status === "found" && item.title);
+    const multiItems = queue.filter((item) => item.selected && item.status === "multi_movie" && item.multiMovie);
+    const totalCount = singleItems.length + multiItems.length;
+    if (totalCount === 0 || !user) return;
     setSaving(true);
     try {
-      const rows = selected.map((item) => ({
-        user_id: user.id,
-        title: item.title!,
-        year: item.year ?? null,
-        format: item.formats.length > 0 ? item.formats[0] : (item.format || null),
-        formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
-        genre: item.genre ?? null,
-        poster_url: item.posterUrl ?? null,
-        barcode: item.barcode,
-        media_type: activeTab,
-        metadata: {
-          ...(item.runtime ? { runtime: item.runtime } : {}),
-          ...(item.tagline ? { tagline: item.tagline } : {}),
-          ...(item.artist ? { artist: item.artist } : {}),
-          ...(item.author ? { author: item.author } : {}),
-          ...(item.extraMeta || {}),
-        },
-      }));
+      // Handle single items
+      if (singleItems.length > 0) {
+        const rows = singleItems.map((item) => ({
+          user_id: user.id,
+          title: item.title!,
+          year: item.year ?? null,
+          format: item.formats.length > 0 ? item.formats[0] : (item.format || null),
+          formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
+          genre: item.genre ?? null,
+          poster_url: item.posterUrl ?? null,
+          barcode: item.barcode,
+          media_type: activeTab,
+          external_id: item.tmdb_id ? String(item.tmdb_id) : null,
+          metadata: {
+            ...(item.runtime ? { runtime: item.runtime } : {}),
+            ...(item.tagline ? { tagline: item.tagline } : {}),
+            ...(item.artist ? { artist: item.artist } : {}),
+            ...(item.author ? { author: item.author } : {}),
+            ...(item.extraMeta || {}),
+          },
+        }));
 
-      for (let i = 0; i < rows.length; i += 500) {
-        const chunk = rows.slice(i, i + 500);
-        const { error } = await supabase.from("media_items").insert(chunk);
-        if (error) throw error;
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          const { data: inserted, error } = await supabase.from("media_items").insert(chunk as any).select();
+          if (error) throw error;
+
+          if (inserted) {
+            for (let j = 0; j < inserted.length; j++) {
+              const item = singleItems[i + j];
+              try {
+                await createPhysicalProductForItem(user.id, inserted[j].id, {
+                  barcode: item.barcode,
+                  productTitle: item.title!,
+                  formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
+                  mediaType: activeTab,
+                  format: item.formats[0] || item.format || null,
+                });
+              } catch (ppErr) {
+                console.warn("Physical product creation failed:", ppErr);
+              }
+            }
+          }
+        }
       }
 
-      toast({ title: "Added!", description: `${selected.length} items added to your collection.` });
+      // Handle multi-movie items
+      for (const item of multiItems) {
+        const mm = item.multiMovie!;
+        try {
+          await createMultiMovieProduct(
+            user.id,
+            {
+              barcode: item.barcode,
+              productTitle: mm.collection_name || mm.product_title,
+              formats: mm.detected_formats,
+              mediaType: activeTab,
+              discCount: mm.movies.length,
+            },
+            mm.movies.map(m => ({
+              tmdb_id: m.tmdb_id,
+              title: m.title,
+              year: m.year,
+              poster_url: m.poster_url,
+              overview: m.overview || null,
+            }))
+          );
+        } catch (mmErr: any) {
+          console.warn("Multi-movie creation failed:", mmErr);
+        }
+      }
+
+      toast({ title: "Added!", description: `${totalCount} items added to your collection.` });
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
       setQueue([]);
       processedBarcodesRef.current.clear();
