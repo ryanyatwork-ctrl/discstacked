@@ -317,7 +317,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
-          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), selected: !alreadyOwned }
+          ? { ...item, ...result, alreadyOwned, differentEdition, existingTitle: existingTitle || ('title' in result ? result.title : undefined), existingFormats, selected: !alreadyOwned }
           : item
       )
     );
