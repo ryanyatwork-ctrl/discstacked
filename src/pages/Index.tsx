@@ -342,6 +342,7 @@ export default function Index() { // force rebuild
             size="icon"
             className={viewMode === "covers" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
             onClick={() => setViewMode("covers")}
+            title="Cover grid"
           >
             <LayoutGrid className="h-4 w-4" />
           </Button>
@@ -350,8 +351,18 @@ export default function Index() { // force rebuild
             size="icon"
             className={viewMode === "list" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
             onClick={() => setViewMode("list")}
+            title="List view"
           >
             <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={viewMode === "editions" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("editions")}
+            title="Group by editions"
+          >
+            <Layers className="h-4 w-4" />
           </Button>
         </div>
       </div>
