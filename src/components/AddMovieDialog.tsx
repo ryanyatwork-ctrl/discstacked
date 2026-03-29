@@ -156,6 +156,24 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           setFormats(result.multiMovie.detected_formats);
           setFormat(result.multiMovie.detected_formats[0]);
         }
+        // Check which movies are already owned
+        if (user) {
+          const ownedMap: Record<number, string[]> = {};
+          for (const movie of result.multiMovie.movies) {
+            if (movie.tmdb_id) {
+              const { data: existing } = await supabase
+                .from("media_items").select("formats")
+                .eq("user_id", user.id)
+                .eq("external_id", String(movie.tmdb_id))
+                .eq("media_type", activeTab)
+                .limit(1);
+              if (existing && existing.length > 0) {
+                ownedMap[movie.tmdb_id] = existing[0].formats || [];
+              }
+            }
+          }
+          setMultiMovieOwned(ownedMap);
+        }
         toast({ title: "Multi-Movie Set Detected!", description: `${result.multiMovie.product_title} — ${result.multiMovie.movies.length} titles found` });
       } else if (result.direct) {
         applyResult(result.direct);
