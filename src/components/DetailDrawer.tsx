@@ -50,7 +50,6 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   useEffect(() => {
     setLocalFlags({});
     setLocalFormats(null);
-    setEditingBarcode(false);
     setEditingTags(false);
   }, [item?.id]);
 
