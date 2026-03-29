@@ -763,7 +763,7 @@ function AddEditionButton({ item, formats, onDuplicated }: { item: MediaItem; fo
   );
 }
 
-
+function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: { icon: any; label: string; active?: boolean; color: string; onToggle?: () => void; readOnly?: boolean }) {
   return (
     <button
       type="button"
