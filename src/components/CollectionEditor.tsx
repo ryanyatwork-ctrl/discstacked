@@ -1,40 +1,121 @@
 import { useState } from "react";
 import { MediaItem } from "@/lib/types";
 import { useUpdateItem } from "@/hooks/useMediaItems";
+import { usePhysicalProductsForItem } from "@/hooks/usePhysicalProducts";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Package, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import { Package, Pencil, Check, X, Plus, Trash2, Barcode, DollarSign, Calendar } from "lucide-react";
 
 interface CollectionEditorProps {
   item: MediaItem;
-  /** When true, hides edit controls (for shared view) */
   readOnly?: boolean;
 }
 
-function getCollectionMeta(item: MediaItem) {
+export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
+  const { data: physicalProducts, isLoading } = usePhysicalProductsForItem(item.id);
+  const [editing, setEditing] = useState(false);
+  const [isSet, setIsSet] = useState(false);
+  const [titles, setTitles] = useState<string[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const updateItem = useUpdateItem();
+
+  const hasPhysicalProducts = physicalProducts && physicalProducts.length > 0;
+  const multiTitleProducts = (physicalProducts || []).filter((pp: any) => pp.is_multi_title && pp.linkedItems?.length > 0);
+  const hasLinkedSets = multiTitleProducts.length > 0;
+
+  // Legacy metadata-based collection info
   const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, any>;
   const isBoxSet = meta.is_box_set === "true";
   let contents: string[] = [];
   try { contents = JSON.parse(meta.contents || "[]"); } catch {}
-  let boxSets: { title: string; format: string }[] = [];
-  try { boxSets = JSON.parse(meta.box_sets || "[]"); } catch {}
-  return { isBoxSet, contents, boxSets, meta };
-}
+  const hasLegacyData = isBoxSet || contents.length > 0;
 
-export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
-  const { isBoxSet, contents, boxSets, meta } = getCollectionMeta(item);
-  const [editing, setEditing] = useState(false);
-  const [isSet, setIsSet] = useState(isBoxSet);
-  const [titles, setTitles] = useState<string[]>(contents);
-  const [newTitle, setNewTitle] = useState("");
-  const updateItem = useUpdateItem();
+  // If we have real physical product data, show that instead of legacy metadata
+  if (hasLinkedSets || hasPhysicalProducts) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+          <Package className="w-3 h-3" /> Physical Copies
+        </p>
 
-  const hasData = isBoxSet || contents.length > 0 || boxSets.length > 0;
+        {isLoading && (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        )}
 
-  if (!hasData && readOnly) return null;
+        {(physicalProducts || []).map((pp: any) => (
+          <div key={pp.id} className="rounded-md border border-border bg-secondary/50 p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{pp.product_title}</p>
+                {pp.edition && (
+                  <p className="text-xs text-muted-foreground">{pp.edition}</p>
+                )}
+              </div>
+              {pp.formats && pp.formats.length > 0 && (
+                <div className="flex gap-1 shrink-0">
+                  {pp.formats.map((f: string) => (
+                    <Badge key={f} variant="secondary" className="text-[10px]">{f}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Barcode */}
+            {pp.barcode && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Barcode className="w-3 h-3" />
+                <span className="font-mono">{pp.barcode}</span>
+              </div>
+            )}
+
+            {/* Purchase info */}
+            {(pp.purchase_date || pp.purchase_price || pp.purchase_location) && (
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {pp.purchase_date && (
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {pp.purchase_date}
+                  </span>
+                )}
+                {pp.purchase_price != null && (
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    ${Number(pp.purchase_price).toFixed(2)}
+                  </span>
+                )}
+                {pp.purchase_location && (
+                  <span>{pp.purchase_location}</span>
+                )}
+              </div>
+            )}
+
+            {/* Linked movies (other movies in the same set) */}
+            {pp.linkedItems && pp.linkedItems.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Also in this set:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {pp.linkedItems.map((linked: any) => (
+                    <Badge key={linked.id} variant="outline" className="text-[10px] gap-1">
+                      {linked.poster_url && (
+                        <img src={linked.poster_url} alt="" className="w-3 h-4 rounded-sm object-cover" />
+                      )}
+                      {linked.title} {linked.year ? `(${linked.year})` : ""}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Legacy fallback: metadata-based collection editor
+  if (!hasLegacyData && readOnly) return null;
 
   const startEditing = () => {
     setIsSet(isBoxSet);
@@ -73,35 +154,9 @@ export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
     }
   };
 
-  // Read-only display for contained titles (shared view or non-editing)
   if (!editing) {
     return (
       <div className="space-y-2">
-        {/* "Part of" links — this item belongs to box sets */}
-        {boxSets.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-              <Package className="w-3 h-3" /> Part Of
-            </p>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
-                <Package className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-xs text-foreground">Standalone copy</span>
-              </div>
-              {boxSets.map((bs, i) => (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-secondary">
-                  <Package className="w-4 h-4 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <span className="text-xs text-foreground block truncate">Part of: {bs.title}</span>
-                    <span className="text-[10px] text-muted-foreground">{bs.format}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Collection contents — this item IS a box set */}
         {isBoxSet && contents.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -122,8 +177,7 @@ export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
           </div>
         )}
 
-        {/* No data yet — show add button */}
-        {!hasData && !readOnly && (
+        {!hasLegacyData && !readOnly && (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
               <Package className="w-3 h-3" /> Collection / Compilation
@@ -134,7 +188,6 @@ export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
           </div>
         )}
 
-        {/* Has data but no contents listed yet — editing prompt */}
         {isBoxSet && contents.length === 0 && !readOnly && (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
