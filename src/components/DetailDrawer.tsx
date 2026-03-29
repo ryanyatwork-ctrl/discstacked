@@ -690,7 +690,80 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   );
 }
 
-function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: { icon: any; label: string; active?: boolean; color: string; onToggle?: () => void; readOnly?: boolean }) {
+function AddEditionButton({ item, formats, onDuplicated }: { item: MediaItem; formats: string[]; onDuplicated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [editionName, setEditionName] = useState("");
+  const duplicateItem = useDuplicateItem();
+
+  const handleAddEdition = async () => {
+    const trimmed = editionName.trim();
+    if (!trimmed) return;
+    try {
+      const dbItem: any = {
+        title: item.title,
+        year: item.year ?? null,
+        format: item.format ?? null,
+        formats: formats,
+        poster_url: item.posterUrl ?? null,
+        genre: item.genre ?? null,
+        rating: item.rating ?? null,
+        notes: null,
+        in_plex: false,
+        digital_copy: false,
+        wishlist: false,
+        want_to_watch: false,
+        last_watched: null,
+        watch_notes: null,
+        media_type: item.mediaType ?? "movies",
+        barcode: null,
+        sort_title: item.sortTitle ?? null,
+        metadata: { edition: trimmed },
+      };
+      await duplicateItem.mutateAsync(dbItem);
+      toast({ title: "Edition added!", description: `${item.title} — ${trimmed}` });
+      onDuplicated?.();
+      setOpen(false);
+      setEditionName("");
+    } catch {
+      toast({ title: "Failed to add edition", variant: "destructive" });
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Different Edition
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Add Edition of "{item.title}"</AlertDialogTitle>
+          <AlertDialogDescription>
+            Enter the edition name (e.g., "Steelbook", "3 Disc Deluxe Edition", "4K/Blu-ray/Digital"). 
+            This creates a new entry with the same title but different edition info.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <Input
+          value={editionName}
+          onChange={(e) => setEditionName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAddEdition()}
+          placeholder="e.g. Steelbook, 3 Disc Deluxe, 4K/Blu-ray Combo"
+          autoFocus
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleAddEdition} disabled={!editionName.trim() || duplicateItem.isPending}>
+            {duplicateItem.isPending ? "Adding..." : "Add Edition"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+
   return (
     <button
       type="button"
