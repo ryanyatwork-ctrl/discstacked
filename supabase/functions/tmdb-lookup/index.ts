@@ -139,17 +139,12 @@ serve(async (req) => {
               const collData = await collRes.json();
 
               if (collData.results?.length > 0) {
-                // Strict word-boundary match: franchise name must appear as whole word(s) at start of collection name
-                const fnWords = franchiseName.toLowerCase().split(/\s+/);
+                // Strict match: collection base name must equal franchise name (case-insensitive)
+                const fn = franchiseName.toLowerCase().trim();
                 const matched = collData.results.find((c: any) => {
                   const cn = (c.name || "").toLowerCase();
                   const cnBase = cn.replace(/\s*collection\s*$/i, "").trim();
-                  // Collection base name must start with or equal the franchise name
-                  return cnBase === franchiseName.toLowerCase() || 
-                    cnBase.startsWith(franchiseName.toLowerCase() + " ") ||
-                    // Or all franchise words appear as whole words in the collection name
-                    fnWords.every(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(cn)) && 
-                    fnWords.length >= cn.replace(/\s*collection\s*$/i, "").trim().split(/\s+/).length * 0.5;
+                  return cnBase === fn;
                 });
                 if (matched) {
                   bestCollection = matched;
