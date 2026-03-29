@@ -129,14 +129,33 @@ serve(async (req) => {
               .replace(/\s+/g, " ")
               .trim();
 
-            const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(franchiseName)}&language=en-US`;
-            const collRes = await fetch(collUrl);
-            const collData = await collRes.json();
+            // Try multiple search queries: full title first, then franchise name
+            const searchQueries = [cleanTitle, franchiseName].filter(Boolean);
+            let bestCollection: any = null;
 
-            if (collData.results?.length > 0) {
-              const collId = collData.results[0].id;
+            for (const sq of searchQueries) {
+              const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(sq)}&language=en-US`;
+              const collRes = await fetch(collUrl);
+              const collData = await collRes.json();
+
+              if (collData.results?.length > 0) {
+                // Strict match: collection base name must equal franchise name (case-insensitive)
+                const fn = franchiseName.toLowerCase().trim();
+                const matched = collData.results.find((c: any) => {
+                  const cn = (c.name || "").toLowerCase();
+                  const cnBase = cn.replace(/\s*collection\s*$/i, "").trim();
+                  return cnBase === fn;
+                });
+                if (matched) {
+                  bestCollection = matched;
+                  break;
+                }
+              }
+            }
+
+            if (bestCollection) {
               const collDetailRes = await fetch(
-                `https://api.themoviedb.org/3/collection/${collId}?api_key=${TMDB_API_KEY}&language=en-US`
+                `https://api.themoviedb.org/3/collection/${bestCollection.id}?api_key=${TMDB_API_KEY}&language=en-US`
               );
               const collDetail = await collDetailRes.json();
 
@@ -223,164 +242,166 @@ serve(async (req) => {
         return null;
       }
 
-      // ========== SOURCE 1: UPCitemdb ==========
+      // Debug log accumulator
+      const debugLog: { source: string; status: string; raw?: any }[] = [];
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
+
+      // ========== SOURCE 1: UPCitemdb ==========
       try {
         const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
-        if (upcRes.ok) {
-          const upcData = await upcRes.json();
-          if (upcData.items?.length > 0) {
-            const upcItem = upcData.items[0];
-            upcTitle = upcItem.title || "";
-            const allText = `${upcTitle} ${upcItem.category || ""} ${upcItem.description || ""}`;
-            upcFormats = detectFormats(allText);
-            upcCleanTitle = cleanProductTitle(upcTitle);
+        const upcRaw = upcRes.ok ? await upcRes.json() : null;
+        if (upcRaw?.items?.length > 0) {
+          const upcItem = upcRaw.items[0];
+          upcTitle = upcItem.title || "";
+          const allText = `${upcTitle} ${upcItem.category || ""} ${upcItem.description || ""}`;
+          upcFormats = detectFormats(allText);
+          upcCleanTitle = cleanProductTitle(upcTitle);
+          debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
-            if (upcCleanTitle) {
-              const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats);
-              if (result) {
-                return new Response(JSON.stringify(result), {
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-              }
+          if (upcCleanTitle) {
+            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats);
+            if (result) {
+              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
             }
           }
+        } else {
+          debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
         }
-      } catch {
-        // UPCitemdb failed, try next source
+      } catch (e) {
+        debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(e) });
       }
 
-      // ========== SOURCE 2: Barcodelookup.com ==========
+      // ========== SOURCE 2: Discogs ==========
       try {
-        const bclRes = await fetch(`https://api.barcodelookup.com/v3/products?barcode=${encodeURIComponent(barcode)}&formatted=y&key=`);
-        // Free tier returns 403 without key, but trial may work for some
-        if (bclRes.ok) {
-          const bclData = await bclRes.json();
-          if (bclData.products?.length > 0) {
-            const bclItem = bclData.products[0];
-            const bclTitle = bclItem.title || bclItem.product_name || "";
-            const bclDesc = bclItem.description || bclItem.category || "";
-            const bclAllText = `${bclTitle} ${bclDesc}`;
-            const bclFormats = upcFormats.length > 0 ? upcFormats : detectFormats(bclAllText);
-            const bclCleanTitle = cleanProductTitle(bclTitle);
+        const discogsRes = await fetch(`https://api.discogs.com/database/search?barcode=${encodeURIComponent(barcode)}&type=release`, {
+          headers: { "User-Agent": "DiscStacked/1.0" },
+        });
+        const discogsRaw = discogsRes.ok ? await discogsRes.json() : null;
+        if (discogsRaw?.results?.length > 0) {
+          const discogsItem = discogsRaw.results[0];
+          const discogsTitle = discogsItem.title || "";
+          const discogsAllText = `${discogsTitle} ${(discogsItem.format || []).join(" ")} ${(discogsItem.label || []).join(" ")}`;
+          const discogsFormats = upcFormats.length > 0 ? upcFormats : detectFormats(discogsAllText);
+          const discogsCleanTitle = cleanProductTitle(discogsTitle);
+          debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
 
-            if (bclCleanTitle) {
-              const result = await processBarcodeTitle(bclCleanTitle, bclTitle, bclFormats);
-              if (result) {
-                return new Response(JSON.stringify(result), {
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-              }
+          if (discogsCleanTitle) {
+            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats);
+            if (result) {
+              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
             }
           }
+        } else {
+          debugLog.push({ source: "Discogs", status: "MISS", raw: discogsRaw });
         }
-      } catch {
-        // Barcodelookup failed, try next source
+      } catch (e) {
+        debugLog.push({ source: "Discogs", status: "ERROR", raw: String(e) });
       }
 
       // ========== SOURCE 3: Open Library ISBN lookup ==========
       try {
         const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(barcode)}&format=json&jscmd=data`);
-        if (olRes.ok) {
-          const olData = await olRes.json();
-          const olKey = Object.keys(olData)[0];
-          if (olKey && olData[olKey]?.title) {
-            const olTitle = olData[olKey].title;
-            const olCleanTitle = cleanProductTitle(olTitle);
-            const olFormats = upcFormats.length > 0 ? upcFormats : [];
+        const olRaw = olRes.ok ? await olRes.json() : null;
+        const olKey = olRaw ? Object.keys(olRaw)[0] : null;
+        if (olKey && olRaw[olKey]?.title) {
+          const olTitle = olRaw[olKey].title;
+          const olCleanTitle = cleanProductTitle(olTitle);
+          const olFormats = upcFormats.length > 0 ? upcFormats : [];
+          debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: olTitle } });
 
-            if (olCleanTitle) {
-              const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats);
-              if (result) {
-                return new Response(JSON.stringify(result), {
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-              }
+          if (olCleanTitle) {
+            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats);
+            if (result) {
+              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
             }
           }
+        } else {
+          debugLog.push({ source: "OpenLibrary", status: "MISS", raw: olRaw });
         }
-      } catch {
-        // Open Library failed, try next source
+      } catch (e) {
+        debugLog.push({ source: "OpenLibrary", status: "ERROR", raw: String(e) });
       }
 
       // ========== SOURCE 4: TMDB direct UPC/EAN lookup ==========
       try {
         const findRes = await fetch(`https://api.themoviedb.org/3/find/${encodeURIComponent(barcode)}?api_key=${TMDB_API_KEY}&external_source=upc&language=en-US`);
-        if (findRes.ok) {
-          const findData = await findRes.json();
-          const movieResults = findData.movie_results || [];
-          const tvResults = findData.tv_results || [];
+        const findRaw = findRes.ok ? await findRes.json() : null;
+        const movieResults = findRaw?.movie_results || [];
+        const tvResults = findRaw?.tv_results || [];
 
-          if (movieResults.length > 0) {
-            const m = movieResults[0];
-            const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
-            const formats = upcFormats.length > 0 ? upcFormats : [];
-            return new Response(JSON.stringify({ ...detail, barcode_title: m.title, detected_formats: formats }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          if (tvResults.length > 0) {
-            const t = tvResults[0];
-            const formats = upcFormats.length > 0 ? upcFormats : [];
-            return new Response(JSON.stringify({
-              tmdb_id: t.id,
-              title: t.name,
-              year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-              poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-              rating: t.vote_average || null,
-              overview: t.overview || null,
-              media_type: "tv",
-              barcode_title: t.name,
-              detected_formats: formats,
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
+        if (movieResults.length > 0) {
+          const m = movieResults[0];
+          const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
+          const formats = upcFormats.length > 0 ? upcFormats : [];
+          debugLog.push({ source: "TMDB-UPC", status: "HIT-movie", raw: { id: m.id, title: m.title } });
+          return new Response(JSON.stringify({ ...detail, barcode_title: m.title, detected_formats: formats, _debug: debugLog }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
-      } catch {
-        // TMDB find failed, try fuzzy fallback
+        if (tvResults.length > 0) {
+          const t = tvResults[0];
+          const formats = upcFormats.length > 0 ? upcFormats : [];
+          debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: t.id, title: t.name } });
+          return new Response(JSON.stringify({
+            tmdb_id: t.id, title: t.name,
+            year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
+            poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
+            rating: t.vote_average || null, overview: t.overview || null,
+            media_type: "tv", barcode_title: t.name, detected_formats: formats, _debug: debugLog,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        debugLog.push({ source: "TMDB-UPC", status: "MISS", raw: findRaw });
+      } catch (e) {
+        debugLog.push({ source: "TMDB-UPC", status: "ERROR", raw: String(e) });
       }
 
       // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
       const fallbackTitle = upcCleanTitle || "";
       if (fallbackTitle) {
-        // Try movie search with high confidence threshold
         const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY);
         if (movieResults.length > 0) {
           const best = movieResults[0];
           const bestTitle = (best.title || "").toLowerCase();
           const searchTitle = fallbackTitle.toLowerCase();
-          // Require the search title to appear substantially in the result title or vice versa
           const isHighConfidence = bestTitle.includes(searchTitle) || searchTitle.includes(bestTitle) ||
             bestTitle.split(/\s+/).filter((w: string) => searchTitle.includes(w)).length >= Math.max(1, Math.floor(searchTitle.split(/\s+/).length * 0.6));
 
+          debugLog.push({ source: "TMDB-fuzzy", status: isHighConfidence ? "HIT-highconf" : "MISS-lowconf", raw: { query: fallbackTitle, bestResult: best.title, bestId: best.id } });
+
           if (isHighConfidence) {
             const detail = await fetchTmdbMovieDetails(best.id, TMDB_API_KEY);
-            return new Response(JSON.stringify({ ...detail, barcode_title: upcTitle, detected_formats: upcFormats }), {
+            return new Response(JSON.stringify({ ...detail, barcode_title: upcTitle, detected_formats: upcFormats, _debug: debugLog }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
+        } else {
+          debugLog.push({ source: "TMDB-fuzzy", status: "MISS-noresults", raw: { query: fallbackTitle } });
         }
 
-        // No high-confidence match — return partial data for soft-fail UI
+        // Partial data soft-fail
         return new Response(JSON.stringify({
-          title: fallbackTitle,
-          barcode_title: upcTitle,
-          detected_formats: upcFormats,
-          barcode_not_found: false,
+          title: fallbackTitle, barcode_title: upcTitle, detected_formats: upcFormats,
+          barcode_not_found: false, _debug: debugLog,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       // ========== ALL SOURCES FAILED ==========
+      debugLog.push({ source: "ALL", status: "FAILED" });
       return new Response(JSON.stringify({
-        barcode_not_found: true,
-        barcode_value: barcode,
-        title: "",
-        detected_formats: [],
+        barcode_not_found: true, barcode_value: barcode,
+        title: "", detected_formats: [], _debug: debugLog,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
