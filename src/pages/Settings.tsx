@@ -385,6 +385,20 @@ export default function Settings() {
             </p>
             <GenerateAiCoversButton userId={user.id} />
           </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Review and fix slash-titles, collection keywords, and duplicate entries in your library.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={() => navigate("/admin/cleanup")}
+            >
+              <Sparkles className="h-4 w-4" />
+              Collection Cleanup Tool
+            </Button>
+          </div>
         </section>
 
         {/* VGG Import */}
