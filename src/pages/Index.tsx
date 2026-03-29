@@ -367,28 +367,77 @@ export default function Index() { // force rebuild
         </div>
       </div>
 
-      {/* Grid / List */}
+      {/* Grid / List / Editions */}
       <main className="px-4 pb-8" ref={gridRef}>
-        {sortedLetters.map((letter) => (
-          <div key={letter} id={`letter-${letter}`} className="mb-6">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
-              {letter}
-            </h2>
-            {viewMode === "covers" ? (
-              <div className="poster-grid">
-                {groupedItems[letter].map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
-                ))}
+        {viewMode === "editions" ? (
+          // Editions grouped view
+          Object.entries(editionGroups)
+            .sort(([a], [b]) => sortTitle(a).localeCompare(sortTitle(b)))
+            .map(([title, items]) => (
+              <div key={title} className="mb-4">
+                <div className="flex items-center gap-2 py-1.5">
+                  <h3 className="text-sm font-semibold text-foreground truncate">{title}</h3>
+                  {items[0]?.year && <span className="text-xs text-muted-foreground">({items[0].year})</span>}
+                  {items.length > 1 && (
+                    <Badge variant="secondary" className="text-[10px]">{items.length} editions</Badge>
+                  )}
+                </div>
+                <div className="flex flex-col pl-3 border-l-2 border-border/50">
+                  {items.map((item) => {
+                    const edition = (item.metadata as any)?.edition;
+                    const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedItemId(item.id)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary/60 transition-colors text-left"
+                      >
+                        {item.posterUrl && (
+                          <img src={item.posterUrl} alt="" className="w-8 h-12 rounded object-cover shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-foreground">
+                            {edition || "Standard Edition"}
+                          </span>
+                          {(item.metadata as any)?.case_type && (
+                            <span className="text-[10px] text-muted-foreground ml-1">· {(item.metadata as any).case_type}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {formatBadges.map((f) => (
+                            <Badge key={f} variant={f === "4K" ? "4k" : f === "Blu-ray" ? "bluray" : f === "DVD" ? "dvd" : "secondary"} className="text-[10px]">
+                              {f}
+                            </Badge>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <div className="flex flex-col">
-                {groupedItems[letter].map((item) => (
-                  <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+            ))
+        ) : (
+          sortedLetters.map((letter) => (
+            <div key={letter} id={`letter-${letter}`} className="mb-6">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
+                {letter}
+              </h2>
+              {viewMode === "covers" ? (
+                <div className="poster-grid">
+                  {groupedItems[letter].map((item) => (
+                    <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {groupedItems[letter].map((item) => (
+                    <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
         {!isLoading && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
             {user ? (
