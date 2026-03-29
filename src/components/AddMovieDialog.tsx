@@ -264,6 +264,37 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const effectiveWantToWatch = (!format && formats.length === 0) ? true : wantToWatch;
 
+  const handleAddMultiMovie = async () => {
+    if (!multiMovieResult || !user) return;
+    setMultiMovieSaving(true);
+    try {
+      const { mediaItemIds } = await createMultiMovieProduct(
+        user.id,
+        {
+          barcode: barcode || null,
+          productTitle: multiMovieResult.collection_name || multiMovieResult.product_title,
+          formats: multiMovieResult.detected_formats,
+          mediaType: activeTab,
+          discCount: multiMovieResult.movies.length,
+        },
+        multiMovieResult.movies.map(m => ({
+          tmdb_id: m.tmdb_id,
+          title: m.title,
+          year: m.year,
+          poster_url: m.poster_url,
+          overview: m.overview || null,
+        }))
+      );
+      toast({ title: "Added!", description: `${multiMovieResult.movies.length} titles added from "${multiMovieResult.product_title}"` });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      resetForm();
+      setOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add", description: err.message, variant: "destructive" });
+    }
+    setMultiMovieSaving(false);
+  };
+
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
@@ -272,12 +303,16 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       if (artist && isMusicTab) {
         metaPayload["artist"] = artist;
       }
-      const { error } = await supabase.from("media_items").insert({
+
+      const tmdbId = extraMeta.tmdb_id || null;
+      const effectiveFormats = formats.length > 0 ? formats : (format ? [format] : []);
+
+      const { data: newItem, error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
         year: year ? parseInt(year) : null,
-        format: formats.length > 0 ? formats[0] : (format || null),
-        formats: formats.length > 0 ? formats : (format ? [format] : []),
+        format: effectiveFormats[0] || null,
+        formats: effectiveFormats,
         barcode: barcode || null,
         genre: genre || null,
         notes: notes || null,
@@ -287,9 +322,24 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
+        external_id: tmdbId ? String(tmdbId) : null,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
-      });
+      } as any).select().single();
       if (error) throw error;
+
+      // Also create a physical_product + media_copy record
+      try {
+        await createPhysicalProductForItem(user.id, newItem.id, {
+          barcode: barcode || null,
+          productTitle: title.trim(),
+          formats: effectiveFormats,
+          mediaType: activeTab,
+          format: effectiveFormats[0] || null,
+        });
+      } catch (ppErr) {
+        console.warn("Physical product creation failed (non-critical):", ppErr);
+      }
+
       toast({ title: "Added!", description: `${title} added to your collection.` });
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
       resetForm();
