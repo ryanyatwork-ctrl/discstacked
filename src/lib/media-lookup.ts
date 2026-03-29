@@ -8,6 +8,7 @@ export interface MediaLookupResult {
   cover_url: string | null;
   genre: string | null;
   // Movies
+  tmdb_id?: number | null;
   runtime?: number | null;
   tagline?: string | null;
   overview?: string | null;
@@ -34,39 +35,67 @@ export interface MediaLookupResult {
   detected_formats?: string[];
 }
 
+export interface MultiMovieResult {
+  is_multi_movie: true;
+  product_title: string;
+  barcode_title: string;
+  detected_formats: string[];
+  collection_name?: string;
+  movies: {
+    tmdb_id: number | null;
+    title: string;
+    year: number | null;
+    poster_url: string | null;
+    overview?: string | null;
+  }[];
+}
+
+export type BarcodeLookupResult = {
+  direct?: MediaLookupResult;
+  results?: MediaLookupResult[];
+  multiMovie?: MultiMovieResult;
+};
+
 export async function searchMedia(
   activeTab: MediaTab,
   query: string,
   opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv" }
 ): Promise<MediaLookupResult[]> {
-  if (activeTab === "movies" || activeTab === "music-films") {
-    return searchTmdb(query, opts);
-  }
-  if (activeTab === "cds") {
-    return searchMusic(query, opts?.barcode);
-  }
-  if (activeTab === "games") {
-    return searchGames(query);
-  }
-  if (activeTab === "books") {
-    return searchBooks(query, opts?.barcode);
-  }
+  if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(query, opts);
+  if (activeTab === "cds") return searchMusic(query, opts?.barcode);
+  if (activeTab === "games") return searchGames(query);
   return [];
 }
 
 export async function lookupBarcode(
   activeTab: MediaTab,
   barcode: string
-): Promise<{ direct?: MediaLookupResult; results?: MediaLookupResult[] }> {
+): Promise<BarcodeLookupResult> {
   if (activeTab === "movies" || activeTab === "music-films") {
     const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
       body: { barcode },
     });
     if (error) throw new Error(error.message);
+
+    // Multi-movie detection
+    if (data?.is_multi_movie && data?.multi_movies?.length > 0) {
+      return {
+        multiMovie: {
+          is_multi_movie: true,
+          product_title: data.product_title,
+          barcode_title: data.barcode_title,
+          detected_formats: data.detected_formats || [],
+          collection_name: data.collection_name,
+          movies: data.multi_movies,
+        },
+      };
+    }
+
     if (data?.title) {
       return {
         direct: {
           id: String(data.tmdb_id || barcode),
+          tmdb_id: data.tmdb_id || null,
           title: data.title,
           year: data.year || null,
           cover_url: data.poster_url || null,
@@ -112,7 +141,6 @@ export async function lookupBarcode(
     return {};
   }
 
-  // Games don't typically have barcodes
   return {};
 }
 
@@ -121,6 +149,7 @@ export async function lookupBarcode(
 function mapTmdbResult(r: any): MediaLookupResult {
   return {
     id: `tmdb-${r.tmdb_id}`,
+    tmdb_id: r.tmdb_id,
     title: r.title,
     year: r.year || null,
     cover_url: r.poster_url || null,
