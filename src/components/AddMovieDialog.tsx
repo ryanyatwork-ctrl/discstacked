@@ -478,8 +478,47 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           )}
 
+          {/* Multi-Movie Set Detected */}
+          {multiMovieResult && (
+            <div className="rounded-lg border-2 border-primary/50 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">Multi-Movie Set Detected</p>
+                  <p className="text-xs text-muted-foreground">{multiMovieResult.collection_name || multiMovieResult.product_title}</p>
+                </div>
+              </div>
+              {multiMovieResult.detected_formats.length > 0 && (
+                <div className="flex gap-1">
+                  {multiMovieResult.detected_formats.map(f => (
+                    <span key={f} className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary/20 text-primary border border-primary/30">{f}</span>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {multiMovieResult.movies.map((movie, i) => (
+                  <div key={i} className="flex gap-2 items-start p-2 rounded-md bg-background border border-border">
+                    {movie.poster_url ? (
+                      <img src={movie.poster_url} alt={movie.title} className="w-10 h-14 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-14 rounded bg-secondary shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{movie.title}</p>
+                      {movie.year && <p className="text-[10px] text-muted-foreground">{movie.year}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleAddMultiMovie} disabled={multiMovieSaving} className="w-full gap-2">
+                {multiMovieSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add All {multiMovieResult.movies.length} Movies to Collection
+              </Button>
+            </div>
+          )}
+
           {/* Ownership warning */}
-          {ownershipWarning && (
+          {ownershipWarning && !multiMovieResult && (
             <div className={`flex items-start gap-2 rounded-md border p-3 ${
               ownershipWarning.type === "barcode" 
                 ? "border-warning/40 bg-warning/10" 
