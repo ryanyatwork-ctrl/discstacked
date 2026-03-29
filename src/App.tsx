@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound.tsx";
 import Terms from "./pages/Terms.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import Admin from "./pages/Admin.tsx";
+import CollectionCleanup from "./pages/CollectionCleanup.tsx";
 import Analytics from "./components/Analytics.tsx";
 
 const queryClient = new QueryClient();
