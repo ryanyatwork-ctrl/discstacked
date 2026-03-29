@@ -148,11 +148,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           processedBarcodesRef.current.add(decoded);
 
           // Add to queue immediately as "looking"
+          const fallback = defaultFormat && defaultFormat !== "auto" ? defaultFormat : "";
           const newItem: ScanQueueItem = {
             barcode: decoded,
             status: "looking",
-            format: defaultFormat,
-            formats: defaultFormat ? [defaultFormat] : [],
+            format: fallback,
+            formats: fallback ? [fallback] : [],
             selected: true,
           };
           setQueue((prev) => [newItem, ...prev]);
