@@ -100,7 +100,7 @@ serve(async (req) => {
 
       // --- Helper: clean a product title for TMDB search ---
       function cleanProductTitle(raw: string): string {
-        return raw
+        let cleaned = raw
           .replace(/^[\w\s&.']+?\s*-\s*/i, "")
           .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
           .replace(/\[.*?\]/g, "")
@@ -108,6 +108,44 @@ serve(async (req) => {
           .replace(/\s*[,+]\s*$/g, "")
           .replace(/\s+/g, " ")
           .trim();
+        return cleaned;
+      }
+
+      // Normalize verbose TV season titles for TMDB search
+      // e.g. "The Big Bang Theory: The Complete Seventh Season" → "The Big Bang Theory - Season 7"
+      function normalizeTvSeasonTitle(title: string): { normalized: string; seasonNum: number | null } {
+        const ordinals: Record<string, number> = {
+          first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+          seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
+          thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
+          seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
+        };
+        // Match patterns like "The Complete Seventh Season" or "Complete Season 7" or "Season Seven"
+        const ordinalPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?(\w+)\s+season\b/i;
+        const numericPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)/i;
+        
+        let seasonNum: number | null = null;
+        let showName = title;
+        
+        const numMatch = title.match(numericPattern);
+        if (numMatch) {
+          seasonNum = parseInt(numMatch[1]);
+          showName = title.substring(0, title.indexOf(numMatch[0])).trim();
+        } else {
+          const ordMatch = title.match(ordinalPattern);
+          if (ordMatch) {
+            const word = ordMatch[1].toLowerCase();
+            if (ordinals[word]) {
+              seasonNum = ordinals[word];
+              showName = title.substring(0, title.indexOf(ordMatch[0])).trim();
+            }
+          }
+        }
+        
+        if (seasonNum !== null) {
+          return { normalized: `${showName} - Season ${seasonNum}`, seasonNum };
+        }
+        return { normalized: title, seasonNum: null };
       }
 
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
