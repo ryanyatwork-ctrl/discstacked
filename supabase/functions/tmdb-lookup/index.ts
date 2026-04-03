@@ -247,6 +247,51 @@ serve(async (req) => {
 
         // Single movie lookup
         if (cleanTitle) {
+          // Try normalizing as a TV season title first
+          const { normalized: tvNormalized, seasonNum } = normalizeTvSeasonTitle(cleanTitle);
+          
+          // If it looks like a TV season, try TV search first
+          if (seasonNum !== null) {
+            const showName = tvNormalized.replace(/\s*-\s*Season\s*\d+$/i, "").trim();
+            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
+            const tvRes = await fetch(tvUrl);
+            const tvData = await tvRes.json();
+            if (tvData.results?.length > 0) {
+              const show = tvData.results[0];
+              // Try to get season-specific poster
+              try {
+                const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;
+                const seasonRes = await fetch(seasonUrl);
+                if (seasonRes.ok) {
+                  const season = await seasonRes.json();
+                  return {
+                    tmdb_id: show.id,
+                    title: `${show.name} - Season ${seasonNum}`,
+                    year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : (show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null),
+                    poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
+                    rating: show.vote_average || null,
+                    overview: season.overview || show.overview || null,
+                    media_type: "tv_season",
+                    barcode_title: rawTitle,
+                    detected_formats,
+                  };
+                }
+              } catch {}
+              // Fallback to show-level data
+              return {
+                tmdb_id: show.id,
+                title: `${show.name} - Season ${seasonNum}`,
+                year: show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null,
+                poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+                rating: show.vote_average || null,
+                overview: show.overview || null,
+                media_type: "tv",
+                barcode_title: rawTitle,
+                detected_formats,
+              };
+            }
+          }
+
           const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY);
           if (movieResults.length > 0) {
             const m = movieResults[0];
@@ -254,23 +299,25 @@ serve(async (req) => {
             return { ...detail, barcode_title: rawTitle, detected_formats };
           }
 
-          // Try TV
-          const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
-          const tvRes = await fetch(tvUrl);
-          const tvData = await tvRes.json();
-          if (tvData.results?.length > 0) {
-            const t = tvData.results[0];
-            return {
-              tmdb_id: t.id,
-              title: t.name,
-              year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-              poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-              rating: t.vote_average || null,
-              overview: t.overview || null,
-              media_type: "tv",
-              barcode_title: rawTitle,
-              detected_formats,
-            };
+          // Try TV (for non-season titles)
+          if (seasonNum === null) {
+            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
+            const tvRes = await fetch(tvUrl);
+            const tvData = await tvRes.json();
+            if (tvData.results?.length > 0) {
+              const t = tvData.results[0];
+              return {
+                tmdb_id: t.id,
+                title: t.name,
+                year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
+                poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
+                rating: t.vote_average || null,
+                overview: t.overview || null,
+                media_type: "tv",
+                barcode_title: rawTitle,
+                detected_formats,
+              };
+            }
           }
 
           // Partial match — we have a title but no TMDB match
