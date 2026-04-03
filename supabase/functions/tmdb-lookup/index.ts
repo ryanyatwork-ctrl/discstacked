@@ -103,6 +103,10 @@ serve(async (req) => {
         let cleaned = raw
           .replace(/^[\w\s&.']+?\s*-\s*/i, "")
           .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
+          // Strip common studio/distributor names that barcode sources append
+          .replace(/\b(Warner\s*Bros\.?|Walt\s*Disney|Universal|Paramount|Sony\s*Pictures?|Lionsgate|20th\s*Century\s*Fox|MGM|Columbia|DreamWorks|New\s*Line|Miramax|Touchstone|StudioCanal|Studio\s*Canal|Entertainment\s*One|eOne)\b/gi, "")
+          // Strip genre words that barcode databases sometimes append to titles
+          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Animation|Adventure|Fantasy|Documentary|Musical)\s*$/gi, "")
           .replace(/\[.*?\]/g, "")
           .replace(/\(.*?\)/g, "")
           .replace(/\s*[,+]\s*$/g, "")
