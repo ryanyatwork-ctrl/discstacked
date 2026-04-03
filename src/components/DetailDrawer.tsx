@@ -902,10 +902,13 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       if (best.developer) newMeta.developer = best.developer;
 
       const updates: any = { id: item.id, metadata: newMeta };
+      // Always overwrite with the selected match's data
+      if (best.title) updates.title = best.title;
       if (best.genre) updates.genre = best.genre;
       if (best.rating) updates.rating = best.rating;
-      if (best.cover_url && !item.posterUrl) updates.poster_url = best.cover_url;
-      if (best.year && !item.year) updates.year = best.year;
+      if (best.cover_url) updates.poster_url = best.cover_url;
+      if (best.year) updates.year = best.year;
+      if (best.tmdb_id) updates.external_id = String(best.tmdb_id);
 
       await updateItem.mutateAsync(updates);
       toast({ title: "Details updated!", description: `Applied metadata from "${best.title}"` });

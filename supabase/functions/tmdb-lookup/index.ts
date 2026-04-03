@@ -100,14 +100,56 @@ serve(async (req) => {
 
       // --- Helper: clean a product title for TMDB search ---
       function cleanProductTitle(raw: string): string {
-        return raw
+        let cleaned = raw
           .replace(/^[\w\s&.']+?\s*-\s*/i, "")
           .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
+          // Strip common studio/distributor names that barcode sources append
+          .replace(/\b(Warner\s*Bros\.?|Walt\s*Disney|Universal|Paramount|Sony\s*Pictures?|Lionsgate|20th\s*Century\s*Fox|MGM|Columbia|DreamWorks|New\s*Line|Miramax|Touchstone|StudioCanal|Studio\s*Canal|Entertainment\s*One|eOne)\b/gi, "")
+          // Strip genre words that barcode databases sometimes append to titles
+          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Animation|Adventure|Fantasy|Documentary|Musical)\s*$/gi, "")
           .replace(/\[.*?\]/g, "")
           .replace(/\(.*?\)/g, "")
           .replace(/\s*[,+]\s*$/g, "")
           .replace(/\s+/g, " ")
           .trim();
+        return cleaned;
+      }
+
+      // Normalize verbose TV season titles for TMDB search
+      // e.g. "The Big Bang Theory: The Complete Seventh Season" → "The Big Bang Theory - Season 7"
+      function normalizeTvSeasonTitle(title: string): { normalized: string; seasonNum: number | null } {
+        const ordinals: Record<string, number> = {
+          first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+          seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
+          thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
+          seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
+        };
+        // Match patterns like "The Complete Seventh Season" or "Complete Season 7" or "Season Seven"
+        const ordinalPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?(\w+)\s+season\b/i;
+        const numericPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)/i;
+        
+        let seasonNum: number | null = null;
+        let showName = title;
+        
+        const numMatch = title.match(numericPattern);
+        if (numMatch) {
+          seasonNum = parseInt(numMatch[1]);
+          showName = title.substring(0, title.indexOf(numMatch[0])).trim();
+        } else {
+          const ordMatch = title.match(ordinalPattern);
+          if (ordMatch) {
+            const word = ordMatch[1].toLowerCase();
+            if (ordinals[word]) {
+              seasonNum = ordinals[word];
+              showName = title.substring(0, title.indexOf(ordMatch[0])).trim();
+            }
+          }
+        }
+        
+        if (seasonNum !== null) {
+          return { normalized: `${showName} - Season ${seasonNum}`, seasonNum };
+        }
+        return { normalized: title, seasonNum: null };
       }
 
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
@@ -209,6 +251,51 @@ serve(async (req) => {
 
         // Single movie lookup
         if (cleanTitle) {
+          // Try normalizing as a TV season title first
+          const { normalized: tvNormalized, seasonNum } = normalizeTvSeasonTitle(cleanTitle);
+          
+          // If it looks like a TV season, try TV search first
+          if (seasonNum !== null) {
+            const showName = tvNormalized.replace(/\s*-\s*Season\s*\d+$/i, "").trim();
+            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
+            const tvRes = await fetch(tvUrl);
+            const tvData = await tvRes.json();
+            if (tvData.results?.length > 0) {
+              const show = tvData.results[0];
+              // Try to get season-specific poster
+              try {
+                const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;
+                const seasonRes = await fetch(seasonUrl);
+                if (seasonRes.ok) {
+                  const season = await seasonRes.json();
+                  return {
+                    tmdb_id: show.id,
+                    title: `${show.name} - Season ${seasonNum}`,
+                    year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : (show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null),
+                    poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
+                    rating: show.vote_average || null,
+                    overview: season.overview || show.overview || null,
+                    media_type: "tv_season",
+                    barcode_title: rawTitle,
+                    detected_formats,
+                  };
+                }
+              } catch {}
+              // Fallback to show-level data
+              return {
+                tmdb_id: show.id,
+                title: `${show.name} - Season ${seasonNum}`,
+                year: show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null,
+                poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+                rating: show.vote_average || null,
+                overview: show.overview || null,
+                media_type: "tv",
+                barcode_title: rawTitle,
+                detected_formats,
+              };
+            }
+          }
+
           const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY);
           if (movieResults.length > 0) {
             const m = movieResults[0];
@@ -216,23 +303,25 @@ serve(async (req) => {
             return { ...detail, barcode_title: rawTitle, detected_formats };
           }
 
-          // Try TV
-          const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
-          const tvRes = await fetch(tvUrl);
-          const tvData = await tvRes.json();
-          if (tvData.results?.length > 0) {
-            const t = tvData.results[0];
-            return {
-              tmdb_id: t.id,
-              title: t.name,
-              year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-              poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-              rating: t.vote_average || null,
-              overview: t.overview || null,
-              media_type: "tv",
-              barcode_title: rawTitle,
-              detected_formats,
-            };
+          // Try TV (for non-season titles)
+          if (seasonNum === null) {
+            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
+            const tvRes = await fetch(tvUrl);
+            const tvData = await tvRes.json();
+            if (tvData.results?.length > 0) {
+              const t = tvData.results[0];
+              return {
+                tmdb_id: t.id,
+                title: t.name,
+                year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
+                poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
+                rating: t.vote_average || null,
+                overview: t.overview || null,
+                media_type: "tv",
+                barcode_title: rawTitle,
+                detected_formats,
+              };
+            }
           }
 
           // Partial match — we have a title but no TMDB match
