@@ -883,32 +883,42 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
     if (!best) return;
     setLoading(true);
     try {
+      // Build fresh metadata from scratch — do NOT spread old metadata
+      // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
-      const newMeta: Record<string, any> = { ...currentMeta };
-      if (best.overview) newMeta.overview = best.overview;
-      if (best.runtime) newMeta.runtime = best.runtime;
-      if (best.tagline) newMeta.tagline = best.tagline;
-      if (best.cast?.length) newMeta.cast = best.cast;
-      if (best.crew) newMeta.crew = best.crew;
+      // Only preserve non-content keys (tags, edition, source, physical details)
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist"];
+      const newMeta: Record<string, any> = {};
+      for (const key of preserveKeys) {
+        if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
+      }
+      // Write ALL content fields from the selected result (use null for missing)
+      newMeta.overview = best.overview || best.description || null;
+      newMeta.runtime = best.runtime || null;
+      newMeta.tagline = best.tagline || null;
+      newMeta.cast = best.cast?.length ? best.cast : null;
+      newMeta.crew = best.crew || null;
+      newMeta.page_count = best.page_count || null;
+      newMeta.publisher = best.publisher || null;
+      newMeta.isbn = best.isbn || null;
+      newMeta.platforms = best.platforms?.length ? best.platforms : null;
+      newMeta.developer = best.developer || null;
+      // Overwrite artist/label/tracklist if result provides them
       if (best.artist) newMeta.artist = best.artist;
       if (best.label) newMeta.label = best.label;
       if (best.tracklist?.length) newMeta.tracklist = best.tracklist;
-      if (best.author) newMeta.author = best.author;
-      if (best.page_count) newMeta.page_count = best.page_count;
-      if (best.publisher) newMeta.publisher = best.publisher;
-      if (best.isbn) newMeta.isbn = best.isbn;
-      if (best.description) newMeta.overview = best.description;
-      if (best.platforms?.length) newMeta.platforms = best.platforms;
-      if (best.developer) newMeta.developer = best.developer;
 
-      const updates: any = { id: item.id, metadata: newMeta };
-      // Always overwrite with the selected match's data
-      if (best.title) updates.title = best.title;
-      if (best.genre) updates.genre = best.genre;
-      if (best.rating) updates.rating = best.rating;
-      if (best.cover_url) updates.poster_url = best.cover_url;
-      if (best.year) updates.year = best.year;
-      if (best.tmdb_id) updates.external_id = String(best.tmdb_id);
+      // Atomic update: write ALL content fields, using null to clear stale values
+      const updates: any = {
+        id: item.id,
+        metadata: newMeta,
+        title: best.title || item.title,
+        genre: best.genre || null,
+        rating: best.rating || null,
+        poster_url: best.cover_url || null,
+        year: best.year || null,
+        external_id: best.tmdb_id ? String(best.tmdb_id) : null,
+      };
 
       await updateItem.mutateAsync(updates);
       toast({ title: "Details updated!", description: `Applied metadata from "${best.title}"` });

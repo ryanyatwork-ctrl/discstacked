@@ -623,7 +623,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-foreground">Year</Label>
-              <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="2024" type="number" />
+              <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="" type="number" />
             </div>
             <div className="space-y-2">
               <Label className="text-foreground">Format</Label>
