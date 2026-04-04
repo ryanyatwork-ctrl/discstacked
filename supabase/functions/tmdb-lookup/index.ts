@@ -277,12 +277,16 @@ serve(async (req) => {
                   const season = await seasonRes.json();
                   return {
                     tmdb_id: show.id,
+                    tmdb_series_id: show.id,
+                    season_number: seasonNum,
                     title: `${show.name} - Season ${seasonNum}`,
                     year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : (show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null),
                     poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
                     rating: show.vote_average || null,
                     overview: season.overview || show.overview || null,
+                    genre: (show.genres || show.genre_ids || []).length > 0 ? undefined : null,
                     media_type: "tv_season",
+                    episode_count: season.episodes?.length || null,
                     barcode_title: rawTitle,
                     detected_formats,
                   };
