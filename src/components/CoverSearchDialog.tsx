@@ -34,6 +34,104 @@ async function searchGames(query: string): Promise<GameResult[]> {
   }));
 }
 
+/** Detect composite/package-style titles and extract child candidates */
+function extractChildCandidates(query: string): string[] {
+  const lower = query.toLowerCase();
+  const candidates: string[] = [];
+
+  // "Title 1 & 2" or "Title 1 and 2" → "Title 1", "Title 2"
+  const ampMatch = query.match(/^(.+?)\s+(\d+)\s*[&+]\s*(\d+)$/i);
+  if (ampMatch) {
+    const base = ampMatch[1].trim();
+    candidates.push(`${base} ${ampMatch[2]}`, `${base} ${ampMatch[3]}`);
+    // Also try base alone (e.g. "Ghostbusters")
+    candidates.push(base);
+    return candidates;
+  }
+
+  // Slash-separated: "Title A / Title B"
+  if (query.includes(" / ")) {
+    const parts = query.split(" / ").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) return parts;
+  }
+
+  // Strip known composite suffixes and search the base title
+  const compositePatterns = [
+    /:\s*(triple|double|quad)\s*feature$/i,
+    /\s*-\s*(triple|double|quad)\s*feature$/i,
+    /:\s*(the\s+)?complete\s+(quest|collection|series|saga|set)$/i,
+    /\s*-\s*(the\s+)?complete\s+(quest|collection|series|saga|set)$/i,
+    /:\s*(collection|pack|gift\s*set|box\s*set|set)$/i,
+    /\s*-\s*(collection|pack|gift\s*set|box\s*set|set)$/i,
+  ];
+
+  for (const pat of compositePatterns) {
+    if (pat.test(query)) {
+      const stripped = query.replace(pat, "").trim();
+      if (stripped && stripped !== query) {
+        candidates.push(stripped);
+      }
+      break;
+    }
+  }
+
+  // Also check for "X feature" / "X collection" etc in the middle
+  if (candidates.length === 0) {
+    const featureMatch = lower.match(/(triple|double|quad)\s*feature/);
+    const collMatch = lower.match(/(collection|pack|gift\s*set|box\s*set)/);
+    if (featureMatch || collMatch) {
+      // Try removing the composite keyword phrase and colon prefix
+      let base = query.replace(/:\s*.*/i, "").trim();
+      if (base && base !== query) candidates.push(base);
+    }
+  }
+
+  return candidates;
+}
+
+/** Search with composite fallback: try exact query first, then child candidates */
+async function searchWithCompositeFallback(
+  query: string,
+  year?: number
+): Promise<{ results: TmdbResult[]; source: string }> {
+  // Try exact query first
+  const exactResults = await searchTmdb(query, year);
+  if (exactResults.length > 0) {
+    return { results: exactResults, source: "manual exact search" };
+  }
+
+  // Try child candidates
+  const children = extractChildCandidates(query);
+  if (children.length > 0) {
+    const allChildResults: TmdbResult[] = [];
+    const seen = new Set<number>();
+
+    for (const child of children) {
+      try {
+        const childResults = await searchTmdb(child, undefined);
+        for (const r of childResults) {
+          if (!seen.has(r.tmdb_id)) {
+            seen.add(r.tmdb_id);
+            allChildResults.push(r);
+          }
+        }
+      } catch {
+        // continue to next child
+      }
+      // Small delay between searches
+      if (children.indexOf(child) < children.length - 1) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+
+    if (allChildResults.length > 0) {
+      return { results: allChildResults, source: "manual composite child match" };
+    }
+  }
+
+  return { results: [], source: "no match" };
+}
+
 interface CoverSearchDialogProps {
   item: MediaItem;
   open: boolean;
@@ -49,6 +147,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
   const [loadingPosters, setLoadingPosters] = useState(false);
   const [selectedResult, setSelectedResult] = useState<TmdbResult | null>(null);
   const [altPosters, setAltPosters] = useState<TmdbPoster[]>([]);
+  const [searchSource, setSearchSource] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
 
@@ -57,18 +156,23 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     setSearching(true);
     setSelectedResult(null);
     setAltPosters([]);
+    setSearchSource("");
     try {
       if (isGame) {
         const res = await searchGames(query);
         setResults(res);
+        setSearchSource("game lookup");
         if (res.length === 0) {
           toast({ title: "No results", description: "Try a different search term." });
         }
       } else {
-        const res = await searchTmdb(query, undefined);
+        const { results: res, source } = await searchWithCompositeFallback(query);
         setResults(res);
+        setSearchSource(source);
         if (res.length === 0) {
           toast({ title: "No results", description: "Try a different search term." });
+        } else if (source.includes("child")) {
+          toast({ title: "Showing related titles", description: "Package title not found — showing individual title matches." });
         }
       }
     } catch {
@@ -89,14 +193,17 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     setLoadingPosters(false);
   };
 
+  /** Artwork-only update — does NOT overwrite title/genre/rating/year/cast */
   const handlePickPoster = async (posterUrl: string) => {
-    if (!selectedResult) return;
     try {
+      const currentMeta = (item.metadata as Record<string, any>) || {};
       await updateItem.mutateAsync({
         id: item.id,
         poster_url: posterUrl,
-        ...(selectedResult.genre ? { genre: selectedResult.genre } : {}),
-        ...(selectedResult.rating ? { rating: selectedResult.rating } : {}),
+        metadata: {
+          ...currentMeta,
+          artwork_source: searchSource || "manual selection",
+        },
       } as any);
       toast({ title: "Cover updated!" });
       onClose();
@@ -108,11 +215,14 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
   const handlePickGameCover = async (result: GameResult) => {
     if (!result.cover_url) return;
     try {
+      const currentMeta = (item.metadata as Record<string, any>) || {};
       await updateItem.mutateAsync({
         id: item.id,
         poster_url: result.cover_url,
-        ...(result.genre ? { genre: result.genre } : {}),
-        ...(result.rating ? { rating: result.rating } : {}),
+        metadata: {
+          ...currentMeta,
+          artwork_source: "manual game cover selection",
+        },
       } as any);
       toast({ title: "Cover updated!" });
       onClose();
@@ -140,7 +250,12 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
         .from("cover-art")
         .getPublicUrl(path);
 
-      await updateItem.mutateAsync({ id: item.id, poster_url: publicUrl } as any);
+      const currentMeta = (item.metadata as Record<string, any>) || {};
+      await updateItem.mutateAsync({
+        id: item.id,
+        poster_url: publicUrl,
+        metadata: { ...currentMeta, artwork_source: "manual upload" },
+      } as any);
       toast({ title: "Custom cover uploaded!" });
       onClose();
     } catch (err: any) {
@@ -225,7 +340,6 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                         key={key}
                         onClick={() => {
                           if (isGame && coverUrl) {
-                            // For games, directly pick the cover (no alt posters)
                             handlePickGameCover(r as GameResult);
                           } else if ('tmdb_id' in r) {
                             handleSelectResult(r as TmdbResult);
@@ -261,7 +375,12 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                   genre={item.genre}
                   mediaType={item.mediaType}
                   onGenerated={(url) => {
-                    updateItem.mutate({ id: item.id, poster_url: url } as any);
+                    const currentMeta = (item.metadata as Record<string, any>) || {};
+                    updateItem.mutate({
+                      id: item.id,
+                      poster_url: url,
+                      metadata: { ...currentMeta, artwork_source: "AI generated" },
+                    } as any);
                     toast({ title: "AI cover applied!" });
                     onClose();
                   }}
