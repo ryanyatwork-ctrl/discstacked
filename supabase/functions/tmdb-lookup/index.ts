@@ -621,6 +621,8 @@ serve(async (req) => {
           const season = await seasonRes.json();
           results.unshift({
             tmdb_id: show.id,
+            tmdb_series_id: show.id,
+            season_number: seasonNum,
             title: `${show.name}: Season ${seasonNum}`,
             year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : null,
             poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
