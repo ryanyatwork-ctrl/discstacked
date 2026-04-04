@@ -182,6 +182,10 @@ function mapTmdbResult(r: any): MediaLookupResult {
     cast: r.cast,
     crew: r.crew,
     source: "tmdb",
+    media_type: r.media_type || "movie",
+    tmdb_series_id: r.tmdb_series_id || null,
+    season_number: r.season_number || null,
+    included_titles: r.included_titles || undefined,
   };
 }
 
