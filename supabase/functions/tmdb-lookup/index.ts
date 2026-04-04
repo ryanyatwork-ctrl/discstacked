@@ -257,7 +257,13 @@ serve(async (req) => {
               product_title: cleanTitle || rawTitle,
               barcode_title: rawTitle,
               detected_formats,
+              media_type: "box_set",
               multi_movies: multiMovies,
+              included_titles: multiMovies.map((m: any) => ({
+                title: m.title,
+                year: m.year,
+                tmdb_id: m.tmdb_id,
+              })),
             };
           }
         }
