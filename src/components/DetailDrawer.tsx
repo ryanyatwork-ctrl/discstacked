@@ -1020,6 +1020,16 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   const crew = meta.crew as { director?: string[]; writer?: string[]; producer?: string[] } | undefined;
   const overview = meta.overview as string | undefined;
 
+  // Content type
+  const contentType = meta.content_type as string | undefined;
+  // TV Season
+  const seasonNumber = meta.season_number as number | undefined;
+  const tmdbSeriesId = meta.tmdb_series_id as number | undefined;
+  // Box Set included titles
+  const includedTitles = meta.included_titles as { title: string; year?: number | null; tmdb_id?: number | null }[] | undefined;
+  // Edition / package
+  const edition = meta.edition as { barcode_title?: string; formats?: string[] } | undefined;
+
   // Music-specific
   const artist = meta.artist as string | undefined;
   const label = meta.label as string | undefined;
@@ -1037,7 +1047,7 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
 
   const hasAny = genre || runtime || tagline || cast?.length || crew || overview
     || artist || label || tracklist?.length || author || pageCount || publisher
-    || platforms?.length || developer;
+    || platforms?.length || developer || includedTitles?.length || seasonNumber || contentType;
 
   if (!hasAny) {
     return (
