@@ -887,7 +887,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
       // Only preserve non-content keys (tags, edition, source, physical details)
-      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist"];
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "included_titles"];
       const newMeta: Record<string, any> = {};
       for (const key of preserveKeys) {
         if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
@@ -903,6 +903,11 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       newMeta.isbn = best.isbn || null;
       newMeta.platforms = best.platforms?.length ? best.platforms : null;
       newMeta.developer = best.developer || null;
+      // Update content type if the selected result provides one
+      if (best.media_type) newMeta.content_type = best.media_type;
+      if (best.tmdb_series_id) newMeta.tmdb_series_id = best.tmdb_series_id;
+      if (best.season_number) newMeta.season_number = best.season_number;
+      if (best.included_titles?.length) newMeta.included_titles = best.included_titles;
       // Overwrite artist/label/tracklist if result provides them
       if (best.artist) newMeta.artist = best.artist;
       if (best.label) newMeta.label = best.label;
