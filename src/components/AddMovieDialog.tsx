@@ -202,7 +202,10 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(true);
     try {
       const yearNum = year ? parseInt(year) : undefined;
-      const results = await searchMedia(activeTab, title, { year: yearNum });
+      // Detect TV season patterns and search as TV
+      const tvSeasonPattern = /\b(season|s\d|series|complete\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\b/i;
+      const searchType = tvSeasonPattern.test(title) ? "tv" as const : undefined;
+      const results = await searchMedia(activeTab, title, { year: yearNum, searchType });
       setSearchResults(results);
       if (results.length === 0) {
         toast({ title: "No results", description: "Try a different title." });
