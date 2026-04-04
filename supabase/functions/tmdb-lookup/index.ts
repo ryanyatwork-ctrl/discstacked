@@ -223,7 +223,13 @@ serve(async (req) => {
                   barcode_title: rawTitle,
                   detected_formats,
                   collection_name: collDetail.name,
+                  media_type: "box_set",
                   multi_movies: multiMovies,
+                  included_titles: multiMovies.map((m: any) => ({
+                    title: m.title,
+                    year: m.year,
+                    tmdb_id: m.tmdb_id,
+                  })),
                 };
               }
             }
