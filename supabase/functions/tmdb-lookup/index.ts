@@ -102,15 +102,22 @@ serve(async (req) => {
       function cleanProductTitle(raw: string): string {
         let cleaned = raw
           .replace(/^[\w\s&.']+?\s*-\s*/i, "")
-          .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen)\b/gi, "")
+          .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|unrated|special\s*edition|collector'?s?\s*edition|limited\s*edition)\b/gi, "")
           // Strip common studio/distributor names that barcode sources append
           .replace(/\b(Warner\s*Bros\.?|Walt\s*Disney|Universal|Paramount|Sony\s*Pictures?|Lionsgate|20th\s*Century\s*Fox|MGM|Columbia|DreamWorks|New\s*Line|Miramax|Touchstone|StudioCanal|Studio\s*Canal|Entertainment\s*One|eOne)\b/gi, "")
           // Strip genre words that barcode databases sometimes append to titles
-          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Animation|Adventure|Fantasy|Documentary|Musical)\s*$/gi, "")
+          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Science\s*Fiction|Animation|Adventure|Fantasy|Documentary|Musical|Western|Mystery|Crime|War|History|Family|Music)\s*\.?\s*$/gi, "")
+          // Strip trailing dots, commas, dashes after genre removal
+          .replace(/[\s.\-,;:]+$/g, "")
           .replace(/\[.*?\]/g, "")
           .replace(/\(.*?\)/g, "")
           .replace(/\s*[,+]\s*$/g, "")
           .replace(/\s+/g, " ")
+          .trim();
+        // Second pass: strip genre fragments that might remain after other cleanup
+        cleaned = cleaned
+          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Science\s*Fiction|Animation|Adventure|Fantasy|Documentary|Musical|Western|Mystery|Crime|War|History|Family|Music)\s*\.?\s*$/gi, "")
+          .replace(/[\s.\-,;:]+$/g, "")
           .trim();
         return cleaned;
       }
