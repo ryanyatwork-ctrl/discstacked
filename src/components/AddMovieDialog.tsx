@@ -214,22 +214,23 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   };
 
   const applyResult = (r: MediaLookupResult) => {
+    // Always overwrite ALL content fields — never preserve stale form values
     setTitle(r.title);
-    if (r.year) setYear(String(r.year));
-    if (r.genre) setGenre(r.genre);
-    if (r.cover_url) setSelectedPoster(r.cover_url);
-    if (r.artist || r.author) setArtist(r.artist || r.author || "");
+    setYear(r.year ? String(r.year) : "");
+    setGenre(r.genre || "");
+    setSelectedPoster(r.cover_url || null);
+    setArtist(r.artist || r.author || "");
     // Auto-apply detected formats from barcode lookup
     if (r.detected_formats && r.detected_formats.length > 0) {
       setFormats(r.detected_formats);
       setFormat(r.detected_formats[0]);
     }
 
+    // Build metadata from scratch — not additive
     const meta: Record<string, any> = {};
     if (r.runtime) meta.runtime = r.runtime;
     if (r.tagline) meta.tagline = r.tagline;
-    if (r.overview) meta.overview = r.overview;
-    if (r.description) meta.overview = r.description;
+    if (r.overview || r.description) meta.overview = r.overview || r.description;
     if (r.cast) meta.cast = r.cast;
     if (r.crew) meta.crew = r.crew;
     if (r.page_count) meta.page_count = r.page_count;
@@ -240,6 +241,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (r.platforms && r.platforms.length > 0) meta.platforms = r.platforms;
     if (r.developer) meta.developer = r.developer;
     if (r.source) meta.source = r.source;
+    if (r.tmdb_id) meta.tmdb_id = r.tmdb_id;
     setExtraMeta(meta);
   };
 
