@@ -121,6 +121,14 @@ export async function lookupBarcode(
           cast: data.cast,
           crew: data.crew,
           detected_formats: data.detected_formats,
+          media_type: data.media_type || "movie",
+          tmdb_series_id: data.tmdb_series_id || null,
+          season_number: data.season_number || null,
+          included_titles: data.included_titles || undefined,
+          edition: data.barcode_title ? {
+            barcode_title: data.barcode_title,
+            formats: data.detected_formats || [],
+          } : undefined,
         },
       };
     }
