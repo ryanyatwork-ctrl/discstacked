@@ -887,7 +887,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
       // Only preserve non-content keys (tags, edition, source, physical details)
-      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist"];
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "included_titles"];
       const newMeta: Record<string, any> = {};
       for (const key of preserveKeys) {
         if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
@@ -903,6 +903,11 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       newMeta.isbn = best.isbn || null;
       newMeta.platforms = best.platforms?.length ? best.platforms : null;
       newMeta.developer = best.developer || null;
+      // Update content type if the selected result provides one
+      if (best.media_type) newMeta.content_type = best.media_type;
+      if (best.tmdb_series_id) newMeta.tmdb_series_id = best.tmdb_series_id;
+      if (best.season_number) newMeta.season_number = best.season_number;
+      if (best.included_titles?.length) newMeta.included_titles = best.included_titles;
       // Overwrite artist/label/tracklist if result provides them
       if (best.artist) newMeta.artist = best.artist;
       if (best.label) newMeta.label = best.label;
@@ -1020,6 +1025,16 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   const crew = meta.crew as { director?: string[]; writer?: string[]; producer?: string[] } | undefined;
   const overview = meta.overview as string | undefined;
 
+  // Content type
+  const contentType = meta.content_type as string | undefined;
+  // TV Season
+  const seasonNumber = meta.season_number as number | undefined;
+  const tmdbSeriesId = meta.tmdb_series_id as number | undefined;
+  // Box Set included titles
+  const includedTitles = meta.included_titles as { title: string; year?: number | null; tmdb_id?: number | null }[] | undefined;
+  // Edition / package
+  const edition = meta.edition as { barcode_title?: string; formats?: string[] } | undefined;
+
   // Music-specific
   const artist = meta.artist as string | undefined;
   const label = meta.label as string | undefined;
@@ -1037,7 +1052,7 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
 
   const hasAny = genre || runtime || tagline || cast?.length || crew || overview
     || artist || label || tracklist?.length || author || pageCount || publisher
-    || platforms?.length || developer;
+    || platforms?.length || developer || includedTitles?.length || seasonNumber || contentType;
 
   if (!hasAny) {
     return (
@@ -1057,6 +1072,38 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
 
   return (
     <div className="space-y-3">
+      {/* Content type badge */}
+      {contentType && contentType !== "movie" && (
+        <Badge variant="outline" className="text-[10px] capitalize">
+          {contentType === "tv_season" ? `TV Season${seasonNumber ? ` ${seasonNumber}` : ""}` : contentType === "box_set" ? "Box Set" : contentType}
+        </Badge>
+      )}
+
+      {/* Edition / Package info */}
+      {edition?.barcode_title && edition.barcode_title !== item.title && (
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Package Title</p>
+          <p className="text-xs text-muted-foreground">{edition.barcode_title}</p>
+        </div>
+      )}
+
+      {/* Box Set included titles */}
+      {includedTitles && includedTitles.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+            <Package className="w-3 h-3" /> Included Titles ({includedTitles.length})
+          </p>
+          <div className="space-y-1">
+            {includedTitles.map((t, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className="text-foreground font-medium">{t.title}</span>
+                {t.year && <span className="text-muted-foreground">({t.year})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Artist / Author */}
       {(artist || author) && (
         <div className="space-y-0.5">

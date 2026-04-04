@@ -223,7 +223,13 @@ serve(async (req) => {
                   barcode_title: rawTitle,
                   detected_formats,
                   collection_name: collDetail.name,
+                  media_type: "box_set",
                   multi_movies: multiMovies,
+                  included_titles: multiMovies.map((m: any) => ({
+                    title: m.title,
+                    year: m.year,
+                    tmdb_id: m.tmdb_id,
+                  })),
                 };
               }
             }
@@ -251,7 +257,13 @@ serve(async (req) => {
               product_title: cleanTitle || rawTitle,
               barcode_title: rawTitle,
               detected_formats,
+              media_type: "box_set",
               multi_movies: multiMovies,
+              included_titles: multiMovies.map((m: any) => ({
+                title: m.title,
+                year: m.year,
+                tmdb_id: m.tmdb_id,
+              })),
             };
           }
         }
@@ -277,12 +289,16 @@ serve(async (req) => {
                   const season = await seasonRes.json();
                   return {
                     tmdb_id: show.id,
+                    tmdb_series_id: show.id,
+                    season_number: seasonNum,
                     title: `${show.name} - Season ${seasonNum}`,
                     year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : (show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null),
                     poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
                     rating: show.vote_average || null,
                     overview: season.overview || show.overview || null,
+                    genre: (show.genres || show.genre_ids || []).length > 0 ? undefined : null,
                     media_type: "tv_season",
+                    episode_count: season.episodes?.length || null,
                     barcode_title: rawTitle,
                     detected_formats,
                   };
@@ -291,12 +307,14 @@ serve(async (req) => {
               // Fallback to show-level data
               return {
                 tmdb_id: show.id,
+                tmdb_series_id: show.id,
+                season_number: seasonNum,
                 title: `${show.name} - Season ${seasonNum}`,
                 year: show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null,
                 poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
                 rating: show.vote_average || null,
                 overview: show.overview || null,
-                media_type: "tv",
+                media_type: "tv_season",
                 barcode_title: rawTitle,
                 detected_formats,
               };
@@ -603,6 +621,8 @@ serve(async (req) => {
           const season = await seasonRes.json();
           results.unshift({
             tmdb_id: show.id,
+            tmdb_series_id: show.id,
+            season_number: seasonNum,
             title: `${show.name}: Season ${seasonNum}`,
             year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : null,
             poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,

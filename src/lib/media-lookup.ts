@@ -33,6 +33,19 @@ export interface MediaLookupResult {
   barcode?: string | null;
   source?: string;
   detected_formats?: string[];
+  // Content type
+  media_type?: string; // movie | tv | tv_season | box_set
+  // TV Season
+  tmdb_series_id?: number | null;
+  season_number?: number | null;
+  // Box Set
+  included_titles?: { title: string; year?: number | null; tmdb_id?: number | null }[];
+  // Edition / Package
+  edition?: {
+    barcode_title?: string;
+    package_year?: number | null;
+    formats?: string[];
+  };
 }
 
 export interface MultiMovieResult {
@@ -108,6 +121,14 @@ export async function lookupBarcode(
           cast: data.cast,
           crew: data.crew,
           detected_formats: data.detected_formats,
+          media_type: data.media_type || "movie",
+          tmdb_series_id: data.tmdb_series_id || null,
+          season_number: data.season_number || null,
+          included_titles: data.included_titles || undefined,
+          edition: data.barcode_title ? {
+            barcode_title: data.barcode_title,
+            formats: data.detected_formats || [],
+          } : undefined,
         },
       };
     }
@@ -169,6 +190,10 @@ function mapTmdbResult(r: any): MediaLookupResult {
     cast: r.cast,
     crew: r.crew,
     source: "tmdb",
+    media_type: r.media_type || "movie",
+    tmdb_series_id: r.tmdb_series_id || null,
+    season_number: r.season_number || null,
+    included_titles: r.included_titles || undefined,
   };
 }
 

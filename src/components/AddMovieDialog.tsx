@@ -245,6 +245,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (r.developer) meta.developer = r.developer;
     if (r.source) meta.source = r.source;
     if (r.tmdb_id) meta.tmdb_id = r.tmdb_id;
+    // Content type
+    if (r.media_type) meta.content_type = r.media_type;
+    // TV Season fields
+    if (r.tmdb_series_id) meta.tmdb_series_id = r.tmdb_series_id;
+    if (r.season_number) meta.season_number = r.season_number;
+    // Box set included titles
+    if (r.included_titles?.length) meta.included_titles = r.included_titles;
+    // Edition / package layer (kept separate from content)
+    if (r.edition) meta.edition = r.edition;
     setExtraMeta(meta);
   };
 
