@@ -295,12 +295,14 @@ serve(async (req) => {
               // Fallback to show-level data
               return {
                 tmdb_id: show.id,
+                tmdb_series_id: show.id,
+                season_number: seasonNum,
                 title: `${show.name} - Season ${seasonNum}`,
                 year: show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null,
                 poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
                 rating: show.vote_average || null,
                 overview: show.overview || null,
-                media_type: "tv",
+                media_type: "tv_season",
                 barcode_title: rawTitle,
                 detected_formats,
               };
