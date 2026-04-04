@@ -33,6 +33,19 @@ export interface MediaLookupResult {
   barcode?: string | null;
   source?: string;
   detected_formats?: string[];
+  // Content type
+  media_type?: string; // movie | tv | tv_season | box_set
+  // TV Season
+  tmdb_series_id?: number | null;
+  season_number?: number | null;
+  // Box Set
+  included_titles?: { title: string; year?: number | null; tmdb_id?: number | null }[];
+  // Edition / Package
+  edition?: {
+    barcode_title?: string;
+    package_year?: number | null;
+    formats?: string[];
+  };
 }
 
 export interface MultiMovieResult {
