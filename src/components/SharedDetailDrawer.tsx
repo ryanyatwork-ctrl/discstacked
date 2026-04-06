@@ -1,4 +1,5 @@
 import { MediaItem } from "@/lib/types";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
               {meta.edition && (
                 <div>
                   <span className="text-xs text-muted-foreground">Edition</span>
-                  <p className="text-sm text-foreground">{meta.edition}</p>
+                  <p className="text-sm text-foreground">{getEditionLabel(item.metadata) || String(meta.edition)}</p>
                 </div>
               )}
               {meta.case_type && (

@@ -4,6 +4,7 @@ import { MediaTab, MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
 import { sortTitle, groupLetter } from "@/lib/utils";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -385,7 +386,7 @@ export default function Index() { // force rebuild
                 </div>
                 <div className="flex flex-col pl-3 border-l-2 border-border/50">
                   {items.map((item) => {
-                    const edition = (item.metadata as any)?.edition;
+                    const edition = getEditionLabel(item.metadata);
                     const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
                     return (
                       <button

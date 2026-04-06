@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Monitor, Download, Eye, Heart, Disc, Disc3, Cloud } from "lucide-react";
+import { getEditionLabel } from "@/lib/edition-utils";
 
 interface PosterCardProps {
   item: MediaItem;
@@ -96,10 +97,10 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
       </div>
 
       {/* Edition badge */}
-      {(item.metadata as any)?.edition && (
+      {getEditionLabel(item.metadata) && (
         <div className="absolute bottom-1.5 left-1.5">
           <Badge variant="outline" className="text-[9px] bg-background/80 backdrop-blur-sm border-border/60 text-foreground">
-            {(item.metadata as any).edition}
+            {getEditionLabel(item.metadata)}
           </Badge>
         </div>
       )}
@@ -110,8 +111,8 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
           <div>
             <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{item.title}</p>
             {item.year && <p className="text-[10px] text-muted-foreground mt-0.5">{item.year}</p>}
-            {(item.metadata as any)?.edition && (
-              <p className="text-[10px] text-primary mt-0.5">{(item.metadata as any).edition}</p>
+            {getEditionLabel(item.metadata) && (
+              <p className="text-[10px] text-primary mt-0.5">{getEditionLabel(item.metadata)}</p>
             )}
           </div>
         </div>
