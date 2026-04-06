@@ -1,4 +1,5 @@
 import { MediaItem } from "@/lib/types";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
