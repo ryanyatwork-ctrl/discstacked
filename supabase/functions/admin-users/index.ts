@@ -27,12 +27,10 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const {
-      data: { claims },
-      error: authError,
-    } = await userClient.auth.getClaims(token);
+    const claimsResult = await userClient.auth.getClaims(token);
+    const claims = claimsResult.data?.claims;
 
-    if (authError || !claims?.sub) {
+    if (claimsResult.error || !claims?.sub) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -192,8 +190,8 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+  } catch (err: unknown) {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

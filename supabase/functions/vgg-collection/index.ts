@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("Error in vgg-collection:", error);
-    return new Response(JSON.stringify({ success: false, error: error.message || "Internal error" }), {
+    return new Response(JSON.stringify({ success: false, error: (error as Error).message || "Internal error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
