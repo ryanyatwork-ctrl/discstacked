@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Monitor, Download, Eye, Heart, Disc, Disc3, Cloud } from "lucide-react";
+import { getEditionLabel } from "@/lib/edition-utils";
 
 interface PosterCardProps {
   item: MediaItem;
