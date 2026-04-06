@@ -38,7 +38,12 @@ type MetadataFields = {
 function getMetadata(item: MediaItem): MetadataFields {
   const raw = item.metadata;
   if (!raw || typeof raw !== "object") return {};
-  return raw as MetadataFields;
+  const result = raw as MetadataFields;
+  // Safely coerce edition to string if it's an object
+  if (result.edition && typeof result.edition !== "string") {
+    result.edition = getEditionLabel(raw) || undefined;
+  }
+  return result;
 }
 
 export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
