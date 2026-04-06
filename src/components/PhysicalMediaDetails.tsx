@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MediaItem } from "@/lib/types";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { useUpdateItem } from "@/hooks/useMediaItems";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
