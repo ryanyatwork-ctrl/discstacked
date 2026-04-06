@@ -24,8 +24,8 @@ export function ListRow({ item, onClick }: ListRowProps) {
     >
       <span className="flex-1 text-sm font-medium text-foreground truncate">
         {item.title}
-        {(item.metadata as any)?.edition && (
-          <span className="ml-1.5 text-[10px] text-primary font-normal">({(item.metadata as any).edition})</span>
+        {getEditionLabel(item.metadata) && (
+          <span className="ml-1.5 text-[10px] text-primary font-normal">({getEditionLabel(item.metadata)})</span>
         )}
       </span>
       {item.year && <span className="text-xs text-muted-foreground shrink-0">{item.year}</span>}
