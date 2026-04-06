@@ -4,6 +4,7 @@ import { MediaTab, MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
 import { sortTitle, groupLetter } from "@/lib/utils";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";

@@ -1,4 +1,5 @@
 import { MediaItem } from "@/lib/types";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { Monitor, Download, Heart, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
