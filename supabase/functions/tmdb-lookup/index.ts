@@ -54,7 +54,7 @@ serve(async (req) => {
   }
 
   try {
-    const TMDB_API_KEY = Deno.env.get("TMDB_API_KEY");
+    const TMDB_API_KEY: string = Deno.env.get("TMDB_API_KEY") || "";
     if (!TMDB_API_KEY) throw new Error("TMDB_API_KEY not configured");
 
     const { query, year, tmdb_id, search_type, barcode, get_posters } = await req.json();
