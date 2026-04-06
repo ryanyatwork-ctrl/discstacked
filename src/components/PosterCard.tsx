@@ -97,10 +97,10 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
       </div>
 
       {/* Edition badge */}
-      {(item.metadata as any)?.edition && (
+      {getEditionLabel(item.metadata) && (
         <div className="absolute bottom-1.5 left-1.5">
           <Badge variant="outline" className="text-[9px] bg-background/80 backdrop-blur-sm border-border/60 text-foreground">
-            {(item.metadata as any).edition}
+            {getEditionLabel(item.metadata)}
           </Badge>
         </div>
       )}
