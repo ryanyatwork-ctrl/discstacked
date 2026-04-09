@@ -41,8 +41,9 @@ async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
   };
 }
 
-async function searchTmdbMovie(query: string, apiKey: string) {
-  const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+async function searchTmdbMovie(query: string, apiKey: string, year?: number | null) {
+  let url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+  if (year) url += `&year=${year}`;
   const res = await fetch(url);
   const data = await res.json();
   return data.results || [];
