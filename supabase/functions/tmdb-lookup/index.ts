@@ -41,8 +41,9 @@ async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
   };
 }
 
-async function searchTmdbMovie(query: string, apiKey: string) {
-  const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+async function searchTmdbMovie(query: string, apiKey: string, year?: number | null) {
+  let url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+  if (year) url += `&year=${year}`;
   const res = await fetch(url);
   const data = await res.json();
   return data.results || [];
@@ -160,7 +161,7 @@ serve(async (req) => {
       }
 
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
-      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[]) {
+      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[], barcodeYear?: number | null) {
         // Multi-movie detection
         const hasSlash = cleanTitle.includes(" / ");
         const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
@@ -321,7 +322,7 @@ serve(async (req) => {
             }
           }
 
-          const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY);
+          const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY, barcodeYear);
           if (movieResults.length > 0) {
             const m = movieResults[0];
             const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
@@ -361,6 +362,7 @@ serve(async (req) => {
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
+      let barcodeYear: number | null = null;
 
       // ========== SOURCE 1: UPCitemdb ==========
       try {
@@ -375,7 +377,7 @@ serve(async (req) => {
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
           if (upcCleanTitle) {
-            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats);
+            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -401,10 +403,15 @@ serve(async (req) => {
           const discogsAllText = `${discogsTitle} ${(discogsItem.format || []).join(" ")} ${(discogsItem.label || []).join(" ")}`;
           const discogsFormats = upcFormats.length > 0 ? upcFormats : detectFormats(discogsAllText);
           const discogsCleanTitle = cleanProductTitle(discogsTitle);
+          // Extract year from Discogs if available
+          if (discogsItem.year && !barcodeYear) {
+            const y = parseInt(String(discogsItem.year));
+            if (y >= 1900 && y <= 2100) barcodeYear = y;
+          }
           debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
 
           if (discogsCleanTitle) {
-            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats);
+            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -430,7 +437,7 @@ serve(async (req) => {
           debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: olTitle } });
 
           if (olCleanTitle) {
-            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats);
+            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -482,7 +489,7 @@ serve(async (req) => {
       // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
       const fallbackTitle = upcCleanTitle || "";
       if (fallbackTitle) {
-        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY);
+        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY, barcodeYear);
         if (movieResults.length > 0) {
           const best = movieResults[0];
           const bestTitle = (best.title || "").toLowerCase();
