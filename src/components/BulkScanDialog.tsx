@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers, Package } from "lucide-react";
+import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers, Package, Pencil, Search } from "lucide-react";
+import { searchTmdb } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
@@ -51,6 +52,8 @@ const TAB_LABELS: Record<MediaTab, string> = {
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
+  const [editingBarcode, setEditingBarcode] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [scanning, setScanning] = useState(false);
   const [btMode, setBtMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -282,6 +285,63 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         item.barcode === barcode ? { ...item, format } : item
       )
     );
+  };
+
+  const startEditTitle = (barcode: string, currentTitle: string) => {
+    setEditingBarcode(barcode);
+    setEditTitle(currentTitle || "");
+  };
+
+  const handleTitleSearch = async (barcode: string) => {
+    const searchTitle = editTitle.trim();
+    if (!searchTitle) return;
+    setEditingBarcode(null);
+
+    // Set to "looking" state
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.barcode === barcode ? { ...item, status: "looking" as const } : item
+      )
+    );
+
+    try {
+      const results = await searchTmdb(searchTitle);
+      if (results.length > 0) {
+        const top = results[0];
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.barcode === barcode
+              ? {
+                  ...item,
+                  status: "found" as const,
+                  title: top.title,
+                  year: top.year,
+                  genre: top.genre,
+                  posterUrl: top.poster_url,
+                  tmdb_id: top.tmdb_id,
+                  selected: true,
+                }
+              : item
+          )
+        );
+      } else {
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.barcode === barcode
+              ? { ...item, status: "not_found" as const, title: searchTitle }
+              : item
+          )
+        );
+        toast({ title: "No results", description: `No match for "${searchTitle}". Try a different title.` });
+      }
+    } catch {
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.barcode === barcode ? { ...item, status: "error" as const } : item
+        )
+      );
+      toast({ title: "Search failed", variant: "destructive" });
+    }
   };
 
   // Manual barcode entry
@@ -573,7 +633,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      {item.status === "looking" ? (
+                      {editingBarcode === item.barcode ? (
+                        <div className="flex gap-1 items-center">
+                          <Input
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleTitleSearch(item.barcode)}
+                            className="h-7 text-sm flex-1"
+                            autoFocus
+                          />
+                          <Button variant="default" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleTitleSearch(item.barcode)}>
+                            <Search className="w-3 h-3" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setEditingBarcode(null)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : item.status === "looking" ? (
                         <p className="text-sm text-muted-foreground">Looking up {item.barcode}…</p>
                       ) : item.status === "multi_movie" && item.multiMovie ? (
                         <>
@@ -594,7 +670,16 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                         </>
                       ) : item.status === "found" ? (
                          <>
-                           <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                           <div className="flex items-center gap-1 group/title">
+                             <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                             <button
+                               onClick={() => startEditTitle(item.barcode, item.title || "")}
+                               className="opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0"
+                               title="Edit title & re-search"
+                             >
+                               <Pencil className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                             </button>
+                           </div>
                            <p className="text-[10px] text-muted-foreground truncate">
                              {item.artist || item.author || ""}{(item.artist || item.author) && item.year ? " · " : ""}
                              {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
@@ -621,9 +706,20 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                             )}
                         </>
                       ) : (
-                        <p className="text-sm text-destructive">
-                          {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-sm text-destructive truncate">
+                            {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => startEditTitle(item.barcode, item.title || "")}
+                            title="Search by title"
+                          >
+                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                          </Button>
+                        </div>
                       )}
                     </div>
 
