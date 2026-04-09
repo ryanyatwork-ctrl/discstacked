@@ -287,6 +287,63 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     );
   };
 
+  const startEditTitle = (barcode: string, currentTitle: string) => {
+    setEditingBarcode(barcode);
+    setEditTitle(currentTitle || "");
+  };
+
+  const handleTitleSearch = async (barcode: string) => {
+    const searchTitle = editTitle.trim();
+    if (!searchTitle) return;
+    setEditingBarcode(null);
+
+    // Set to "looking" state
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.barcode === barcode ? { ...item, status: "looking" as const } : item
+      )
+    );
+
+    try {
+      const results = await searchTmdb(searchTitle);
+      if (results.length > 0) {
+        const top = results[0];
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.barcode === barcode
+              ? {
+                  ...item,
+                  status: "found" as const,
+                  title: top.title,
+                  year: top.year,
+                  genre: top.genre,
+                  posterUrl: top.poster_url,
+                  tmdb_id: top.tmdb_id,
+                  selected: true,
+                }
+              : item
+          )
+        );
+      } else {
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.barcode === barcode
+              ? { ...item, status: "not_found" as const, title: searchTitle }
+              : item
+          )
+        );
+        toast({ title: "No results", description: `No match for "${searchTitle}". Try a different title.` });
+      }
+    } catch {
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.barcode === barcode ? { ...item, status: "error" as const } : item
+        )
+      );
+      toast({ title: "Search failed", variant: "destructive" });
+    }
+  };
+
   // Manual barcode entry
   const handleManualAdd = async () => {
     const code = manualBarcode.trim();
