@@ -437,7 +437,7 @@ serve(async (req) => {
           debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: olTitle } });
 
           if (olCleanTitle) {
-            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats);
+            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
