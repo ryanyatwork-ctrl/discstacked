@@ -161,7 +161,7 @@ serve(async (req) => {
       }
 
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
-      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[]) {
+      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[], barcodeYear?: number | null) {
         // Multi-movie detection
         const hasSlash = cleanTitle.includes(" / ");
         const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
@@ -322,7 +322,7 @@ serve(async (req) => {
             }
           }
 
-          const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY);
+          const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY, barcodeYear);
           if (movieResults.length > 0) {
             const m = movieResults[0];
             const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
