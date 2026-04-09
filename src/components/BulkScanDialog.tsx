@@ -52,6 +52,8 @@ const TAB_LABELS: Record<MediaTab, string> = {
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
+  const [editingBarcode, setEditingBarcode] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [scanning, setScanning] = useState(false);
   const [btMode, setBtMode] = useState(false);
   const [saving, setSaving] = useState(false);
