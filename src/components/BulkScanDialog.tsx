@@ -527,6 +527,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                 onChange={(e) => setManualBarcode(e.target.value)}
                 placeholder="Type barcode/UPC…"
                 className="flex-1 h-8 text-sm"
+                autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
               />
               <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
