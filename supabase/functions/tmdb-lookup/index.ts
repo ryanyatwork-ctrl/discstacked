@@ -362,6 +362,7 @@ serve(async (req) => {
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
+      let barcodeYear: number | null = null;
 
       // ========== SOURCE 1: UPCitemdb ==========
       try {
@@ -376,7 +377,7 @@ serve(async (req) => {
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
           if (upcCleanTitle) {
-            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats);
+            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -402,10 +403,15 @@ serve(async (req) => {
           const discogsAllText = `${discogsTitle} ${(discogsItem.format || []).join(" ")} ${(discogsItem.label || []).join(" ")}`;
           const discogsFormats = upcFormats.length > 0 ? upcFormats : detectFormats(discogsAllText);
           const discogsCleanTitle = cleanProductTitle(discogsTitle);
+          // Extract year from Discogs if available
+          if (discogsItem.year && !barcodeYear) {
+            const y = parseInt(String(discogsItem.year));
+            if (y >= 1900 && y <= 2100) barcodeYear = y;
+          }
           debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
 
           if (discogsCleanTitle) {
-            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats);
+            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats, barcodeYear);
             if (result) {
               return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
