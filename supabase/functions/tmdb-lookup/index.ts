@@ -489,7 +489,7 @@ serve(async (req) => {
       // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
       const fallbackTitle = upcCleanTitle || "";
       if (fallbackTitle) {
-        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY);
+        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY, barcodeYear);
         if (movieResults.length > 0) {
           const best = movieResults[0];
           const bestTitle = (best.title || "").toLowerCase();
