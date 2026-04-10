@@ -38,6 +38,7 @@ export function stripTrailingNoise(value: string): string {
   while (cleaned && cleaned !== previous) {
     previous = cleaned;
     cleaned = cleaned
+      .replace(/\s+(?:action|comedy|drama|horror|thriller|romance|sci\s*-?fi|science\s*fiction|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music)\s*(?:and|&)\s*$/i, " ")
       .replace(STUDIO_SUFFIX_PATTERN, " ")
       .replace(GENRE_SUFFIX_PATTERN, " ")
       .replace(EDITION_SUFFIX_PATTERN, " ")
