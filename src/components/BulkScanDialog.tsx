@@ -296,6 +296,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     const searchTitle = editTitle.trim();
     if (!searchTitle) return;
     setEditingBarcode(null);
+    const queueItem = queue.find((item) => item.barcode === barcode);
+    const explicitYear = searchTitle.match(/\((19\d{2}|20\d{2})\)$/)?.[1];
+    const searchYear = explicitYear ? parseInt(explicitYear, 10) : queueItem?.year ?? undefined;
 
     // Set to "looking" state
     setQueue((prev) =>
@@ -305,7 +308,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     );
 
     try {
-      const results = await searchTmdb(searchTitle);
+      const results = await searchTmdb(searchTitle.replace(/\s*\((19\d{2}|20\d{2})\)$/, ""), searchYear);
       if (results.length > 0) {
         const top = results[0];
         setQueue((prev) =>

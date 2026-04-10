@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { cleanProductTitle, extractYearFromText, generateTitleCandidates, scoreMovieResult } from "./lookup-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,6 +48,19 @@ async function searchTmdbMovie(query: string, apiKey: string, year?: number | nu
   const res = await fetch(url);
   const data = await res.json();
   return data.results || [];
+}
+
+function buildJsonResponse(payload: Record<string, any>, debugLog: { source: string; status: string; raw?: any }[]) {
+  const { _matchScore, ...cleanPayload } = payload;
+
+  return new Response(JSON.stringify({ ...cleanPayload, _debug: debugLog }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function isStrongResolvedMatch(payload: Record<string, any> | null) {
+  if (!payload) return false;
+  return (payload._matchScore || 0) >= 170 || payload.is_multi_movie || payload.media_type === "tv_season";
 }
 
 serve(async (req) => {
@@ -99,30 +113,6 @@ serve(async (req) => {
         return detected;
       }
 
-      // --- Helper: clean a product title for TMDB search ---
-      function cleanProductTitle(raw: string): string {
-        let cleaned = raw
-          .replace(/^[\w\s&.']+?\s*-\s*/i, "")
-          .replace(/\b(blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|unrated|special\s*edition|collector'?s?\s*edition|limited\s*edition)\b/gi, "")
-          // Strip common studio/distributor names that barcode sources append
-          .replace(/\b(Warner\s*Bros\.?|Walt\s*Disney|Universal|Paramount|Sony\s*Pictures?|Lionsgate|20th\s*Century\s*Fox|MGM|Columbia|DreamWorks|New\s*Line|Miramax|Touchstone|StudioCanal|Studio\s*Canal|Entertainment\s*One|eOne)\b/gi, "")
-          // Strip genre words that barcode databases sometimes append to titles
-          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Science\s*Fiction|Animation|Adventure|Fantasy|Documentary|Musical|Western|Mystery|Crime|War|History|Family|Music)\s*\.?\s*$/gi, "")
-          // Strip trailing dots, commas, dashes after genre removal
-          .replace(/[\s.\-,;:]+$/g, "")
-          .replace(/\[.*?\]/g, "")
-          .replace(/\(.*?\)/g, "")
-          .replace(/\s*[,+]\s*$/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-        // Second pass: strip genre fragments that might remain after other cleanup
-        cleaned = cleaned
-          .replace(/\b(Action|Comedy|Drama|Horror|Thriller|Romance|Sci-Fi|Science\s*Fiction|Animation|Adventure|Fantasy|Documentary|Musical|Western|Mystery|Crime|War|History|Family|Music)\s*\.?\s*$/gi, "")
-          .replace(/[\s.\-,;:]+$/g, "")
-          .trim();
-        return cleaned;
-      }
-
       // Normalize verbose TV season titles for TMDB search
       // e.g. "The Big Bang Theory: The Complete Seventh Season" → "The Big Bang Theory - Season 7"
       function normalizeTvSeasonTitle(title: string): { normalized: string; seasonNum: number | null } {
@@ -158,6 +148,32 @@ serve(async (req) => {
           return { normalized: `${showName} - Season ${seasonNum}`, seasonNum };
         }
         return { normalized: title, seasonNum: null };
+      }
+
+      async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, barcodeYear?: number | null) {
+        const candidates = generateTitleCandidates(rawTitle, cleanTitle);
+        let bestMatch: { movie: any; score: number } | null = null;
+
+        for (const candidate of candidates) {
+          const deduped = new Map<number, any>();
+          const [yearMatches, generalMatches] = await Promise.all([
+            barcodeYear ? searchTmdbMovie(candidate, TMDB_API_KEY, barcodeYear) : Promise.resolve([]),
+            searchTmdbMovie(candidate, TMDB_API_KEY),
+          ]);
+
+          for (const movie of [...yearMatches, ...generalMatches]) {
+            if (!deduped.has(movie.id)) deduped.set(movie.id, movie);
+          }
+
+          for (const movie of deduped.values()) {
+            const score = scoreMovieResult(candidate, movie, barcodeYear);
+            if (!bestMatch || score > bestMatch.score) {
+              bestMatch = { movie, score };
+            }
+          }
+        }
+
+        return bestMatch;
       }
 
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
@@ -225,6 +241,7 @@ serve(async (req) => {
                   detected_formats,
                   collection_name: collDetail.name,
                   media_type: "box_set",
+                  _matchScore: 220,
                   multi_movies: multiMovies,
                   included_titles: multiMovies.map((m: any) => ({
                     title: m.title,
@@ -259,6 +276,7 @@ serve(async (req) => {
               barcode_title: rawTitle,
               detected_formats,
               media_type: "box_set",
+              _matchScore: 210,
               multi_movies: multiMovies,
               included_titles: multiMovies.map((m: any) => ({
                 title: m.title,
@@ -302,6 +320,7 @@ serve(async (req) => {
                     episode_count: season.episodes?.length || null,
                     barcode_title: rawTitle,
                     detected_formats,
+                    _matchScore: 200,
                   };
                 }
               } catch {}
@@ -318,15 +337,15 @@ serve(async (req) => {
                 media_type: "tv_season",
                 barcode_title: rawTitle,
                 detected_formats,
+                _matchScore: 185,
               };
             }
           }
 
-          const movieResults = await searchTmdbMovie(cleanTitle, TMDB_API_KEY, barcodeYear);
-          if (movieResults.length > 0) {
-            const m = movieResults[0];
-            const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
-            return { ...detail, barcode_title: rawTitle, detected_formats };
+          const bestMovieMatch = await resolveBestMovieMatch(cleanTitle, rawTitle, barcodeYear);
+          if (bestMovieMatch && bestMovieMatch.score >= 70) {
+            const detail = await fetchTmdbMovieDetails(bestMovieMatch.movie.id, TMDB_API_KEY);
+            return { ...detail, barcode_title: rawTitle, detected_formats, _matchScore: bestMovieMatch.score };
           }
 
           // Try TV (for non-season titles)
@@ -346,12 +365,13 @@ serve(async (req) => {
                 media_type: "tv",
                 barcode_title: rawTitle,
                 detected_formats,
+                _matchScore: 110,
               };
             }
           }
 
           // Partial match — we have a title but no TMDB match
-          return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats };
+          return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats, _matchScore: 10 };
         }
 
         return null;
@@ -363,6 +383,15 @@ serve(async (req) => {
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
       let barcodeYear: number | null = null;
+      let bestResolved: Record<string, any> | null = null;
+
+      const considerResolved = (resolved: Record<string, any> | null) => {
+        if (!resolved) return false;
+        if (!bestResolved || (resolved._matchScore || 0) > (bestResolved._matchScore || 0)) {
+          bestResolved = resolved;
+        }
+        return isStrongResolvedMatch(resolved);
+      };
 
       // ========== SOURCE 1: UPCitemdb ==========
       try {
@@ -374,15 +403,12 @@ serve(async (req) => {
           const allText = `${upcTitle} ${upcItem.category || ""} ${upcItem.description || ""}`;
           upcFormats = detectFormats(allText);
           upcCleanTitle = cleanProductTitle(upcTitle);
+          if (!barcodeYear) barcodeYear = extractYearFromText(upcTitle);
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
           if (upcCleanTitle) {
             const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
-            if (result) {
-              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
+            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
           }
         } else {
           debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
@@ -408,15 +434,12 @@ serve(async (req) => {
             const y = parseInt(String(discogsItem.year));
             if (y >= 1900 && y <= 2100) barcodeYear = y;
           }
+          if (!barcodeYear) barcodeYear = extractYearFromText(discogsTitle);
           debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
 
           if (discogsCleanTitle) {
             const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats, barcodeYear);
-            if (result) {
-              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
+            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
           }
         } else {
           debugLog.push({ source: "Discogs", status: "MISS", raw: discogsRaw });
@@ -438,11 +461,7 @@ serve(async (req) => {
 
           if (olCleanTitle) {
             const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats, barcodeYear);
-            if (result) {
-              return new Response(JSON.stringify({ ...result, _debug: debugLog }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
+            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
           }
         } else {
           debugLog.push({ source: "OpenLibrary", status: "MISS", raw: olRaw });
@@ -463,23 +482,19 @@ serve(async (req) => {
           const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
           const formats = upcFormats.length > 0 ? upcFormats : [];
           debugLog.push({ source: "TMDB-UPC", status: "HIT-movie", raw: { id: m.id, title: m.title } });
-          return new Response(JSON.stringify({ ...detail, barcode_title: m.title, detected_formats: formats, _debug: debugLog }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return buildJsonResponse({ ...detail, barcode_title: m.title, detected_formats: formats, _matchScore: 250 }, debugLog);
         }
         if (tvResults.length > 0) {
           const t = tvResults[0];
           const formats = upcFormats.length > 0 ? upcFormats : [];
           debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: t.id, title: t.name } });
-          return new Response(JSON.stringify({
+          return buildJsonResponse({
             tmdb_id: t.id, title: t.name,
             year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
             poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
             rating: t.vote_average || null, overview: t.overview || null,
-            media_type: "tv", barcode_title: t.name, detected_formats: formats, _debug: debugLog,
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+            media_type: "tv", barcode_title: t.name, detected_formats: formats, _matchScore: 230,
+          }, debugLog);
         }
         debugLog.push({ source: "TMDB-UPC", status: "MISS", raw: findRaw });
       } catch (e) {
@@ -489,33 +504,17 @@ serve(async (req) => {
       // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
       const fallbackTitle = upcCleanTitle || "";
       if (fallbackTitle) {
-        const movieResults = await searchTmdbMovie(fallbackTitle, TMDB_API_KEY, barcodeYear);
-        if (movieResults.length > 0) {
-          const best = movieResults[0];
-          const bestTitle = (best.title || "").toLowerCase();
-          const searchTitle = fallbackTitle.toLowerCase();
-          const isHighConfidence = bestTitle.includes(searchTitle) || searchTitle.includes(bestTitle) ||
-            bestTitle.split(/\s+/).filter((w: string) => searchTitle.includes(w)).length >= Math.max(1, Math.floor(searchTitle.split(/\s+/).length * 0.6));
-
-          debugLog.push({ source: "TMDB-fuzzy", status: isHighConfidence ? "HIT-highconf" : "MISS-lowconf", raw: { query: fallbackTitle, bestResult: best.title, bestId: best.id } });
-
-          if (isHighConfidence) {
-            const detail = await fetchTmdbMovieDetails(best.id, TMDB_API_KEY);
-            return new Response(JSON.stringify({ ...detail, barcode_title: upcTitle, detected_formats: upcFormats, _debug: debugLog }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
+        const fuzzyResult = await processBarcodeTitle(fallbackTitle, upcTitle || fallbackTitle, upcFormats, barcodeYear);
+        if (fuzzyResult) {
+          debugLog.push({ source: "TMDB-fuzzy", status: (fuzzyResult._matchScore || 0) >= 70 ? "HIT" : "PARTIAL", raw: { query: fallbackTitle, score: fuzzyResult._matchScore || 0 } });
+          considerResolved(fuzzyResult);
         } else {
           debugLog.push({ source: "TMDB-fuzzy", status: "MISS-noresults", raw: { query: fallbackTitle } });
         }
+      }
 
-        // Partial data soft-fail
-        return new Response(JSON.stringify({
-          title: fallbackTitle, barcode_title: upcTitle, detected_formats: upcFormats,
-          barcode_not_found: false, _debug: debugLog,
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (bestResolved) {
+        return buildJsonResponse(bestResolved, debugLog);
       }
 
       // ========== ALL SOURCES FAILED ==========
