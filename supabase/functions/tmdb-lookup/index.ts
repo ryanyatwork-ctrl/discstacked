@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { cleanProductTitle, extractYearFromText, generateTitleCandidates, scoreMovieResult } from "./lookup-utils.ts";
+import { cleanProductTitle, extractYearFromText, generateTitleCandidates, normalizeLookupText, scoreMovieResult } from "./lookup-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +8,60 @@ const corsHeaders = {
 
 // Keywords that indicate a multi-movie physical product
 const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|2-film|3-film|4-film|5-film|6-film|2-movie|3-movie|4-movie|5-movie|6-movie)\b/i;
+
+function scoreCollectionMatch(query: string, name: string) {
+  const normalizedQuery = normalizeLookupText(query)
+    .replace(/\b(?:chapters?|collection|trilogy|quadrilogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|feature|film|movie|complete)\b/g, " ")
+    .replace(/\b\d+\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedName = normalizeLookupText(name)
+    .replace(/\bcollection\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalizedQuery || !normalizedName) return 0;
+  if (normalizedName === normalizedQuery) return 100;
+  if (normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName)) return 85;
+
+  const queryWords = new Set(normalizeLookupText(query).split(" ").filter(Boolean));
+  const nameWords = new Set(normalizeLookupText(name).split(" ").filter(Boolean));
+  const overlap = Array.from(queryWords).filter((word) => nameWords.has(word)).length;
+  return Math.round((overlap / Math.max(queryWords.size, 1)) * 70);
+}
+
+function splitMultiTitleCandidates(title: string): string[] {
+  const cleaned = title.replace(/\s+/g, " ").trim();
+  if (!cleaned) return [];
+
+  if (cleaned.includes("/")) {
+    return cleaned.split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean);
+  }
+
+  const numericSet = cleaned.match(/^(.+?)\s+(\d+)\s*&\s*(\d+)$/i);
+  if (numericSet) {
+    const base = numericSet[1].trim();
+    return [numericSet[2], numericSet[3]].map((n) => `${base} ${n}`);
+  }
+
+  return [];
+}
+
+function expandSharedFranchiseTitles(movieTitles: string[]): string[] {
+  if (movieTitles.length <= 1) return movieTitles;
+
+  const first = movieTitles[0];
+  const franchisePrefixMatch = first.match(/^(.+?)(?::|\s+-\s+|\s+chapter\b|\s+part\b|\s+\d\b)/i);
+  const franchisePrefix = franchisePrefixMatch?.[1]?.trim();
+
+  if (!franchisePrefix) return movieTitles;
+
+  return movieTitles.map((title, index) => {
+    if (index === 0) return title;
+    if (new RegExp(`^${franchisePrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(title)) return title;
+    return `${franchisePrefix} ${title}`.replace(/\s+/g, " ").trim();
+  });
+}
 
 async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
   const [detailRes, creditsRes] = await Promise.all([
@@ -179,18 +233,19 @@ serve(async (req) => {
       // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
       async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[], barcodeYear?: number | null) {
         // Multi-movie detection
-        const hasSlash = cleanTitle.includes(" / ");
+        const hasSlash = cleanTitle.includes("/");
         const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
 
         if (hasSlash || hasMultiKeyword) {
           let movieTitles: string[] = [];
           if (hasSlash) {
-            movieTitles = cleanTitle.split(" / ").map(t => t.trim()).filter(Boolean);
+            movieTitles = expandSharedFranchiseTitles(splitMultiTitleCandidates(cleanTitle));
           }
 
           if (!hasSlash && hasMultiKeyword) {
             const franchiseName = cleanTitle
               .replace(MULTI_MOVIE_KEYWORDS, "")
+              .replace(/\b(?:chapters?\s*\d+(?:\s*[-–]&?\s*\d+)?|\d+\s*&\s*\d+|\d+\s*[-–]\s*\d+)\b/gi, "")
               .replace(/\s*:\s*$/, "")
               .replace(/\s+/g, " ")
               .trim();
@@ -205,13 +260,10 @@ serve(async (req) => {
               const collData = await collRes.json();
 
               if (collData.results?.length > 0) {
-                // Strict match: collection base name must equal franchise name (case-insensitive)
-                const fn = franchiseName.toLowerCase().trim();
-                const matched = collData.results.find((c: any) => {
-                  const cn = (c.name || "").toLowerCase();
-                  const cnBase = cn.replace(/\s*collection\s*$/i, "").trim();
-                  return cnBase === fn;
-                });
+                const ranked = collData.results
+                  .map((c: any) => ({ collection: c, score: scoreCollectionMatch(franchiseName, c.name || "") }))
+                  .sort((a: any, b: any) => b.score - a.score);
+                const matched = ranked[0]?.score >= 65 ? ranked[0].collection : null;
                 if (matched) {
                   bestCollection = matched;
                   break;
@@ -256,9 +308,9 @@ serve(async (req) => {
           if (movieTitles.length > 1) {
             const multiMovies: any[] = [];
             for (const mt of movieTitles) {
-              const results = await searchTmdbMovie(mt, TMDB_API_KEY);
-              if (results.length > 0) {
-                const m = results[0];
+              const bestMovieMatch = await resolveBestMovieMatch(mt, mt, barcodeYear);
+              if (bestMovieMatch) {
+                const m = bestMovieMatch.movie;
                 multiMovies.push({
                   tmdb_id: m.id,
                   title: m.title,
@@ -295,11 +347,17 @@ serve(async (req) => {
           // If it looks like a TV season, try TV search first
           if (seasonNum !== null) {
             const showName = tvNormalized.replace(/\s*-\s*Season\s*\d+$/i, "").trim();
-            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
+             const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
             const tvRes = await fetch(tvUrl);
             const tvData = await tvRes.json();
-            if (tvData.results?.length > 0) {
-              const show = tvData.results[0];
+             if (tvData.results?.length > 0) {
+               const rankedShows = tvData.results
+                 .map((show: any) => ({ show, score: scoreCollectionMatch(showName, show.name || "") }))
+                 .sort((a: any, b: any) => b.score - a.score);
+               const show = rankedShows[0]?.show;
+               if (!show) {
+                 return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats, _matchScore: 10 };
+               }
               // Try to get season-specific poster
               try {
                 const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;

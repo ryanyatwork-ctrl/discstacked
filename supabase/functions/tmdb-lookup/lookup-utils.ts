@@ -5,9 +5,16 @@ export interface TmdbMovieSearchResult {
   popularity?: number;
 }
 
-const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
+const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
+const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b[:\s-]*/i;
 const GENRE_SUFFIX_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|sci\s*-?fi|science\s*fiction|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music)\b\.?$/i;
 const EDITION_SUFFIX_PATTERN = /\b(?:collector'?s?\s*edition|collector\s*s\s*edition|special\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?)\b$/i;
+
+function restoreTrailingArticleTitle(value: string): string {
+  const match = value.match(/^(.+),\s*(the|a|an)$/i);
+  if (!match) return value;
+  return `${match[2]} ${match[1]}`.replace(/\s+/g, " ").trim();
+}
 
 export function normalizeLookupText(value: string): string {
   return value
@@ -55,14 +62,17 @@ export function cleanProductTitle(raw: string): string {
   const withoutParentheticalYear = raw.replace(/[\[(](19\d{2}|20\d{2})[\])]/g, " ");
 
   let cleaned = withoutParentheticalYear
+    .replace(STUDIO_PREFIX_PATTERN, " ")
     .replace(/^[\w\s&.']+?\s*-\s*/i, "")
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\((?!19\d{2}\)|20\d{2}\))[^)]*\)/g, " ")
-    .replace(/\b(?:blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|unrated|special\s*edition|collector'?s?\s*edition|collector\s*s\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|includes?\s*digital(?:\s*copy)?)\b/gi, " ")
+    .replace(/\b(?:blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|std|ws|dc|bd|bd\s*\+\s*dc|blu\s*ray\s*\+\s*digital\s*copy|unrated|special\s*edition|collector'?s?\s*edition|collector\s*s\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|includes?\s*digital(?:\s*copy)?)\b/gi, " ")
+    .replace(/\b(?:season\s*\d+\s*blu\s*ray|season\s*\d+\s*dvd)\b/gi, " ")
     .replace(/\s*[,+]\s*$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
+  cleaned = restoreTrailingArticleTitle(cleaned);
   cleaned = stripTrailingNoise(cleaned);
 
   return cleaned;
