@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
+import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult, LookupDebugEntry } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
 
 interface ScanQueueItem {
@@ -35,6 +35,12 @@ interface ScanQueueItem {
   extraMeta?: Record<string, any>;
   // Multi-movie fields
   multiMovie?: MultiMovieResult;
+  // Lookup diagnostics (surfaced for not_found / error / partial match)
+  failureReason?: string;
+  debug?: LookupDebugEntry[];
+  // Partial match: title recovered from UPCitemdb/Discogs but no TMDB hit
+  partialTitle?: string;
+  showDebug?: boolean;
 }
 
 interface BulkScanDialogProps {
@@ -91,6 +97,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           multiMovie: result.multiMovie,
           formats: result.multiMovie.detected_formats,
           format: result.multiMovie.detected_formats[0] || "",
+          debug: result.debug,
         };
       }
 
@@ -124,6 +131,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             ...(result.direct.developer ? { developer: result.direct.developer } : {}),
             ...(result.direct.source ? { source: result.direct.source } : {}),
           },
+          debug: result.debug,
         };
       }
       if (result.results && result.results.length > 0) {
@@ -140,11 +148,20 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           author: top.author,
           tmdb_id: top.tmdb_id,
           extraMeta: {},
+          debug: result.debug,
         };
       }
-      return { status: "not_found" };
-    } catch {
-      return { status: "error" };
+      // Not found — but we might have a partial title + debug trail
+      return {
+        status: "not_found",
+        partialTitle: result.partialTitle,
+        formats: result.partialFormats || [],
+        failureReason: result.failureReason,
+        debug: result.debug,
+      };
+    } catch (e: any) {
+      // lookupBarcode is never-throw now, but keep a safety net
+      return { status: "error", failureReason: `Unexpected client error: ${e?.message || String(e)}` };
     }
   };
 
@@ -620,9 +637,45 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                             )}
                         </>
                       ) : (
-                        <p className="text-sm text-destructive">
-                          {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
-                        </p>
+                        <div>
+                          <p className="text-sm text-destructive">
+                            {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
+                          </p>
+                          {item.partialTitle && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Partial title recovered: <span className="font-medium">"{item.partialTitle}"</span>
+                            </p>
+                          )}
+                          {item.failureReason && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {item.failureReason}
+                            </p>
+                          )}
+                          {item.debug && item.debug.length > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                className="text-[10px] text-primary hover:underline mt-0.5"
+                                onClick={() =>
+                                  setQueue((prev) =>
+                                    prev.map((q) =>
+                                      q.barcode === item.barcode ? { ...q, showDebug: !q.showDebug } : q
+                                    )
+                                  )
+                                }
+                              >
+                                {item.showDebug ? "Hide" : "Show"} lookup trace ({item.debug.length} sources)
+                              </button>
+                              {item.showDebug && (
+                                <pre className="text-[9px] text-muted-foreground bg-secondary/50 rounded p-1 mt-0.5 overflow-x-auto max-w-full whitespace-pre-wrap">
+                                  {item.debug
+                                    .map((d) => `${d.source}: ${d.status}`)
+                                    .join("\n")}
+                                </pre>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
 

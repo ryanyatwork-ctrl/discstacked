@@ -63,13 +63,55 @@ export interface MultiMovieResult {
   }[];
 }
 
+/**
+ * Per-source result from the edge function's lookup chain.
+ * Status values seen: "HIT", "HIT-movie", "HIT-tv", "HIT-highconf",
+ * "MISS", "MISS-lowconf", "MISS-noresults", "ERROR", "FAILED".
+ */
+export interface LookupDebugEntry {
+  source: string;
+  status: string;
+  raw?: any;
+}
+
 export type BarcodeLookupResult = {
   direct?: MediaLookupResult;
   results?: MediaLookupResult[];
   multiMovie?: MultiMovieResult;
   partialTitle?: string;
   partialFormats?: string[];
+  /** Per-source hit/miss trail from the edge function. Present on every return. */
+  debug?: LookupDebugEntry[];
+  /** Human-readable explanation of why the lookup didn't produce a direct match.
+   *  Populated on soft-fails (no results, partial match, edge function error). */
+  failureReason?: string;
 };
+
+/**
+ * Build a short human-readable explanation from a debug trail.
+ * Prefers the first ERROR entry, falls back to summarizing MISS reasons.
+ * Exported for unit testing.
+ */
+export function buildFailureReason(debug: LookupDebugEntry[] | undefined): string | undefined {
+  if (!debug || debug.length === 0) return undefined;
+  const firstError = debug.find((d) => d.status === "ERROR");
+  if (firstError) {
+    return `${firstError.source} errored: ${typeof firstError.raw === "string" ? firstError.raw : "unknown"}`;
+  }
+  const allFailed = debug[debug.length - 1];
+  if (allFailed?.source === "ALL" && allFailed.status === "FAILED") {
+    const tried = debug
+      .filter((d) => d.source !== "ALL")
+      .map((d) => `${d.source}:${d.status}`)
+      .join(", ");
+    return `No source matched (${tried})`;
+  }
+  const lowConf = debug.find((d) => d.status === "MISS-lowconf");
+  if (lowConf && lowConf.raw?.bestResult) {
+    return `TMDB fuzzy match rejected (low confidence). Best guess: "${lowConf.raw.bestResult}"`;
+  }
+  return undefined;
+}
 
 export async function searchMedia(
   activeTab: MediaTab,
@@ -87,10 +129,20 @@ export async function lookupBarcode(
   barcode: string
 ): Promise<BarcodeLookupResult> {
   if (activeTab === "movies" || activeTab === "music-films") {
-    const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-      body: { barcode },
-    });
-    if (error) throw new Error(error.message);
+    let data: any;
+    try {
+      const resp = await supabase.functions.invoke("tmdb-lookup", {
+        body: { barcode },
+      });
+      if (resp.error) {
+        return { failureReason: `Edge function error: ${resp.error.message}` };
+      }
+      data = resp.data;
+    } catch (e: any) {
+      return { failureReason: `Edge function unreachable: ${e?.message || String(e)}` };
+    }
+
+    const debug: LookupDebugEntry[] | undefined = Array.isArray(data?._debug) ? data._debug : undefined;
 
     // Multi-movie detection
     if (data?.is_multi_movie && data?.multi_movies?.length > 0) {
@@ -103,14 +155,15 @@ export async function lookupBarcode(
           collection_name: data.collection_name,
           movies: data.multi_movies,
         },
+        debug,
       };
     }
 
-    if (data?.title) {
+    if (data?.tmdb_id && data?.title) {
       return {
         direct: {
-          id: String(data.tmdb_id || barcode),
-          tmdb_id: data.tmdb_id || null,
+          id: String(data.tmdb_id),
+          tmdb_id: data.tmdb_id,
           title: data.title,
           year: data.year || null,
           cover_url: data.poster_url || null,
@@ -130,26 +183,42 @@ export async function lookupBarcode(
             formats: data.detected_formats || [],
           } : undefined,
         },
+        debug,
       };
     }
     if (data?.results?.length > 0) {
-      return { results: data.results.map(mapTmdbResult) };
+      return { results: data.results.map(mapTmdbResult), debug };
     }
     // Barcode not found or partial match — return partial data for soft-fail UX
     if (data?.barcode_not_found || (data?.title && !data?.tmdb_id)) {
       return {
         partialTitle: data.title || "",
         partialFormats: data.detected_formats || [],
+        debug,
+        failureReason:
+          buildFailureReason(debug) ||
+          (data?.title
+            ? `Title "${data.title}" found but no TMDB match`
+            : "No source matched this barcode"),
       };
     }
-    return {};
+    return { debug, failureReason: buildFailureReason(debug) || "Unknown lookup failure" };
   }
 
   if (activeTab === "cds") {
-    const { data, error } = await supabase.functions.invoke("music-lookup", {
-      body: { barcode },
-    });
-    if (error) throw new Error(error.message);
+    let data: any;
+    try {
+      const resp = await supabase.functions.invoke("music-lookup", {
+        body: { barcode },
+      });
+      if (resp.error) {
+        return { failureReason: `Edge function error: ${resp.error.message}` };
+      }
+      data = resp.data;
+    } catch (e: any) {
+      return { failureReason: `Edge function unreachable: ${e?.message || String(e)}` };
+    }
+    const debug: LookupDebugEntry[] | undefined = Array.isArray(data?._debug) ? data._debug : undefined;
     if (data?.title) {
       return {
         direct: {
@@ -163,15 +232,16 @@ export async function lookupBarcode(
           tracklist: data.tracklist,
           barcode: data.barcode,
         },
+        debug,
       };
     }
     if (data?.results?.length > 0) {
-      return { results: data.results };
+      return { results: data.results, debug };
     }
-    return {};
+    return { debug, failureReason: buildFailureReason(debug) || "No music-lookup source matched" };
   }
 
-  return {};
+  return { failureReason: `No lookup implemented for tab "${activeTab}"` };
 }
 
 // --- Internal search helpers ---

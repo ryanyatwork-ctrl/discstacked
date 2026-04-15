@@ -187,12 +187,28 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         // Barcode found a product name but no TMDB match — pre-populate for the user
         setTitle(result.partialTitle);
         if (result.partialFormats?.length) setFormats(result.partialFormats);
-        toast({ title: "Barcode not recognized", description: "Please verify the title below and search manually.", variant: "default" });
+        toast({
+          title: "Barcode not recognized",
+          description: result.failureReason || "Please verify the title below and search manually.",
+          variant: "default",
+        });
+      } else if (result.failureReason) {
+        // Structured failure with a reason
+        toast({
+          title: "Barcode not recognized",
+          description: result.failureReason,
+          variant: "default",
+        });
+        if (result.debug) {
+          // Log full trail to console for debugging
+          console.log("[lookupBarcode] debug trail:", result.debug);
+        }
       } else {
         toast({ title: "Barcode not recognized", description: "Please enter the title below and search.", variant: "default" });
       }
-    } catch {
-      toast({ title: "Lookup failed", variant: "destructive" });
+    } catch (e: any) {
+      // lookupBarcode is never-throw now, so this should be unreachable.
+      toast({ title: "Lookup failed", description: e?.message || "Unexpected error", variant: "destructive" });
     }
     setLookingUp(false);
   };

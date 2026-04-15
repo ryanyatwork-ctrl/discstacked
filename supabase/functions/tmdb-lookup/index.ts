@@ -53,6 +53,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Hoisted so the top-level catch can attach it to error responses when we
+  // got far enough into a barcode lookup to have per-source diagnostics.
+  const debugLog: { source: string; status: string; raw?: any }[] = [];
+
   try {
     const TMDB_API_KEY = Deno.env.get("TMDB_API_KEY");
     if (!TMDB_API_KEY) throw new Error("TMDB_API_KEY not configured");
@@ -356,8 +360,7 @@ serve(async (req) => {
         return null;
       }
 
-      // Debug log accumulator
-      const debugLog: { source: string; status: string; raw?: any }[] = [];
+      // Debug log accumulator (hoisted to outer scope so errors include it too)
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
@@ -638,7 +641,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    debugLog.push({ source: "EDGE", status: "EXCEPTION", raw: String(error?.message || error) });
+    return new Response(JSON.stringify({ error: error.message, _debug: debugLog }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
