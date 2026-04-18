@@ -11,7 +11,7 @@ import { Plus, Camera, Loader2, Search, Check, Eye, Copy, Layers, Package } from
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MediaTab, FORMATS } from "@/lib/types";
+import { MediaTab, FORMATS, deriveContentType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
@@ -245,12 +245,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (r.developer) meta.developer = r.developer;
     if (r.source) meta.source = r.source;
     if (r.tmdb_id) meta.tmdb_id = r.tmdb_id;
-    // Content type
-    if (r.media_type) meta.content_type = r.media_type;
-    // TV Season fields
-    if (r.tmdb_series_id) meta.tmdb_series_id = r.tmdb_series_id;
-    if (r.season_number) meta.season_number = r.season_number;
-    // Box set included titles
+    // P1-A: TV metadata (content_type, tmdb_series_id, season_number,
+    // episode_count) is now written as real columns in handleSave, not
+    // stuffed into metadata jsonb. We still stash the raw server value on
+    // `meta.__lookup_media_type` so handleSave can derive content_type.
+    if (r.media_type) meta.__lookup_media_type = r.media_type;
+    if (r.tmdb_series_id) meta.__lookup_tmdb_series_id = r.tmdb_series_id;
+    if (r.season_number) meta.__lookup_season_number = r.season_number;
+    if (r.episode_count) meta.__lookup_episode_count = r.episode_count;
+    // Box set included titles (still fine in metadata — UI-only hint)
     if (r.included_titles?.length) meta.included_titles = r.included_titles;
     // Edition / package layer (kept separate from content)
     if (r.edition) meta.edition = r.edition;
@@ -287,6 +290,11 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         poster_url: r.cover_url ?? null,
         want_to_watch: true,
         media_type: activeTab,
+        content_type: deriveContentType(r.media_type, activeTab),
+        tmdb_series_id: r.tmdb_series_id ?? null,
+        season_number: r.season_number ?? null,
+        episode_count: r.episode_count ?? null,
+        external_id: r.tmdb_id ? String(r.tmdb_id) : null,
         metadata: {
           ...(r.artist ? { artist: r.artist } : {}),
           ...(r.author ? { author: r.author } : {}),
@@ -343,13 +351,25 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!title.trim() || !user) return;
     setSaving(true);
     try {
+      // Pull TV-specific fields (stashed by applyResult under __lookup_*) out
+      // of extraMeta so they can be written as real columns, and clean them
+      // from the metadata jsonb blob to avoid double-storing.
+      const lookupMediaType = extraMeta.__lookup_media_type as string | undefined;
+      const lookupSeriesId  = extraMeta.__lookup_tmdb_series_id as number | undefined;
+      const lookupSeason    = extraMeta.__lookup_season_number as number | undefined;
+      const lookupEpisodes  = extraMeta.__lookup_episode_count as number | undefined;
       const metaPayload: Record<string, any> = { ...extraMeta };
+      delete metaPayload.__lookup_media_type;
+      delete metaPayload.__lookup_tmdb_series_id;
+      delete metaPayload.__lookup_season_number;
+      delete metaPayload.__lookup_episode_count;
       if (artist && isMusicTab) {
         metaPayload["artist"] = artist;
       }
 
       const tmdbId = extraMeta.tmdb_id || null;
       const effectiveFormats = formats.length > 0 ? formats : (format ? [format] : []);
+      const contentType = deriveContentType(lookupMediaType, activeTab);
 
       const { data: newItem, error } = await supabase.from("media_items").insert({
         user_id: user.id,
@@ -366,6 +386,10 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
+        content_type: contentType,
+        tmdb_series_id: lookupSeriesId ?? null,
+        season_number: lookupSeason ?? null,
+        episode_count: lookupEpisodes ?? null,
         external_id: tmdbId ? String(tmdbId) : null,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       } as any).select().single();
@@ -378,6 +402,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           productTitle: title.trim(),
           formats: effectiveFormats,
           mediaType: activeTab,
+          contentType,
           format: effectiveFormats[0] || null,
         });
       } catch (ppErr) {

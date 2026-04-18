@@ -60,8 +60,10 @@ export type Database = {
         Row: {
           amazon_tag: string | null
           barcode: string | null
+          content_type: string
           created_at: string
           digital_copy: boolean
+          episode_count: number | null
           external_id: string | null
           format: string | null
           formats: string[] | null
@@ -74,8 +76,10 @@ export type Database = {
           notes: string | null
           poster_url: string | null
           rating: number | null
+          season_number: number | null
           sort_title: string | null
           title: string
+          tmdb_series_id: number | null
           total_copies: number
           updated_at: string
           user_id: string
@@ -87,8 +91,10 @@ export type Database = {
         Insert: {
           amazon_tag?: string | null
           barcode?: string | null
+          content_type?: string
           created_at?: string
           digital_copy?: boolean
+          episode_count?: number | null
           external_id?: string | null
           format?: string | null
           formats?: string[] | null
@@ -101,8 +107,10 @@ export type Database = {
           notes?: string | null
           poster_url?: string | null
           rating?: number | null
+          season_number?: number | null
           sort_title?: string | null
           title: string
+          tmdb_series_id?: number | null
           total_copies?: number
           updated_at?: string
           user_id: string
@@ -114,8 +122,10 @@ export type Database = {
         Update: {
           amazon_tag?: string | null
           barcode?: string | null
+          content_type?: string
           created_at?: string
           digital_copy?: boolean
+          episode_count?: number | null
           external_id?: string | null
           format?: string | null
           formats?: string[] | null
@@ -128,8 +138,10 @@ export type Database = {
           notes?: string | null
           poster_url?: string | null
           rating?: number | null
+          season_number?: number | null
           sort_title?: string | null
           title?: string
+          tmdb_series_id?: number | null
           total_copies?: number
           updated_at?: string
           user_id?: string
@@ -143,6 +155,7 @@ export type Database = {
       physical_products: {
         Row: {
           barcode: string | null
+          content_type: string | null
           created_at: string
           disc_count: number | null
           edition: string | null
@@ -161,6 +174,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          content_type?: string | null
           created_at?: string
           disc_count?: number | null
           edition?: string | null
@@ -179,6 +193,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          content_type?: string | null
           created_at?: string
           disc_count?: number | null
           edition?: string | null

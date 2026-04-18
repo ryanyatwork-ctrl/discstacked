@@ -38,6 +38,7 @@ export interface MediaLookupResult {
   // TV Season
   tmdb_series_id?: number | null;
   season_number?: number | null;
+  episode_count?: number | null;
   // Box Set
   included_titles?: { title: string; year?: number | null; tmdb_id?: number | null }[];
   // Edition / Package
@@ -124,6 +125,7 @@ export async function lookupBarcode(
           media_type: data.media_type || "movie",
           tmdb_series_id: data.tmdb_series_id || null,
           season_number: data.season_number || null,
+          episode_count: data.episode_count ?? null,
           included_titles: data.included_titles || undefined,
           edition: data.barcode_title ? {
             barcode_title: data.barcode_title,
@@ -193,6 +195,7 @@ function mapTmdbResult(r: any): MediaLookupResult {
     media_type: r.media_type || "movie",
     tmdb_series_id: r.tmdb_series_id || null,
     season_number: r.season_number || null,
+    episode_count: r.episode_count ?? null,
     included_titles: r.included_titles || undefined,
   };
 }

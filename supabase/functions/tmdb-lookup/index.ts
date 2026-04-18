@@ -438,14 +438,33 @@ serve(async (req) => {
             const tvData = await tvRes.json();
             if (tvData.results?.length > 0) {
               const t = tvData.results[0];
+              // Enrich with series-level aggregates (episode count, season count) so
+              // "TV complete-series" scans aren't treated as thin stub rows.
+              let episode_count: number | null = null;
+              let tmdb_series_id: number | null = t.id;
+              try {
+                const detRes = await fetch(
+                  `https://api.themoviedb.org/3/tv/${t.id}?api_key=${TMDB_API_KEY}&language=en-US`
+                );
+                if (detRes.ok) {
+                  const det = await detRes.json();
+                  if (typeof det.number_of_episodes === "number") {
+                    episode_count = det.number_of_episodes;
+                  }
+                }
+              } catch {
+                // Enrichment is best-effort; fall through with nulls.
+              }
               return {
                 tmdb_id: t.id,
+                tmdb_series_id,
                 title: t.name,
                 year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
                 poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
                 rating: t.vote_average || null,
                 overview: t.overview || null,
                 media_type: "tv",
+                episode_count,
                 barcode_title: rawTitle,
                 detected_formats,
                 _matchScore: 110,
@@ -570,13 +589,35 @@ serve(async (req) => {
         if (tvResults.length > 0) {
           const t = tvResults[0];
           const formats = upcFormats.length > 0 ? upcFormats : [];
+          // Best-effort episode count enrichment for direct UPC→TV matches.
+          let episode_count: number | null = null;
+          try {
+            const detRes = await fetch(
+              `https://api.themoviedb.org/3/tv/${t.id}?api_key=${TMDB_API_KEY}&language=en-US`
+            );
+            if (detRes.ok) {
+              const det = await detRes.json();
+              if (typeof det.number_of_episodes === "number") {
+                episode_count = det.number_of_episodes;
+              }
+            }
+          } catch {
+            // Enrichment is best-effort; fall through with null.
+          }
           debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: t.id, title: t.name } });
           return buildJsonResponse({
-            tmdb_id: t.id, title: t.name,
+            tmdb_id: t.id,
+            tmdb_series_id: t.id,
+            title: t.name,
             year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
             poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-            rating: t.vote_average || null, overview: t.overview || null,
-            media_type: "tv", barcode_title: t.name, detected_formats: formats, _matchScore: 230,
+            rating: t.vote_average || null,
+            overview: t.overview || null,
+            media_type: "tv",
+            episode_count,
+            barcode_title: t.name,
+            detected_formats: formats,
+            _matchScore: 230,
           }, debugLog);
         }
         debugLog.push({ source: "TMDB-UPC", status: "MISS", raw: findRaw });

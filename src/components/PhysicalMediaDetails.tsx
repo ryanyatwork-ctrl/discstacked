@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Check, X, Disc, Package, HardDrive, Shield } from "lucide-react";
+import { Pencil, Check, X, Disc, Package, HardDrive, Shield, Tv } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];
 const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Poor"];
@@ -89,22 +89,33 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
 
   const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status || meta.distributor || meta.region || meta.disc_layers;
 
+  // P1-A: surface first-class TV metadata at the top of the details panel.
+  // `tv_season` items get "Season N • X episodes"; `tv` (whole series) items
+  // get just the episode count. Hidden entirely for movies and other types.
+  const tvInfo = (item.contentType === "tv" || item.contentType === "tv_season")
+    ? <TvInfoBlock seasonNumber={item.seasonNumber ?? null} episodeCount={item.episodeCount ?? null} />
+    : null;
+
   if (!editing && !hasAnyData) {
     return (
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
-          <Disc className="w-3 h-3" /> Physical Details
-        </p>
-        <Button variant="outline" size="sm" onClick={startEditing} className="gap-1.5 text-xs">
-          <Pencil className="w-3 h-3" /> Add physical media details
-        </Button>
+      <div className="space-y-2">
+        {tvInfo}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+            <Disc className="w-3 h-3" /> Physical Details
+          </p>
+          <Button variant="outline" size="sm" onClick={startEditing} className="gap-1.5 text-xs">
+            <Pencil className="w-3 h-3" /> Add physical media details
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!editing) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
+        {tvInfo}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
             <Disc className="w-3 h-3" /> Physical Details
@@ -154,6 +165,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
   const d = draft;
   return (
     <div className="space-y-3">
+      {tvInfo}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
           <Disc className="w-3 h-3" /> Physical Details
@@ -371,6 +383,38 @@ function DetailRow({
         {children}
         {value}
       </p>
+    </div>
+  );
+}
+
+function TvInfoBlock({
+  seasonNumber,
+  episodeCount,
+}: {
+  seasonNumber: number | null;
+  episodeCount: number | null;
+}) {
+  // Nothing worth showing for a TV item with no metadata
+  if (seasonNumber == null && episodeCount == null) return null;
+
+  const seasonLabel = seasonNumber != null ? `Season ${seasonNumber}` : "TV Series";
+  const episodeLabel = episodeCount != null
+    ? `${episodeCount} episode${episodeCount === 1 ? "" : "s"}`
+    : null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+        <Tv className="w-3 h-3" /> TV Info
+      </p>
+      <div className="flex items-center gap-2 text-sm">
+        <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+          {seasonLabel}
+        </Badge>
+        {episodeLabel && (
+          <span className="text-xs text-muted-foreground">{episodeLabel}</span>
+        )}
+      </div>
     </div>
   );
 }

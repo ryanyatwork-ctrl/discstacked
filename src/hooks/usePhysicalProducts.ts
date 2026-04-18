@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MediaTab } from "@/lib/types";
+import { MediaTab, PhysicalContentType } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 
 export interface PhysicalProduct {
@@ -11,6 +11,7 @@ export interface PhysicalProduct {
   formats: string[];
   edition: string | null;
   media_type: string;
+  content_type: PhysicalContentType | null;
   is_multi_title: boolean;
   disc_count: number;
   purchase_date: string | null;
@@ -34,6 +35,9 @@ export interface MediaCopy {
 /**
  * Creates a physical product and links it to a media item via media_copies.
  * For single-title items, creates one physical_product + one media_copy.
+ *
+ * `contentType` is passed through to physical_products so downstream UIs can
+ * filter box sets, TV products, etc. without joining media_items.
  */
 export async function createPhysicalProductForItem(
   userId: string,
@@ -43,6 +47,8 @@ export async function createPhysicalProductForItem(
     productTitle: string;
     formats: string[];
     mediaType: string;
+    /** Content-type discriminator for the physical product. Defaults to 'movie'. */
+    contentType?: PhysicalContentType | null;
     format?: string | null;
     edition?: string | null;
     isMultiTitle?: boolean;
@@ -60,6 +66,7 @@ export async function createPhysicalProductForItem(
       product_title: opts.productTitle,
       formats: opts.formats,
       media_type: opts.mediaType,
+      content_type: opts.contentType ?? null,
       edition: opts.edition || null,
       is_multi_title: opts.isMultiTitle || false,
       disc_count: opts.discCount || 1,
@@ -114,7 +121,9 @@ export async function createMultiMovieProduct(
     crew?: any;
   }[]
 ): Promise<{ physicalProduct: any; mediaItemIds: string[] }> {
-  // Create the physical product
+  // Create the physical product. Multi-movie sets are always tagged 'box_set'
+  // on the physical layer so collection queries can distinguish them from
+  // single-title products without needing to look at is_multi_title.
   const { data: pp, error: ppError } = await supabase
     .from("physical_products")
     .insert({
@@ -123,6 +132,7 @@ export async function createMultiMovieProduct(
       product_title: product.productTitle,
       formats: product.formats,
       media_type: product.mediaType,
+      content_type: "box_set",
       is_multi_title: true,
       disc_count: product.discCount || movies.length,
       purchase_date: product.purchaseDate || null,
@@ -185,6 +195,9 @@ export async function createMultiMovieProduct(
               poster_url: movie.poster_url,
               genre: movie.genre || null,
               media_type: product.mediaType,
+              // Individual items inside a box_set are movies themselves
+              // (TMDB collection parts are always movies, not TV).
+              content_type: "movie",
               external_id: movie.tmdb_id ? String(movie.tmdb_id) : null,
               formats: product.formats,
               format: product.formats[0] || null,
@@ -219,6 +232,7 @@ export async function createMultiMovieProduct(
             poster_url: movie.poster_url,
             genre: movie.genre || null,
             media_type: product.mediaType,
+            content_type: "movie",
             formats: product.formats,
             format: product.formats[0] || null,
             metadata: movie.overview ? { overview: movie.overview } : {},

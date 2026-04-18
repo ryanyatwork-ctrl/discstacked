@@ -8,7 +8,7 @@ import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Co
 import { searchTmdb } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MediaTab, FORMATS } from "@/lib/types";
+import { MediaTab, FORMATS, ContentType, deriveContentType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
@@ -34,6 +34,12 @@ interface ScanQueueItem {
   existingTitle?: string;
   existingFormats?: string[];
   extraMeta?: Record<string, any>;
+  // Content-type discriminator + TV-specific metadata (undefined for non-TV).
+  // Persisted as first-class columns rather than metadata jsonb.
+  contentType?: ContentType;
+  tmdbSeriesId?: number | null;
+  seasonNumber?: number | null;
+  episodeCount?: number | null;
   // Multi-movie fields
   multiMovie?: MultiMovieResult;
 }
@@ -110,6 +116,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           artist: result.direct.artist,
           author: result.direct.author,
           tmdb_id: result.direct.tmdb_id,
+          // TV metadata flows through to handleCommit as real columns.
+          contentType: deriveContentType(result.direct.media_type, activeTab),
+          tmdbSeriesId: result.direct.tmdb_series_id ?? null,
+          seasonNumber: result.direct.season_number ?? null,
+          episodeCount: result.direct.episode_count ?? null,
           ...(detectedFormats && detectedFormats.length > 0 ? {
             format: detectedFormats[0],
             formats: detectedFormats,
@@ -422,6 +433,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           poster_url: item.posterUrl ?? null,
           barcode: item.barcode,
           media_type: activeTab,
+          // P1-A: TV metadata and content_type are now real columns so TV
+          // scans keep their identity (series, season, episodes) instead of
+          // landing in media_items.metadata.content_type=movies.
+          content_type: item.contentType ?? deriveContentType(null, activeTab),
+          tmdb_series_id: item.tmdbSeriesId ?? null,
+          season_number: item.seasonNumber ?? null,
+          episode_count: item.episodeCount ?? null,
           external_id: item.tmdb_id ? String(item.tmdb_id) : null,
           metadata: {
             ...(item.runtime ? { runtime: item.runtime } : {}),
@@ -446,6 +464,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                   productTitle: item.title!,
                   formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
                   mediaType: activeTab,
+                  contentType: item.contentType ?? deriveContentType(null, activeTab),
                   format: item.formats[0] || item.format || null,
                 });
               } catch (ppErr) {

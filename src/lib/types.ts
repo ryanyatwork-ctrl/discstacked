@@ -1,5 +1,47 @@
 export type MediaTab = "movies" | "music-films" | "cds" | "games";
 
+/**
+ * Discriminates the kind of work a MediaItem represents. Distinct from
+ * MediaTab (which is the UI-level bucket). Most values map 1:1 to a tab,
+ * except movies/music-films which split into movie/tv/tv_season/music_film.
+ *
+ * Constrained on the DB side by media_items.content_type_check.
+ */
+export type ContentType =
+  | "movie"
+  | "tv"
+  | "tv_season"
+  | "album"
+  | "game"
+  | "book"
+  | "music_film";
+
+/**
+ * Discriminator for a physical_products row — mostly matches ContentType
+ * but adds 'box_set' for multi-title containers.
+ */
+export type PhysicalContentType = ContentType | "box_set";
+
+/**
+ * Derive a reasonable ContentType from a lookup result's media_type field
+ * (returned by TMDB/edge function) falling back to the UI tab. Used by
+ * both BulkScanDialog and AddMovieDialog when persisting new items.
+ */
+export function deriveContentType(
+  lookupMediaType: string | null | undefined,
+  tab: MediaTab
+): ContentType {
+  // Lookup-driven: TMDB explicitly tagged this item.
+  if (lookupMediaType === "tv") return "tv";
+  if (lookupMediaType === "tv_season") return "tv_season";
+  if (lookupMediaType === "movie") return "movie";
+  // Tab-driven fallback for tabs that don't use the TMDB pipeline.
+  if (tab === "cds") return "album";
+  if (tab === "games") return "game";
+  if (tab === "music-films") return "music_film";
+  return "movie";
+}
+
 export interface MediaItem {
   id: string;
   title: string;
@@ -18,6 +60,11 @@ export interface MediaItem {
   lastWatched?: string;
   watchNotes?: string;
   mediaType?: MediaTab;
+  contentType?: ContentType;
+  // TV-specific — populated only when contentType is "tv" or "tv_season"
+  tmdbSeriesId?: number | null;
+  seasonNumber?: number | null;
+  episodeCount?: number | null;
   artist?: string;
   author?: string;
   platform?: string;
