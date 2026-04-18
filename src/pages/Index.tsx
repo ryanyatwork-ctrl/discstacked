@@ -4,6 +4,7 @@ import { MediaTab, MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
 import { sortTitle, groupLetter } from "@/lib/utils";
+import { getEditionLabel } from "@/lib/edition-utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -22,6 +23,7 @@ import { FetchArtworkButton } from "@/components/FetchArtworkButton";
 import { Users, LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers } from "lucide-react";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
@@ -54,6 +56,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
 }
 
 type ViewMode = "covers" | "list" | "editions";
+type SortMode = "title" | "year" | "recent";
 
 function getStored<T>(key: string, fallback: T): T {
   try {
@@ -71,6 +74,7 @@ export default function Index() { // force rebuild
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
+  const [sortMode, setSortMode] = useState<SortMode>(() => getStored("ds-default-sort", "title"));
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -94,6 +98,22 @@ export default function Index() { // force rebuild
     if (!selectedItemId) return null;
     return allItems.find((i) => i.id === selectedItemId) ?? null;
   }, [selectedItemId, allItems]);
+
+  const compareItems = useCallback((a: MediaItem, b: MediaItem) => {
+    if (sortMode === "year") {
+      const yearDiff = (b.year ?? -Infinity) - (a.year ?? -Infinity);
+      if (yearDiff !== 0) return yearDiff;
+    }
+
+    if (sortMode === "recent") {
+      const aCreated = user ? Date.parse((dbItems?.find((item) => item.id === a.id)?.created_at ?? "") || "") : NaN;
+      const bCreated = user ? Date.parse((dbItems?.find((item) => item.id === b.id)?.created_at ?? "") || "") : NaN;
+      const recentDiff = (Number.isFinite(bCreated) ? bCreated : 0) - (Number.isFinite(aCreated) ? aCreated : 0);
+      if (recentDiff !== 0) return recentDiff;
+    }
+
+    return sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle));
+  }, [sortMode, user, dbItems]);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -139,26 +159,27 @@ export default function Index() { // force rebuild
         });
       }
     }
-    return items.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
-  }, [allItems, searchQuery, activeFormats, activeTags, statusFilter]);
+    return [...items].sort(compareItems);
+  }, [allItems, searchQuery, activeFormats, activeTags, statusFilter, compareItems]);
 
   const availableLetters = useMemo(() => {
+    if (sortMode !== "title") return new Set<string>();
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
       letters.add(groupLetter(item.title, item.sortTitle));
     });
     return letters;
-  }, [filteredItems]);
+  }, [filteredItems, sortMode]);
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title, item.sortTitle);
+      const key = sortMode === "title" ? groupLetter(item.title, item.sortTitle) : "All";
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
     return groups;
-  }, [filteredItems]);
+  }, [filteredItems, sortMode]);
 
   // Group items by base title for editions view
   const editionGroups = useMemo(() => {
@@ -211,7 +232,17 @@ export default function Index() { // force rebuild
     setActiveFormats([]);
   }, []);
 
-  const sortedLetters = Object.keys(groupedItems).sort();
+  const sortedLetters = sortMode === "title" ? Object.keys(groupedItems).sort() : ["All"];
+
+  const sortedEditionGroups = useMemo(() => {
+    return Object.entries(editionGroups).sort(([, itemsA], [, itemsB]) => compareItems(itemsA[0], itemsB[0]));
+  }, [editionGroups, compareItems]);
+
+  const handleSortChange = useCallback((value: SortMode) => {
+    setSortMode(value);
+    localStorage.setItem("ds-default-sort", JSON.stringify(value));
+    setActiveLetter(null);
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -283,6 +314,19 @@ export default function Index() { // force rebuild
           </div>
           {/* Mobile: dropdown sits next to search */}
           <div className="md:hidden shrink-0">
+            {sortMode === "title" && (
+              <AlphabetRail
+                activeLetter={activeLetter}
+                onLetterClick={handleLetterClick}
+                availableLetters={availableLetters}
+                onClearLetter={() => setActiveLetter(null)}
+              />
+            )}
+          </div>
+        </div>
+        {/* Desktop: horizontal rail */}
+        {sortMode === "title" && (
+          <div className="hidden md:block px-2 sm:px-3 pb-2 border-b border-border/50">
             <AlphabetRail
               activeLetter={activeLetter}
               onLetterClick={handleLetterClick}
@@ -290,16 +334,7 @@ export default function Index() { // force rebuild
               onClearLetter={() => setActiveLetter(null)}
             />
           </div>
-        </div>
-        {/* Desktop: horizontal rail */}
-        <div className="hidden md:block px-2 sm:px-3 pb-2 border-b border-border/50">
-          <AlphabetRail
-            activeLetter={activeLetter}
-            onLetterClick={handleLetterClick}
-            availableLetters={availableLetters}
-            onClearLetter={() => setActiveLetter(null)}
-          />
-        </div>
+        )}
       </header>
 
       {/* Scrollable content area */}
@@ -337,7 +372,18 @@ export default function Index() { // force rebuild
           {(activeFormats.length > 0 || activeTags.length > 0) && ` · Filtered`}
           {!user && " · Demo mode"}
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <Select value={sortMode} onValueChange={(value: SortMode) => handleSortChange(value)}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="title">Title</SelectItem>
+              <SelectItem value="year">Year</SelectItem>
+              <SelectItem value="recent">Recently Added</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -365,6 +411,7 @@ export default function Index() { // force rebuild
           >
             <Layers className="h-4 w-4" />
           </Button>
+          </div>
         </div>
       </div>
 
@@ -372,8 +419,7 @@ export default function Index() { // force rebuild
       <main className="px-4 pb-8" ref={gridRef}>
         {viewMode === "editions" ? (
           // Editions grouped view
-          Object.entries(editionGroups)
-            .sort(([a], [b]) => sortTitle(a).localeCompare(sortTitle(b)))
+          sortedEditionGroups
             .map(([title, items]) => (
               <div key={title} className="mb-4">
                 <div className="flex items-center gap-2 py-1.5">
@@ -385,7 +431,7 @@ export default function Index() { // force rebuild
                 </div>
                 <div className="flex flex-col pl-3 border-l-2 border-border/50">
                   {items.map((item) => {
-                    const edition = (item.metadata as any)?.edition;
+                    const edition = getEditionLabel(item.metadata);
                     const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
                     return (
                       <button
@@ -420,9 +466,11 @@ export default function Index() { // force rebuild
         ) : (
           sortedLetters.map((letter) => (
             <div key={letter} id={`letter-${letter}`} className="mb-6">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
-                {letter}
-              </h2>
+              {sortMode === "title" && (
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
+                  {letter}
+                </h2>
+              )}
               {viewMode === "covers" ? (
                 <div className="poster-grid">
                   {groupedItems[letter].map((item) => (
