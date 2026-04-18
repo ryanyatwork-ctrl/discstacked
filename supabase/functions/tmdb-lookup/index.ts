@@ -5,8 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Keywords that indicate a multi-movie physical product
-const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|2-film|3-film|4-film|5-film|6-film|2-movie|3-movie|4-movie|5-movie|6-movie)\b/i;
+// Keywords that indicate a multi-movie physical product.
+// Matches: "collection", "trilogy", "quadrilogy", "pentalogy", "hexalogy",
+// "anthology", "box set" / "boxset", "double/triple feature", "complete series/saga",
+// "pack", and any N-film / N-movie variant with optional space or hyphen
+// (e.g. "3-Film", "5 Movie", "5-movies", "2film").
+const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|pentalogy|hexalogy|anthology|box\s*set|boxset|double\s*feature|triple\s*feature|complete\s*(series|saga)|pack|[2-9][\s-]?(film|movie)s?)\b/i;
 
 async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
   const [detailRes, creditsRes] = await Promise.all([
@@ -80,21 +84,22 @@ serve(async (req) => {
 
     // UPC/Barcode lookup
     if (barcode) {
-      // --- Helper: detect formats from text ---
+      // --- Helper: detect formats from text.
+      // Additive: every format present is captured so "Blu-ray + DVD + Digital Code"
+      // yields ["Blu-ray", "DVD", "Digital"]. Box sets routinely combine 4K+Blu-ray+Digital.
       function detectFormats(text: string): string[] {
-        const allText = text.toUpperCase();
+        const t = text.toUpperCase();
         const detected: string[] = [];
-        if (/BLU-?RAY\s*\+\s*DVD/i.test(allText) || /DVD\s*\+\s*BLU-?RAY/i.test(allText)) {
-          detected.push("Blu-ray", "DVD");
-        } else if (/4K.*BLU-?RAY|BLU-?RAY.*4K|UHD.*BLU-?RAY/i.test(allText)) {
-          detected.push("4K", "Blu-ray");
-        } else {
-          if (allText.includes("ULTRA HD") || allText.includes("4K") || allText.includes("UHD")) detected.push("4K");
-          if (allText.includes("BLU-RAY") || allText.includes("BLU RAY") || allText.includes("BLURAY")) detected.push("Blu-ray");
-          if (allText.includes("DVD") && !detected.includes("Blu-ray")) detected.push("DVD");
-        }
-        if (detected.length === 0 && (allText.includes("DIGITAL") || allText.includes("STREAMING"))) detected.push("Digital");
-        if (detected.length === 0 && allText.includes("VHS")) detected.push("VHS");
+        // 4K / UHD — word boundary avoids matching e.g. "24K GOLD"
+        if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(t)) detected.push("4K");
+        // Blu-ray (covers BLU-RAY, BLU RAY, BLURAY, BLU  RAY)
+        if (/\bBLU[-\s]?RAY\b/.test(t)) detected.push("Blu-ray");
+        // DVD
+        if (/\bDVD\b/.test(t)) detected.push("DVD");
+        // Digital (Digital Code / Copy / HD / Download / Movie, or plain "Digital", or Streaming)
+        if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(t)) detected.push("Digital");
+        // VHS
+        if (/\bVHS\b/.test(t)) detected.push("VHS");
         return detected;
       }
 
@@ -169,18 +174,42 @@ serve(async (req) => {
           let movieTitles: string[] = [];
           if (hasSlash) {
             movieTitles = cleanTitle.split(" / ").map(t => t.trim()).filter(Boolean);
+            // The first segment often carries the box-set name as a prefix, e.g.
+            // "Alien Quadrilogy: Alien / Aliens / Alien 3 / Alien Resurrection"
+            // After split, movieTitles[0] = "Alien Quadrilogy: Alien" which fails
+            // TMDB lookup. Strip prefixes that contain a multi-movie keyword.
+            if (movieTitles.length > 1 && movieTitles[0].includes(":")) {
+              const colonIdx = movieTitles[0].indexOf(":");
+              const prefix = movieTitles[0].substring(0, colonIdx);
+              if (MULTI_MOVIE_KEYWORDS.test(prefix)) {
+                movieTitles[0] = movieTitles[0].substring(colonIdx + 1).trim();
+              }
+            }
           }
 
           if (!hasSlash && hasMultiKeyword) {
+            // Strip ALL multi-movie keywords (global) and resulting orphan colons/dashes.
+            // "The Divergent Series: 3-Film Collection" → "The Divergent Series"
+            // "Dragonheart: 5-Movie Collection" → "Dragonheart"
+            const globalKeywords = new RegExp(MULTI_MOVIE_KEYWORDS.source, "gi");
             const franchiseName = cleanTitle
-              .replace(MULTI_MOVIE_KEYWORDS, "")
-              .replace(/\s*:\s*$/, "")
+              .replace(globalKeywords, "")
+              .replace(/[:,;]+/g, " ")
+              .replace(/\s+-\s+/g, " ")
               .replace(/\s+/g, " ")
               .trim();
 
-            // Try multiple search queries: full title first, then franchise name
+            // Try multiple search queries: full title first, then franchise name.
+            // Rank candidates so we accept close matches (e.g. "Dragonheart Collection"
+            // vs franchise "Dragonheart", or "The Divergent Collection" vs
+            // "The Divergent Series") without over-matching unrelated collections.
             const searchQueries = [cleanTitle, franchiseName].filter(Boolean);
+            const fn = franchiseName.toLowerCase().trim();
+            // Core form: strip "the " prefix and trailing " series" so CLZ-style
+            // names align with TMDB's shorter collection names.
+            const fnCore = fn.replace(/^the\s+/, "").replace(/\s+series$/, "").trim();
             let bestCollection: any = null;
+            let bestScore = 0;
 
             for (const sq of searchQueries) {
               const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(sq)}&language=en-US`;
@@ -188,17 +217,28 @@ serve(async (req) => {
               const collData = await collRes.json();
 
               if (collData.results?.length > 0) {
-                // Strict match: collection base name must equal franchise name (case-insensitive)
-                const fn = franchiseName.toLowerCase().trim();
-                const matched = collData.results.find((c: any) => {
+                for (const c of collData.results) {
                   const cn = (c.name || "").toLowerCase();
-                  const cnBase = cn.replace(/\s*collection\s*$/i, "").trim();
-                  return cnBase === fn;
-                });
-                if (matched) {
-                  bestCollection = matched;
-                  break;
+                  // Strip trailing markers like "Collection", "Saga", "Trilogy",
+                  // "Anthology", "Series Collection" to get the franchise core.
+                  const cnBase = cn
+                    .replace(/\s*(series\s*collection|collection|saga|trilogy|anthology|quadrilogy|pentalogy)\s*$/i, "")
+                    .trim();
+                  const cnCore = cnBase.replace(/^the\s+/, "").replace(/\s+series$/, "").trim();
+                  let score = 0;
+                  if (cnCore && fnCore && cnCore === fnCore) score = 100;
+                  else if (cnBase === fn) score = 95;
+                  else if (cn === fn) score = 92;
+                  else if (fnCore && cnCore && (cnCore.startsWith(fnCore + " ") || fnCore.startsWith(cnCore + " "))) score = 80;
+                  else if (cnBase.startsWith(fn + " ") || fn.startsWith(cnBase + " ")) score = 75;
+                  else if (fn.length >= 4 && cn.includes(fn)) score = 55;
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestCollection = c;
+                  }
                 }
+                // Early exit on strong match
+                if (bestScore >= 95) break;
               }
             }
 
