@@ -11,12 +11,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
-import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
+import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
+import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
+import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 
 interface ScanQueueItem {
   barcode: string;
-  status: "looking" | "found" | "not_found" | "error" | "multi_movie";
+  status: "looking" | "found" | "not_found" | "error" | "multi_movie" | "multi_season";
   title?: string;
   year?: number | null;
   genre?: string | null;
@@ -36,6 +37,8 @@ interface ScanQueueItem {
   extraMeta?: Record<string, any>;
   // Multi-movie fields
   multiMovie?: MultiMovieResult;
+  // Multi-season TV box set fields
+  multiSeason?: MultiSeasonResult;
 }
 
 interface BulkScanDialogProps {
@@ -97,6 +100,17 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         };
       }
 
+      // Multi-season TV box set detected
+      if (result.multiSeason) {
+        return {
+          status: "multi_season",
+          title: result.multiSeason.show_name || result.multiSeason.product_title,
+          multiSeason: result.multiSeason,
+          formats: result.multiSeason.detected_formats,
+          format: result.multiSeason.detected_formats[0] || "",
+        };
+      }
+
       if (result.direct) {
         const detectedFormats = result.direct.detected_formats;
         return {
@@ -114,19 +128,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             format: detectedFormats[0],
             formats: detectedFormats,
           } : {}),
-          extraMeta: {
-            ...(result.direct.overview ? { overview: result.direct.overview } : {}),
-            ...(result.direct.cast ? { cast: result.direct.cast } : {}),
-            ...(result.direct.crew ? { crew: result.direct.crew } : {}),
-            ...(result.direct.label ? { label: result.direct.label } : {}),
-            ...(result.direct.tracklist ? { tracklist: result.direct.tracklist } : {}),
-            ...(result.direct.page_count ? { page_count: result.direct.page_count } : {}),
-            ...(result.direct.publisher ? { publisher: result.direct.publisher } : {}),
-            ...(result.direct.isbn ? { isbn: result.direct.isbn } : {}),
-            ...(result.direct.platforms ? { platforms: result.direct.platforms } : {}),
-            ...(result.direct.developer ? { developer: result.direct.developer } : {}),
-            ...(result.direct.source ? { source: result.direct.source } : {}),
-          },
+          extraMeta: buildLookupMetadata(result.direct),
         };
       }
       if (result.results && result.results.length > 0) {
@@ -142,7 +144,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           artist: top.artist,
           author: top.author,
           tmdb_id: top.tmdb_id,
-          extraMeta: {},
+          extraMeta: buildLookupMetadata(top),
         };
       }
       return { status: "not_found" };
@@ -322,6 +324,17 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                   genre: top.genre,
                   posterUrl: top.poster_url,
                   tmdb_id: top.tmdb_id,
+                  extraMeta: buildLookupMetadata({
+                    tmdb_id: top.tmdb_id,
+                    runtime: top.runtime,
+                    tagline: top.tagline,
+                    overview: top.overview,
+                    media_type: top.media_type,
+                    tmdb_series_id: (top as any).tmdb_series_id,
+                    season_number: (top as any).season_number,
+                    series_title: (top as any).series_title,
+                    episode_count: (top as any).episode_count,
+                  }),
                   selected: true,
                 }
               : item
@@ -406,7 +419,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const handleCommit = async () => {
     const singleItems = queue.filter((item) => item.selected && item.status === "found" && item.title);
     const multiItems = queue.filter((item) => item.selected && item.status === "multi_movie" && item.multiMovie);
-    const totalCount = singleItems.length + multiItems.length;
+    const seasonItems = queue.filter((item) => item.selected && item.status === "multi_season" && item.multiSeason);
+    const totalCount = singleItems.length + multiItems.length + seasonItems.length;
     if (totalCount === 0 || !user) return;
     setSaving(true);
     try {
@@ -422,7 +436,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           poster_url: item.posterUrl ?? null,
           barcode: item.barcode,
           media_type: activeTab,
-          external_id: item.tmdb_id ? String(item.tmdb_id) : null,
+          external_id: getLookupExternalId({
+            tmdb_id: item.tmdb_id || null,
+            media_type: item.extraMeta?.content_type || null,
+            tmdb_series_id: item.extraMeta?.tmdb_series_id || null,
+            season_number: item.extraMeta?.season_number || null,
+          }),
           metadata: {
             ...(item.runtime ? { runtime: item.runtime } : {}),
             ...(item.tagline ? { tagline: item.tagline } : {}),
@@ -482,6 +501,36 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         }
       }
 
+      for (const item of seasonItems) {
+        const seasonBox = item.multiSeason!;
+        try {
+          await createMultiSeasonProduct(
+            user.id,
+            {
+              barcode: item.barcode,
+              productTitle: seasonBox.product_title,
+              formats: seasonBox.detected_formats,
+              mediaType: activeTab,
+              discCount: seasonBox.seasons.length,
+            },
+            {
+              tmdb_series_id: seasonBox.tmdb_series_id,
+              show_name: seasonBox.show_name,
+            },
+            seasonBox.seasons.map((season) => ({
+              season_number: season.season_number,
+              title: season.title,
+              year: season.year,
+              poster_url: season.poster_url,
+              overview: season.overview || null,
+              episode_count: season.episode_count || null,
+            })),
+          );
+        } catch (seasonErr: any) {
+          console.warn("Multi-season creation failed:", seasonErr);
+        }
+      }
+
       toast({ title: "Added!", description: `${totalCount} items added to your collection.` });
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
       setQueue([]);
@@ -501,7 +550,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     }
   }, [open]);
 
-  const selectedCount = queue.filter((q) => q.selected && (q.status === "found" || q.status === "multi_movie")).length;
+  const selectedCount = queue.filter((q) => q.selected && (q.status === "found" || q.status === "multi_movie" || q.status === "multi_season")).length;
   const lookingCount = queue.filter((q) => q.status === "looking").length;
 
   return (
@@ -671,6 +720,23 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                             </div>
                           )}
                         </>
+                      ) : item.status === "multi_season" && item.multiSeason ? (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <Package className="w-3 h-3 text-primary" />
+                            <p className="text-sm font-medium text-primary truncate">{item.multiSeason.product_title}</p>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {item.multiSeason.seasons.length} seasons: {item.multiSeason.seasons.map((season) => season.title).join(", ")}
+                          </p>
+                          {item.multiSeason.detected_formats.length > 0 && (
+                            <div className="flex gap-1 mt-0.5">
+                              {item.multiSeason.detected_formats.map((detectedFormat) => (
+                                <span key={detectedFormat} className="px-1 py-0 rounded text-[9px] font-medium bg-primary/20 text-primary">{detectedFormat}</span>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : item.status === "found" ? (
                          <>
                            <div className="flex items-center gap-1 group/title">
@@ -741,7 +807,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     )}
 
                     {/* Select / remove */}
-                    {item.status === "found" && (
+                    {(item.status === "found" || item.status === "multi_movie" || item.status === "multi_season") && (
                       <Button
                         variant={item.selected ? "default" : "outline"}
                         size="icon"

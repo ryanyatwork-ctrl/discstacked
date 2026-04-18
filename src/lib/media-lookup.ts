@@ -38,11 +38,15 @@ export interface MediaLookupResult {
   // TV Season
   tmdb_series_id?: number | null;
   season_number?: number | null;
+  series_title?: string | null;
+  show_name?: string | null;
+  episode_count?: number | null;
   // Box Set
   included_titles?: { title: string; year?: number | null; tmdb_id?: number | null }[];
   // Edition / Package
   edition?: {
     barcode_title?: string;
+    package_title?: string;
     package_year?: number | null;
     formats?: string[];
   };
@@ -59,7 +63,31 @@ export interface MultiMovieResult {
     title: string;
     year: number | null;
     poster_url: string | null;
+    genre?: string | null;
+    rating?: number | null;
     overview?: string | null;
+    runtime?: number | null;
+    tagline?: string | null;
+    cast?: any[];
+    crew?: any;
+  }[];
+}
+
+export interface MultiSeasonResult {
+  is_multi_season: true;
+  product_title: string;
+  barcode_title: string;
+  detected_formats: string[];
+  show_name: string;
+  tmdb_series_id: number;
+  seasons: {
+    tmdb_series_id: number;
+    season_number: number;
+    title: string;
+    year: number | null;
+    poster_url: string | null;
+    overview?: string | null;
+    episode_count?: number | null;
   }[];
 }
 
@@ -67,6 +95,7 @@ export type BarcodeLookupResult = {
   direct?: MediaLookupResult;
   results?: MediaLookupResult[];
   multiMovie?: MultiMovieResult;
+  multiSeason?: MultiSeasonResult;
   partialTitle?: string;
   partialFormats?: string[];
 };
@@ -106,7 +135,28 @@ export async function lookupBarcode(
       };
     }
 
-    if (data?.title) {
+    // Multi-season TV box set detection
+    if (data?.is_multi_season && data?.seasons?.length > 0) {
+      return {
+        multiSeason: {
+          is_multi_season: true,
+          product_title: data.product_title,
+          barcode_title: data.barcode_title,
+          detected_formats: data.detected_formats || [],
+          show_name: data.show_name,
+          tmdb_series_id: data.tmdb_series_id,
+          seasons: data.seasons,
+        },
+      };
+    }
+
+    const hasStrongTmdbMatch = Boolean(
+      data?.tmdb_id ||
+      (data?.tmdb_series_id && data?.season_number) ||
+      (data?.media_type && data.media_type !== "box_set"),
+    );
+
+    if (data?.title && hasStrongTmdbMatch) {
       return {
         direct: {
           id: String(data.tmdb_id || barcode),
@@ -124,9 +174,13 @@ export async function lookupBarcode(
           media_type: data.media_type || "movie",
           tmdb_series_id: data.tmdb_series_id || null,
           season_number: data.season_number || null,
+          series_title: data.series_title || data.show_name || null,
+          show_name: data.show_name || data.series_title || null,
+          episode_count: data.episode_count || null,
           included_titles: data.included_titles || undefined,
           edition: data.barcode_title ? {
             barcode_title: data.barcode_title,
+            package_title: data.product_title || data.barcode_title,
             formats: data.detected_formats || [],
           } : undefined,
         },
@@ -193,6 +247,9 @@ function mapTmdbResult(r: any): MediaLookupResult {
     media_type: r.media_type || "movie",
     tmdb_series_id: r.tmdb_series_id || null,
     season_number: r.season_number || null,
+    series_title: r.series_title || r.show_name || null,
+    show_name: r.show_name || r.series_title || null,
+    episode_count: r.episode_count || null,
     included_titles: r.included_titles || undefined,
   };
 }

@@ -1,124 +1,63 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { cleanProductTitle, extractYearFromText, generateTitleCandidates, normalizeLookupText, scoreMovieResult } from "./lookup-utils.ts";
+import {
+  MULTI_MOVIE_KEYWORDS,
+  cleanProductTitle,
+  extractCollectionFranchiseName,
+  extractYearFromText,
+  expandSharedFranchiseTitles,
+  generateTitleCandidates,
+  parseTvIndicator,
+  scoreCollectionMatch,
+  scoreMovieResult,
+  splitMultiTitleCandidates,
+} from "./lookup-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Keywords that indicate a multi-movie physical product.
-// Matches: "collection", "trilogy", "quadrilogy", "pentalogy", "hexalogy",
-// "anthology", "box set" / "boxset", "double/triple feature", "complete series/saga",
-// "pack", and any N-film / N-movie variant with optional space or hyphen
-// (e.g. "3-Film", "5 Movie", "5-movies", "2film").
-const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|pentalogy|hexalogy|anthology|box\s*set|boxset|double\s*feature|triple\s*feature|complete\s*(series|saga)|pack|[2-9][\s-]?(film|movie)s?)\b/i;
+function detectFormats(text: string): string[] {
+  const upper = text.toUpperCase();
+  const detected: string[] = [];
 
-function scoreCollectionMatch(query: string, name: string) {
-  const normalizedQuery = normalizeLookupText(query)
-    .replace(/\b(?:chapters?|collection|trilogy|quadrilogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|feature|film|movie|complete)\b/g, " ")
-    .replace(/\b\d+\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const normalizedName = normalizeLookupText(name)
-    .replace(/\bcollection\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(upper)) detected.push("4K");
+  if (/\bBLU[-\s]?RAY\b/.test(upper)) detected.push("Blu-ray");
+  if (/\bDVD\b/.test(upper)) detected.push("DVD");
+  if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(upper)) detected.push("Digital");
+  if (/\bVHS\b/.test(upper)) detected.push("VHS");
 
-  if (!normalizedQuery || !normalizedName) return 0;
-  if (normalizedName === normalizedQuery) return 100;
-  if (normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName)) return 85;
-
-  const queryWords = new Set(normalizeLookupText(query).split(" ").filter(Boolean));
-  const nameWords = new Set(normalizeLookupText(name).split(" ").filter(Boolean));
-  const overlap = Array.from(queryWords).filter((word) => nameWords.has(word)).length;
-  return Math.round((overlap / Math.max(queryWords.size, 1)) * 70);
+  return detected;
 }
 
-function splitMultiTitleCandidates(title: string): string[] {
-  const cleaned = title.replace(/\s+/g, " ").trim();
-  if (!cleaned) return [];
-
-  if (cleaned.includes("/")) {
-    return cleaned.split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean);
-  }
-
-  const numericSet = cleaned.match(/^(.+?)\s+(\d+)\s*&\s*(\d+)$/i);
-  if (numericSet) {
-    const base = numericSet[1].trim();
-    return [numericSet[2], numericSet[3]].map((n) => `${base} ${n}`);
-  }
-
-  return [];
-}
-
-function expandSharedFranchiseTitles(movieTitles: string[]): string[] {
-  if (movieTitles.length <= 1) return movieTitles;
-
-  const first = movieTitles[0];
-  const franchisePrefixMatch = first.match(/^(.+?)(?::|\s+-\s+|\s+chapter\b|\s+part\b|\s+\d\b)/i);
-  const franchisePrefix = franchisePrefixMatch?.[1]?.trim();
-
-  if (!franchisePrefix) return movieTitles;
-
-  // If the leading prefix is itself a multi-movie keyword (e.g.
-  // "Alien Quadrilogy: Alien / Aliens / Alien 3 / Alien Resurrection"),
-  // the prefix is the box-set name, not a franchise shared with siblings.
-  // Strip it from the first title and leave siblings alone — each is a
-  // standalone movie query.
-  if (MULTI_MOVIE_KEYWORDS.test(franchisePrefix)) {
-    const colonIdx = first.indexOf(":");
-    const stripped = colonIdx !== -1
-      ? first.substring(colonIdx + 1).trim()
-      : first.replace(franchisePrefix, "").trim();
-    return [stripped, ...movieTitles.slice(1)];
-  }
-
-  return movieTitles.map((title, index) => {
-    if (index === 0) return title;
-    if (new RegExp(`^${franchisePrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(title)) return title;
-    return `${franchisePrefix} ${title}`.replace(/\s+/g, " ").trim();
-  });
-}
-
-async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
-  const [detailRes, creditsRes] = await Promise.all([
-    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=en-US`),
-    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`),
-  ]);
-  const detail = await detailRes.json();
-  const credits = creditsRes.ok ? await creditsRes.json() : {};
-
-  const cast = (credits.cast || []).slice(0, 10).map((c: any) => ({
-    name: c.name,
-    character: c.character,
-    profile_url: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
-  }));
-  const director = (credits.crew || []).filter((c: any) => c.job === "Director").map((c: any) => c.name);
-  const writer = (credits.crew || []).filter((c: any) => c.job === "Writer" || c.job === "Screenplay").map((c: any) => c.name);
-  const producer = (credits.crew || []).filter((c: any) => c.job === "Producer").map((c: any) => c.name);
-
+function mapMovieSummary(movie: any) {
   return {
-    tmdb_id: detail.id,
-    title: detail.title,
-    year: detail.release_date ? parseInt(detail.release_date.substring(0, 4)) : null,
-    poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
-    genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
-    rating: detail.vote_average || null,
-    overview: detail.overview || null,
-    runtime: detail.runtime || null,
-    tagline: detail.tagline || null,
-    media_type: "movie",
-    cast,
-    crew: { director, writer, producer },
+    tmdb_id: movie.id ?? null,
+    title: movie.title,
+    year: movie.release_date ? parseInt(movie.release_date.slice(0, 4), 10) : null,
+    poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+    overview: movie.overview || null,
   };
 }
 
-async function searchTmdbMovie(query: string, apiKey: string, year?: number | null) {
-  let url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
-  if (year) url += `&year=${year}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data.results || [];
+async function enrichMovieSummaries(movies: any[], apiKey: string) {
+  return Promise.all(movies.map(async (movie) => {
+    if (!movie?.tmdb_id) return movie;
+
+    try {
+      const detail = await fetchTmdbMovieDetails(movie.tmdb_id, apiKey);
+      return {
+        ...movie,
+        ...detail,
+        title: detail.title || movie.title,
+        year: detail.year ?? movie.year ?? null,
+        poster_url: detail.poster_url ?? movie.poster_url ?? null,
+        overview: detail.overview || movie.overview || null,
+      };
+    } catch {
+      return movie;
+    }
+  }));
 }
 
 function buildJsonResponse(payload: Record<string, any>, debugLog: { source: string; status: string; raw?: any }[]) {
@@ -131,7 +70,262 @@ function buildJsonResponse(payload: Record<string, any>, debugLog: { source: str
 
 function isStrongResolvedMatch(payload: Record<string, any> | null) {
   if (!payload) return false;
-  return (payload._matchScore || 0) >= 170 || payload.is_multi_movie || payload.media_type === "tv_season";
+  return Boolean(
+    payload.is_multi_movie ||
+    payload.is_multi_season ||
+    payload.media_type === "tv_season" ||
+    (payload._matchScore || 0) >= 170,
+  );
+}
+
+async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
+  const [detailRes, creditsRes] = await Promise.all([
+    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=en-US`),
+    fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`),
+  ]);
+
+  const detail = await detailRes.json();
+  const credits = creditsRes.ok ? await creditsRes.json() : {};
+
+  const cast = (credits.cast || []).slice(0, 10).map((person: any) => ({
+    name: person.name,
+    character: person.character,
+    profile_url: person.profile_path ? `https://image.tmdb.org/t/p/w185${person.profile_path}` : null,
+  }));
+  const director = (credits.crew || []).filter((person: any) => person.job === "Director").map((person: any) => person.name);
+  const writer = (credits.crew || []).filter((person: any) => person.job === "Writer" || person.job === "Screenplay").map((person: any) => person.name);
+  const producer = (credits.crew || []).filter((person: any) => person.job === "Producer").map((person: any) => person.name);
+
+  return {
+    tmdb_id: detail.id,
+    title: detail.title,
+    year: detail.release_date ? parseInt(detail.release_date.slice(0, 4), 10) : null,
+    poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
+    genre: detail.genres?.map((genre: any) => genre.name).join(", ") || null,
+    rating: detail.vote_average || null,
+    overview: detail.overview || null,
+    runtime: detail.runtime || null,
+    tagline: detail.tagline || null,
+    media_type: "movie",
+    cast,
+    crew: { director, writer, producer },
+  };
+}
+
+async function fetchTmdbTvDetails(tmdbId: number, apiKey: string) {
+  const [detailRes, creditsRes] = await Promise.all([
+    fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${apiKey}&language=en-US`),
+    fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/credits?api_key=${apiKey}&language=en-US`),
+  ]);
+
+  const detail = await detailRes.json();
+  const credits = creditsRes.ok ? await creditsRes.json() : {};
+
+  const cast = (credits.cast || []).slice(0, 10).map((person: any) => ({
+    name: person.name,
+    character: person.character,
+    profile_url: person.profile_path ? `https://image.tmdb.org/t/p/w185${person.profile_path}` : null,
+  }));
+  const director = (credits.crew || []).filter((person: any) => person.job === "Director").map((person: any) => person.name);
+  const writer = (credits.crew || []).filter((person: any) => person.job === "Writer" || person.job === "Screenplay").map((person: any) => person.name);
+  const producer = (credits.crew || []).filter((person: any) => person.job === "Producer").map((person: any) => person.name);
+
+  return {
+    tmdb_id: detail.id,
+    title: detail.name,
+    year: detail.first_air_date ? parseInt(detail.first_air_date.slice(0, 4), 10) : null,
+    poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
+    genre: detail.genres?.map((genre: any) => genre.name).join(", ") || null,
+    rating: detail.vote_average || null,
+    overview: detail.overview || null,
+    runtime: detail.episode_run_time?.[0] || null,
+    tagline: detail.tagline || null,
+    media_type: "tv",
+    cast,
+    crew: { director, writer, producer },
+  };
+}
+
+async function searchTmdbMovie(query: string, apiKey: string, year?: number | null) {
+  let url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+  if (year) url += `&year=${year}`;
+
+  const response = await fetch(url);
+  const data = await response.json();
+  return data.results || [];
+}
+
+async function searchTmdbTv(query: string, apiKey: string, yearHint?: number | null) {
+  const url = `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
+  const response = await fetch(url);
+  const data = await response.json();
+  const results = data.results || [];
+
+  if (results.length === 0) return results;
+
+  const normalizedQuery = query.toLowerCase().trim();
+
+  return results.slice().sort((left: any, right: any) => {
+    const score = (show: any) => {
+      let value = 0;
+      const normalizedName = (show.name || "").toLowerCase();
+
+      if (normalizedName === normalizedQuery) value += 1000;
+      else if (normalizedName.startsWith(normalizedQuery)) value += 400;
+      else if (normalizedName.includes(normalizedQuery)) value += 150;
+
+      value += Math.min(300, show.popularity || 0);
+      value += Math.min(200, Math.log10((show.vote_count || 0) + 1) * 40);
+
+      if (yearHint && show.first_air_date) {
+        const resultYear = parseInt(show.first_air_date.slice(0, 4), 10);
+        if (Number.isFinite(resultYear) && Math.abs(resultYear - yearHint) <= 2) value += 120;
+      }
+
+      return value;
+    };
+
+    return score(right) - score(left);
+  });
+}
+
+async function fetchShowSeasons(tmdbSeriesId: number, apiKey: string) {
+  const response = await fetch(
+    `https://api.themoviedb.org/3/tv/${tmdbSeriesId}?api_key=${apiKey}&language=en-US`,
+  );
+
+  if (!response.ok) return null;
+
+  const detail = await response.json();
+  const rawSeasons = (detail.seasons || []) as any[];
+  const hasRealSeasons = rawSeasons.some((season) => season.season_number > 0);
+  const seasons = hasRealSeasons ? rawSeasons.filter((season) => season.season_number > 0) : rawSeasons;
+
+  return {
+    show: detail,
+    seasons: seasons.map((season) => ({
+      tmdb_series_id: tmdbSeriesId,
+      season_number: season.season_number,
+      title: `${detail.name} - Season ${season.season_number}`,
+      year: season.air_date ? parseInt(season.air_date.slice(0, 4), 10) : (detail.first_air_date ? parseInt(detail.first_air_date.slice(0, 4), 10) : null),
+      poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null),
+      overview: season.overview || detail.overview || null,
+      episode_count: season.episode_count || null,
+    })),
+  };
+}
+
+async function buildTvSeasonPayload(show: any, seasonNumber: number, apiKey: string, rawTitle: string, detectedFormats: string[]) {
+  try {
+    const seasonResponse = await fetch(
+      `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNumber}?api_key=${apiKey}&language=en-US`,
+    );
+
+    if (seasonResponse.ok) {
+      const season = await seasonResponse.json();
+      return {
+        tmdb_id: show.id,
+        tmdb_series_id: show.id,
+        season_number: seasonNumber,
+        series_title: show.name,
+        title: `${show.name} - Season ${seasonNumber}`,
+        year: season.air_date ? parseInt(season.air_date.slice(0, 4), 10) : (show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null),
+        poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
+        rating: show.vote_average || null,
+        overview: season.overview || show.overview || null,
+        media_type: "tv_season",
+        episode_count: season.episodes?.length || season.episode_count || null,
+        barcode_title: rawTitle,
+        detected_formats: detectedFormats,
+        _matchScore: 200,
+      };
+    }
+  } catch {
+    // Fall through to show-level fallback below.
+  }
+
+  return {
+    tmdb_id: show.id,
+    tmdb_series_id: show.id,
+    season_number: seasonNumber,
+    series_title: show.name,
+    title: `${show.name} - Season ${seasonNumber}`,
+    year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
+    poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+    rating: show.vote_average || null,
+    overview: show.overview || null,
+    media_type: "tv_season",
+    barcode_title: rawTitle,
+    detected_formats: detectedFormats,
+    _matchScore: 185,
+  };
+}
+
+async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, apiKey: string, barcodeYear?: number | null) {
+  const candidates = generateTitleCandidates(rawTitle, cleanTitle);
+  let bestMatch: { movie: any; score: number } | null = null;
+
+  for (const candidate of candidates) {
+    const deduped = new Map<number, any>();
+    const [yearMatches, generalMatches] = await Promise.all([
+      barcodeYear ? searchTmdbMovie(candidate, apiKey, barcodeYear) : Promise.resolve([]),
+      searchTmdbMovie(candidate, apiKey),
+    ]);
+
+    for (const movie of [...yearMatches, ...generalMatches]) {
+      if (!deduped.has(movie.id)) deduped.set(movie.id, movie);
+    }
+
+    for (const movie of deduped.values()) {
+      const score = scoreMovieResult(candidate, movie, barcodeYear);
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = { movie, score };
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+function pickCollectionParts(parts: any[], requestedTitles: string[]) {
+  if (requestedTitles.length === 0) return parts.map(mapMovieSummary);
+
+  const usedPartIds = new Set<number>();
+
+  return requestedTitles.map((requestedTitle) => {
+    let bestPart: any = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (const part of parts) {
+      if (usedPartIds.has(part.id)) continue;
+      const score = scoreMovieResult(requestedTitle, part);
+      if (score > bestScore) {
+        bestPart = part;
+        bestScore = score;
+      }
+    }
+
+    if (bestPart && bestScore >= 65) {
+      usedPartIds.add(bestPart.id);
+      return mapMovieSummary(bestPart);
+    }
+
+    return {
+      tmdb_id: null,
+      title: requestedTitle,
+      year: null,
+      poster_url: null,
+      overview: null,
+    };
+  });
+}
+
+async function searchTmdbCollection(query: string, apiKey: string) {
+  const response = await fetch(
+    `https://api.themoviedb.org/3/search/collection?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US`,
+  );
+  const data = await response.json();
+  return data.results || [];
 }
 
 serve(async (req) => {
@@ -140,327 +334,191 @@ serve(async (req) => {
   }
 
   try {
-    const TMDB_API_KEY: string = Deno.env.get("TMDB_API_KEY") || "";
-    if (!TMDB_API_KEY) throw new Error("TMDB_API_KEY not configured");
+    const tmdbApiKey = Deno.env.get("TMDB_API_KEY") || "";
+    if (!tmdbApiKey) throw new Error("TMDB_API_KEY not configured");
 
-    const { query, year, tmdb_id, search_type, barcode, get_posters } = await req.json();
+    const { query, year, tmdb_id: tmdbId, search_type: searchType, barcode, get_posters: getPosters } = await req.json();
 
-    // --- Get alternate posters for a specific TMDB item ---
-    if (get_posters && tmdb_id) {
-      const type = search_type === "tv" ? "tv" : "movie";
-      const imgRes = await fetch(
-        `https://api.themoviedb.org/3/${type}/${tmdb_id}/images?api_key=${TMDB_API_KEY}&include_image_language=en,null`
+    if (getPosters && tmdbId) {
+      const type = searchType === "tv" ? "tv" : "movie";
+      const imageResponse = await fetch(
+        `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${tmdbApiKey}&include_image_language=en,null`,
       );
-      const imgData = await imgRes.json();
-      const posters = (imgData.posters || []).map((p: any) => ({
-        poster_url: `https://image.tmdb.org/t/p/w500${p.file_path}`,
-        width: p.width,
-        height: p.height,
-        language: p.iso_639_1,
-        vote_average: p.vote_average,
+      const imageData = await imageResponse.json();
+      const posters = (imageData.posters || []).map((poster: any) => ({
+        poster_url: `https://image.tmdb.org/t/p/w500${poster.file_path}`,
+        width: poster.width,
+        height: poster.height,
+        language: poster.iso_639_1,
+        vote_average: poster.vote_average,
       }));
+
       return new Response(JSON.stringify({ posters }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // UPC/Barcode lookup
     if (barcode) {
-      // --- Helper: detect formats from text.
-      // Additive: every format present is captured so "Blu-ray + DVD + Digital Code"
-      // yields ["Blu-ray", "DVD", "Digital"]. Box sets routinely combine 4K+Blu-ray+Digital.
-      function detectFormats(text: string): string[] {
-        const t = text.toUpperCase();
-        const detected: string[] = [];
-        // 4K / UHD — word boundary avoids matching e.g. "24K GOLD"
-        if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(t)) detected.push("4K");
-        // Blu-ray (covers BLU-RAY, BLU RAY, BLURAY, BLU  RAY)
-        if (/\bBLU[-\s]?RAY\b/.test(t)) detected.push("Blu-ray");
-        // DVD
-        if (/\bDVD\b/.test(t)) detected.push("DVD");
-        // Digital (Digital Code / Copy / HD / Download / Movie, or plain "Digital", or Streaming)
-        if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(t)) detected.push("Digital");
-        // VHS
-        if (/\bVHS\b/.test(t)) detected.push("VHS");
-        return detected;
-      }
+      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detectedFormats: string[], barcodeYear?: number | null) {
+        const tvIndicator = parseTvIndicator(cleanTitle);
 
-      // Normalize verbose TV season titles for TMDB search
-      // e.g. "The Big Bang Theory: The Complete Seventh Season" → "The Big Bang Theory - Season 7"
-      function normalizeTvSeasonTitle(title: string): { normalized: string; seasonNum: number | null } {
-        const ordinals: Record<string, number> = {
-          first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
-          seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
-          thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
-          seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
-        };
-        // Match patterns like "The Complete Seventh Season" or "Complete Season 7" or "Season Seven"
-        const ordinalPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?(\w+)\s+season\b/i;
-        const numericPattern = /[:\-–]\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)/i;
-        
-        let seasonNum: number | null = null;
-        let showName = title;
-        
-        const numMatch = title.match(numericPattern);
-        if (numMatch) {
-          seasonNum = parseInt(numMatch[1]);
-          showName = title.substring(0, title.indexOf(numMatch[0])).trim();
-        } else {
-          const ordMatch = title.match(ordinalPattern);
-          if (ordMatch) {
-            const word = ordMatch[1].toLowerCase();
-            if (ordinals[word]) {
-              seasonNum = ordinals[word];
-              showName = title.substring(0, title.indexOf(ordMatch[0])).trim();
-            }
-          }
-        }
-        
-        if (seasonNum !== null) {
-          return { normalized: `${showName} - Season ${seasonNum}`, seasonNum };
-        }
-        return { normalized: title, seasonNum: null };
-      }
+        if (tvIndicator.kind === "complete" || tvIndicator.kind === "range") {
+          const showName = tvIndicator.showName || cleanTitle;
+          const tvResults = await searchTmdbTv(showName, tmdbApiKey, barcodeYear);
+          if (tvResults.length > 0) {
+            const show = tvResults[0];
+            const showDetail = await fetchShowSeasons(show.id, tmdbApiKey);
+            if (showDetail && showDetail.seasons.length > 0) {
+              const seasons = tvIndicator.kind === "range" && tvIndicator.from != null && tvIndicator.to != null
+                ? showDetail.seasons.filter((season) => season.season_number >= tvIndicator.from! && season.season_number <= tvIndicator.to!)
+                : showDetail.seasons;
 
-      async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, barcodeYear?: number | null) {
-        const candidates = generateTitleCandidates(rawTitle, cleanTitle);
-        let bestMatch: { movie: any; score: number } | null = null;
-
-        for (const candidate of candidates) {
-          const deduped = new Map<number, any>();
-          const [yearMatches, generalMatches] = await Promise.all([
-            barcodeYear ? searchTmdbMovie(candidate, TMDB_API_KEY, barcodeYear) : Promise.resolve([]),
-            searchTmdbMovie(candidate, TMDB_API_KEY),
-          ]);
-
-          for (const movie of [...yearMatches, ...generalMatches]) {
-            if (!deduped.has(movie.id)) deduped.set(movie.id, movie);
-          }
-
-          for (const movie of deduped.values()) {
-            const score = scoreMovieResult(candidate, movie, barcodeYear);
-            if (!bestMatch || score > bestMatch.score) {
-              bestMatch = { movie, score };
-            }
-          }
-        }
-
-        return bestMatch;
-      }
-
-      // --- Helper: given a clean title + raw title + detected formats, do TMDB lookup and return Response ---
-      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detected_formats: string[], barcodeYear?: number | null) {
-        // Multi-movie detection
-        const hasSlash = cleanTitle.includes("/");
-        const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
-
-        if (hasSlash || hasMultiKeyword) {
-          let movieTitles: string[] = [];
-          if (hasSlash) {
-            movieTitles = expandSharedFranchiseTitles(splitMultiTitleCandidates(cleanTitle));
-          }
-
-          if (!hasSlash && hasMultiKeyword) {
-            // Strip ALL multi-movie keywords (global) plus chapter/number ranges
-            // and orphan colons/dashes. e.g.:
-            //   "The Divergent Series: 3-Film Collection" → "The Divergent Series"
-            //   "Dragonheart: 5-Movie Collection" → "Dragonheart"
-            //   "Matrix Trilogy: Chapters 1-3" → "Matrix"
-            const globalKeywords = new RegExp(MULTI_MOVIE_KEYWORDS.source, "gi");
-            const franchiseName = cleanTitle
-              .replace(globalKeywords, "")
-              .replace(/\b(?:chapters?\s*\d+(?:\s*[-–]&?\s*\d+)?|\d+\s*&\s*\d+|\d+\s*[-–]\s*\d+)\b/gi, "")
-              .replace(/[:,;]+/g, " ")
-              .replace(/\s+-\s+/g, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-
-            // Try multiple search queries: full title first, then franchise name
-            const searchQueries = [cleanTitle, franchiseName].filter(Boolean);
-            let bestCollection: any = null;
-
-            for (const sq of searchQueries) {
-              const collUrl = `https://api.themoviedb.org/3/search/collection?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(sq)}&language=en-US`;
-              const collRes = await fetch(collUrl);
-              const collData = await collRes.json();
-
-              if (collData.results?.length > 0) {
-                const ranked = collData.results
-                  .map((c: any) => ({ collection: c, score: scoreCollectionMatch(franchiseName, c.name || "") }))
-                  .sort((a: any, b: any) => b.score - a.score);
-                const matched = ranked[0]?.score >= 65 ? ranked[0].collection : null;
-                if (matched) {
-                  bestCollection = matched;
-                  break;
-                }
-              }
-            }
-
-            if (bestCollection) {
-              const collDetailRes = await fetch(
-                `https://api.themoviedb.org/3/collection/${bestCollection.id}?api_key=${TMDB_API_KEY}&language=en-US`
-              );
-              const collDetail = await collDetailRes.json();
-
-              if (collDetail.parts?.length > 0) {
-                const multiMovies = collDetail.parts.map((p: any) => ({
-                  tmdb_id: p.id,
-                  title: p.title,
-                  year: p.release_date ? parseInt(p.release_date.substring(0, 4)) : null,
-                  poster_url: p.poster_path ? `https://image.tmdb.org/t/p/w500${p.poster_path}` : null,
-                  overview: p.overview || null,
-                }));
-
+              if (seasons.length > 0) {
                 return {
-                  is_multi_movie: true,
+                  is_multi_season: true,
                   product_title: cleanTitle || rawTitle,
                   barcode_title: rawTitle,
-                  detected_formats,
-                  collection_name: collDetail.name,
-                  media_type: "box_set",
-                  _matchScore: 220,
-                  multi_movies: multiMovies,
-                  included_titles: multiMovies.map((m: any) => ({
-                    title: m.title,
-                    year: m.year,
-                    tmdb_id: m.tmdb_id,
+                  detected_formats: detectedFormats,
+                  show_name: showDetail.show.name,
+                  tmdb_series_id: show.id,
+                  media_type: "tv_box_set",
+                  _matchScore: 235,
+                  seasons,
+                  included_titles: seasons.map((season) => ({
+                    title: season.title,
+                    year: season.year,
+                    tmdb_id: show.id,
+                    season_number: season.season_number,
                   })),
                 };
               }
             }
           }
+        }
+
+        if (tvIndicator.kind === "single" && tvIndicator.seasonNum != null) {
+          const showName = tvIndicator.showName || cleanTitle;
+          const tvResults = await searchTmdbTv(showName, tmdbApiKey, barcodeYear);
+          if (tvResults.length > 0) {
+            return buildTvSeasonPayload(tvResults[0], tvIndicator.seasonNum, tmdbApiKey, rawTitle, detectedFormats);
+          }
+        }
+
+        const hasSlash = cleanTitle.includes("/");
+        const hasMultiKeyword = MULTI_MOVIE_KEYWORDS.test(cleanTitle);
+
+        if (hasSlash || hasMultiKeyword) {
+          const movieTitles = hasSlash ? expandSharedFranchiseTitles(splitMultiTitleCandidates(cleanTitle)) : [];
+          const franchiseName = extractCollectionFranchiseName(cleanTitle);
+          const collectionQueries = Array.from(new Set([cleanTitle, franchiseName, rawTitle].filter(Boolean)));
+
+          for (const collectionQuery of collectionQueries) {
+            const collections = await searchTmdbCollection(collectionQuery, tmdbApiKey);
+            if (collections.length === 0) continue;
+
+            const rankedCollection = collections
+              .map((collection: any) => ({
+                collection,
+                score: scoreCollectionMatch(franchiseName || cleanTitle, collection.name || ""),
+              }))
+              .sort((left: any, right: any) => right.score - left.score)[0];
+
+            if (!rankedCollection || rankedCollection.score < 65) continue;
+
+            const collectionDetailResponse = await fetch(
+              `https://api.themoviedb.org/3/collection/${rankedCollection.collection.id}?api_key=${tmdbApiKey}&language=en-US`,
+            );
+            const collectionDetail = await collectionDetailResponse.json();
+
+            if (collectionDetail.parts?.length > 0) {
+              const multiMovies = await enrichMovieSummaries(
+                pickCollectionParts(collectionDetail.parts, movieTitles),
+                tmdbApiKey,
+              );
+              return {
+                is_multi_movie: true,
+                product_title: cleanTitle || rawTitle,
+                barcode_title: rawTitle,
+                detected_formats: detectedFormats,
+                collection_name: collectionDetail.name,
+                media_type: "box_set",
+                _matchScore: 220,
+                multi_movies: multiMovies,
+                included_titles: multiMovies.map((movie: any) => ({
+                  title: movie.title,
+                  year: movie.year,
+                  tmdb_id: movie.tmdb_id,
+                })),
+              };
+            }
+          }
 
           if (movieTitles.length > 1) {
-            const multiMovies: any[] = [];
-            for (const mt of movieTitles) {
-              const bestMovieMatch = await resolveBestMovieMatch(mt, mt, barcodeYear);
+            const multiMovies = [];
+            for (const movieTitle of movieTitles) {
+              const bestMovieMatch = await resolveBestMovieMatch(movieTitle, movieTitle, tmdbApiKey, barcodeYear);
               if (bestMovieMatch) {
-                const m = bestMovieMatch.movie;
-                multiMovies.push({
-                  tmdb_id: m.id,
-                  title: m.title,
-                  year: m.release_date ? parseInt(m.release_date.substring(0, 4)) : null,
-                  poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
-                  overview: m.overview || null,
-                });
+                multiMovies.push(mapMovieSummary(bestMovieMatch.movie));
               } else {
-                multiMovies.push({ tmdb_id: null, title: mt, year: null, poster_url: null, overview: null });
+                multiMovies.push({
+                  tmdb_id: null,
+                  title: movieTitle,
+                  year: null,
+                  poster_url: null,
+                  overview: null,
+                });
               }
             }
+
+            const enrichedMovies = await enrichMovieSummaries(multiMovies, tmdbApiKey);
+
             return {
               is_multi_movie: true,
               product_title: cleanTitle || rawTitle,
               barcode_title: rawTitle,
-              detected_formats,
+              detected_formats: detectedFormats,
               media_type: "box_set",
               _matchScore: 210,
-              multi_movies: multiMovies,
-              included_titles: multiMovies.map((m: any) => ({
-                title: m.title,
-                year: m.year,
-                tmdb_id: m.tmdb_id,
+              multi_movies: enrichedMovies,
+              included_titles: enrichedMovies.map((movie: any) => ({
+                title: movie.title,
+                year: movie.year,
+                tmdb_id: movie.tmdb_id,
               })),
             };
           }
         }
 
-        // Single movie lookup
         if (cleanTitle) {
-          // Try normalizing as a TV season title first
-          const { normalized: tvNormalized, seasonNum } = normalizeTvSeasonTitle(cleanTitle);
-          
-          // If it looks like a TV season, try TV search first
-          if (seasonNum !== null) {
-            const showName = tvNormalized.replace(/\s*-\s*Season\s*\d+$/i, "").trim();
-             const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
-            const tvRes = await fetch(tvUrl);
-            const tvData = await tvRes.json();
-             if (tvData.results?.length > 0) {
-               const rankedShows = tvData.results
-                 .map((show: any) => ({ show, score: scoreCollectionMatch(showName, show.name || "") }))
-                 .sort((a: any, b: any) => b.score - a.score);
-               const show = rankedShows[0]?.show;
-               if (!show) {
-                 return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats, _matchScore: 10 };
-               }
-              // Try to get season-specific poster
-              try {
-                const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;
-                const seasonRes = await fetch(seasonUrl);
-                if (seasonRes.ok) {
-                  const season = await seasonRes.json();
-                  return {
-                    tmdb_id: show.id,
-                    tmdb_series_id: show.id,
-                    season_number: seasonNum,
-                    title: `${show.name} - Season ${seasonNum}`,
-                    year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : (show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null),
-                    poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : (show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null),
-                    rating: show.vote_average || null,
-                    overview: season.overview || show.overview || null,
-                    genre: (show.genres || show.genre_ids || []).length > 0 ? undefined : null,
-                    media_type: "tv_season",
-                    episode_count: season.episodes?.length || null,
-                    barcode_title: rawTitle,
-                    detected_formats,
-                    _matchScore: 200,
-                  };
-                }
-              } catch {}
-              // Fallback to show-level data
-              return {
-                tmdb_id: show.id,
-                tmdb_series_id: show.id,
-                season_number: seasonNum,
-                title: `${show.name} - Season ${seasonNum}`,
-                year: show.first_air_date ? parseInt(show.first_air_date.substring(0, 4)) : null,
-                poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
-                rating: show.vote_average || null,
-                overview: show.overview || null,
-                media_type: "tv_season",
-                barcode_title: rawTitle,
-                detected_formats,
-                _matchScore: 185,
-              };
-            }
-          }
-
-          const bestMovieMatch = await resolveBestMovieMatch(cleanTitle, rawTitle, barcodeYear);
+          const bestMovieMatch = await resolveBestMovieMatch(cleanTitle, rawTitle, tmdbApiKey, barcodeYear);
           if (bestMovieMatch && bestMovieMatch.score >= 70) {
-            const detail = await fetchTmdbMovieDetails(bestMovieMatch.movie.id, TMDB_API_KEY);
-            return { ...detail, barcode_title: rawTitle, detected_formats, _matchScore: bestMovieMatch.score };
+            const detail = await fetchTmdbMovieDetails(bestMovieMatch.movie.id, tmdbApiKey);
+            return { ...detail, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: bestMovieMatch.score };
           }
 
-          // Try TV (for non-season titles)
-          if (seasonNum === null) {
-            const tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=en-US&page=1`;
-            const tvRes = await fetch(tvUrl);
-            const tvData = await tvRes.json();
-            if (tvData.results?.length > 0) {
-              const t = tvData.results[0];
-              return {
-                tmdb_id: t.id,
-                title: t.name,
-                year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-                poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-                rating: t.vote_average || null,
-                overview: t.overview || null,
-                media_type: "tv",
-                barcode_title: rawTitle,
-                detected_formats,
-                _matchScore: 110,
-              };
-            }
+          const tvResults = await searchTmdbTv(cleanTitle, tmdbApiKey, barcodeYear);
+          if (tvResults.length > 0) {
+            const show = tvResults[0];
+            return {
+              tmdb_id: show.id,
+              title: show.name,
+              year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
+              poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+              rating: show.vote_average || null,
+              overview: show.overview || null,
+              media_type: "tv",
+              barcode_title: rawTitle,
+              detected_formats: detectedFormats,
+              _matchScore: 110,
+            };
           }
 
-          // Partial match — we have a title but no TMDB match
-          return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats, _matchScore: 10 };
+          return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: 10 };
         }
 
         return null;
       }
 
-      // Debug log accumulator
       const debugLog: { source: string; status: string; raw?: any }[] = [];
       let upcTitle = "";
       let upcCleanTitle = "";
@@ -476,10 +534,10 @@ serve(async (req) => {
         return isStrongResolvedMatch(resolved);
       };
 
-      // ========== SOURCE 1: UPCitemdb ==========
       try {
-        const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
-        const upcRaw = upcRes.ok ? await upcRes.json() : null;
+        const upcResponse = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
+        const upcRaw = upcResponse.ok ? await upcResponse.json() : null;
+
         if (upcRaw?.items?.length > 0) {
           const upcItem = upcRaw.items[0];
           upcTitle = upcItem.title || "";
@@ -487,6 +545,7 @@ serve(async (req) => {
           upcFormats = detectFormats(allText);
           upcCleanTitle = cleanProductTitle(upcTitle);
           if (!barcodeYear) barcodeYear = extractYearFromText(upcTitle);
+
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
           if (upcCleanTitle) {
@@ -496,28 +555,30 @@ serve(async (req) => {
         } else {
           debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
         }
-      } catch (e) {
-        debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(e) });
+      } catch (error) {
+        debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(error) });
       }
 
-      // ========== SOURCE 2: Discogs ==========
       try {
-        const discogsRes = await fetch(`https://api.discogs.com/database/search?barcode=${encodeURIComponent(barcode)}&type=release`, {
-          headers: { "User-Agent": "DiscStacked/1.0" },
-        });
-        const discogsRaw = discogsRes.ok ? await discogsRes.json() : null;
+        const discogsResponse = await fetch(
+          `https://api.discogs.com/database/search?barcode=${encodeURIComponent(barcode)}&type=release`,
+          { headers: { "User-Agent": "DiscStacked/1.0" } },
+        );
+        const discogsRaw = discogsResponse.ok ? await discogsResponse.json() : null;
+
         if (discogsRaw?.results?.length > 0) {
           const discogsItem = discogsRaw.results[0];
           const discogsTitle = discogsItem.title || "";
           const discogsAllText = `${discogsTitle} ${(discogsItem.format || []).join(" ")} ${(discogsItem.label || []).join(" ")}`;
           const discogsFormats = upcFormats.length > 0 ? upcFormats : detectFormats(discogsAllText);
           const discogsCleanTitle = cleanProductTitle(discogsTitle);
-          // Extract year from Discogs if available
+
           if (discogsItem.year && !barcodeYear) {
-            const y = parseInt(String(discogsItem.year));
-            if (y >= 1900 && y <= 2100) barcodeYear = y;
+            const parsedYear = parseInt(String(discogsItem.year), 10);
+            if (parsedYear >= 1900 && parsedYear <= 2100) barcodeYear = parsedYear;
           }
           if (!barcodeYear) barcodeYear = extractYearFromText(discogsTitle);
+
           debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
 
           if (discogsCleanTitle) {
@@ -527,199 +588,168 @@ serve(async (req) => {
         } else {
           debugLog.push({ source: "Discogs", status: "MISS", raw: discogsRaw });
         }
-      } catch (e) {
-        debugLog.push({ source: "Discogs", status: "ERROR", raw: String(e) });
+      } catch (error) {
+        debugLog.push({ source: "Discogs", status: "ERROR", raw: String(error) });
       }
 
-      // ========== SOURCE 3: Open Library ISBN lookup ==========
       try {
-        const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(barcode)}&format=json&jscmd=data`);
-        const olRaw = olRes.ok ? await olRes.json() : null;
-        const olKey = olRaw ? Object.keys(olRaw)[0] : null;
-        if (olKey && olRaw[olKey]?.title) {
-          const olTitle = olRaw[olKey].title;
-          const olCleanTitle = cleanProductTitle(olTitle);
-          const olFormats = upcFormats.length > 0 ? upcFormats : [];
-          debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: olTitle } });
+        const openLibraryResponse = await fetch(
+          `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(barcode)}&format=json&jscmd=data`,
+        );
+        const openLibraryRaw = openLibraryResponse.ok ? await openLibraryResponse.json() : null;
+        const openLibraryKey = openLibraryRaw ? Object.keys(openLibraryRaw)[0] : null;
 
-          if (olCleanTitle) {
-            const result = await processBarcodeTitle(olCleanTitle, olTitle, olFormats, barcodeYear);
+        if (openLibraryKey && openLibraryRaw[openLibraryKey]?.title) {
+          const openLibraryTitle = openLibraryRaw[openLibraryKey].title;
+          const openLibraryCleanTitle = cleanProductTitle(openLibraryTitle);
+          const openLibraryFormats = upcFormats.length > 0 ? upcFormats : [];
+          debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: openLibraryTitle } });
+
+          if (openLibraryCleanTitle) {
+            const result = await processBarcodeTitle(openLibraryCleanTitle, openLibraryTitle, openLibraryFormats, barcodeYear);
             if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
           }
         } else {
-          debugLog.push({ source: "OpenLibrary", status: "MISS", raw: olRaw });
+          debugLog.push({ source: "OpenLibrary", status: "MISS", raw: openLibraryRaw });
         }
-      } catch (e) {
-        debugLog.push({ source: "OpenLibrary", status: "ERROR", raw: String(e) });
+      } catch (error) {
+        debugLog.push({ source: "OpenLibrary", status: "ERROR", raw: String(error) });
       }
 
-      // ========== SOURCE 4: TMDB direct UPC/EAN lookup ==========
       try {
-        const findRes = await fetch(`https://api.themoviedb.org/3/find/${encodeURIComponent(barcode)}?api_key=${TMDB_API_KEY}&external_source=upc&language=en-US`);
-        const findRaw = findRes.ok ? await findRes.json() : null;
+        const findResponse = await fetch(
+          `https://api.themoviedb.org/3/find/${encodeURIComponent(barcode)}?api_key=${tmdbApiKey}&external_source=upc&language=en-US`,
+        );
+        const findRaw = findResponse.ok ? await findResponse.json() : null;
         const movieResults = findRaw?.movie_results || [];
         const tvResults = findRaw?.tv_results || [];
 
         if (movieResults.length > 0) {
-          const m = movieResults[0];
-          const detail = await fetchTmdbMovieDetails(m.id, TMDB_API_KEY);
-          const formats = upcFormats.length > 0 ? upcFormats : [];
-          debugLog.push({ source: "TMDB-UPC", status: "HIT-movie", raw: { id: m.id, title: m.title } });
-          return buildJsonResponse({ ...detail, barcode_title: m.title, detected_formats: formats, _matchScore: 250 }, debugLog);
+          const detail = await fetchTmdbMovieDetails(movieResults[0].id, tmdbApiKey);
+          debugLog.push({ source: "TMDB-UPC", status: "HIT-movie", raw: { id: movieResults[0].id, title: movieResults[0].title } });
+          return buildJsonResponse({ ...detail, barcode_title: movieResults[0].title, detected_formats: upcFormats, _matchScore: 250 }, debugLog);
         }
+
         if (tvResults.length > 0) {
-          const t = tvResults[0];
-          const formats = upcFormats.length > 0 ? upcFormats : [];
-          debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: t.id, title: t.name } });
+          const tv = tvResults[0];
+          debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: tv.id, title: tv.name } });
           return buildJsonResponse({
-            tmdb_id: t.id, title: t.name,
-            year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-            poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-            rating: t.vote_average || null, overview: t.overview || null,
-            media_type: "tv", barcode_title: t.name, detected_formats: formats, _matchScore: 230,
+            tmdb_id: tv.id,
+            title: tv.name,
+            year: tv.first_air_date ? parseInt(tv.first_air_date.slice(0, 4), 10) : null,
+            poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : null,
+            rating: tv.vote_average || null,
+            overview: tv.overview || null,
+            media_type: "tv",
+            barcode_title: tv.name,
+            detected_formats: upcFormats,
+            _matchScore: 230,
           }, debugLog);
         }
+
         debugLog.push({ source: "TMDB-UPC", status: "MISS", raw: findRaw });
-      } catch (e) {
-        debugLog.push({ source: "TMDB-UPC", status: "ERROR", raw: String(e) });
+      } catch (error) {
+        debugLog.push({ source: "TMDB-UPC", status: "ERROR", raw: String(error) });
       }
 
-      // ========== SOURCE 5: TMDB fuzzy title search (last resort, high confidence only) ==========
-      const fallbackTitle = upcCleanTitle || "";
-      if (fallbackTitle) {
-        const fuzzyResult = await processBarcodeTitle(fallbackTitle, upcTitle || fallbackTitle, upcFormats, barcodeYear);
+      if (upcCleanTitle) {
+        const fuzzyResult = await processBarcodeTitle(upcCleanTitle, upcTitle || upcCleanTitle, upcFormats, barcodeYear);
         if (fuzzyResult) {
-          debugLog.push({ source: "TMDB-fuzzy", status: (fuzzyResult._matchScore || 0) >= 70 ? "HIT" : "PARTIAL", raw: { query: fallbackTitle, score: fuzzyResult._matchScore || 0 } });
+          debugLog.push({
+            source: "TMDB-fuzzy",
+            status: (fuzzyResult._matchScore || 0) >= 70 ? "HIT" : "PARTIAL",
+            raw: { query: upcCleanTitle, score: fuzzyResult._matchScore || 0 },
+          });
           considerResolved(fuzzyResult);
         } else {
-          debugLog.push({ source: "TMDB-fuzzy", status: "MISS-noresults", raw: { query: fallbackTitle } });
+          debugLog.push({ source: "TMDB-fuzzy", status: "MISS-noresults", raw: { query: upcCleanTitle } });
         }
       }
 
-      if (bestResolved) {
-        return buildJsonResponse(bestResolved, debugLog);
-      }
+      if (bestResolved) return buildJsonResponse(bestResolved, debugLog);
 
-      // ========== ALL SOURCES FAILED ==========
       debugLog.push({ source: "ALL", status: "FAILED" });
       return new Response(JSON.stringify({
-        barcode_not_found: true, barcode_value: barcode,
-        title: "", detected_formats: [], _debug: debugLog,
+        barcode_not_found: true,
+        barcode_value: barcode,
+        title: "",
+        detected_formats: [],
+        _debug: debugLog,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Fetch details by tmdb_id
-    if (tmdb_id) {
-      const type = search_type === "tv" ? "tv" : "movie";
-      if (type === "movie") {
-        const detail = await fetchTmdbMovieDetails(tmdb_id, TMDB_API_KEY);
-        return new Response(JSON.stringify(detail), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      const [detailRes, creditsRes] = await Promise.all([
-        fetch(`https://api.themoviedb.org/3/tv/${tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`),
-        fetch(`https://api.themoviedb.org/3/tv/${tmdb_id}/credits?api_key=${TMDB_API_KEY}&language=en-US`),
-      ]);
-      const detail = await detailRes.json();
-      const credits = creditsRes.ok ? await creditsRes.json() : {};
-      const cast = (credits.cast || []).slice(0, 10).map((c: any) => ({
-        name: c.name,
-        character: c.character,
-        profile_url: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
-      }));
-      const director = (credits.crew || []).filter((c: any) => c.job === "Director").map((c: any) => c.name);
-      const writer = (credits.crew || []).filter((c: any) => c.job === "Writer" || c.job === "Screenplay").map((c: any) => c.name);
-      const producer = (credits.crew || []).filter((c: any) => c.job === "Producer").map((c: any) => c.name);
+    if (tmdbId) {
+      const payload = searchType === "tv"
+        ? await fetchTmdbTvDetails(tmdbId, tmdbApiKey)
+        : await fetchTmdbMovieDetails(tmdbId, tmdbApiKey);
 
-      return new Response(JSON.stringify({
-        tmdb_id: detail.id,
-        title: detail.name,
-        year: detail.first_air_date ? parseInt(detail.first_air_date.substring(0, 4)) : null,
-        poster_url: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
-        genre: detail.genres?.map((g: any) => g.name).join(", ") || null,
-        rating: detail.vote_average || null,
-        overview: detail.overview || null,
-        runtime: detail.episode_run_time?.[0] || null,
-        tagline: detail.tagline || null,
-        media_type: "tv",
-        cast,
-        crew: { director, writer, producer },
-      }), {
+      return new Response(JSON.stringify(payload), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Search by query
     if (!query) throw new Error("Either 'query', 'tmdb_id', or 'barcode' is required");
 
     const results: any[] = [];
 
-    if (search_type !== "tv") {
-      let movieUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
-      if (year) movieUrl += `&year=${year}`;
-      const movieRes = await fetch(movieUrl);
-      const movieData = await movieRes.json();
-      for (const m of (movieData.results || []).slice(0, 10)) {
+    if (searchType !== "tv") {
+      const movieResults = await searchTmdbMovie(query, tmdbApiKey, year || null);
+      for (const movie of movieResults.slice(0, 10)) {
         results.push({
-          tmdb_id: m.id,
-          title: m.title,
-          year: m.release_date ? parseInt(m.release_date.substring(0, 4)) : null,
-          poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
-          rating: m.vote_average || null,
-          overview: m.overview || null,
+          tmdb_id: movie.id,
+          title: movie.title,
+          year: movie.release_date ? parseInt(movie.release_date.slice(0, 4), 10) : null,
+          poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+          rating: movie.vote_average || null,
+          overview: movie.overview || null,
           media_type: "movie",
         });
       }
     }
 
-    if (search_type !== "movie") {
-      let tvUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`;
-      if (year) tvUrl += `&first_air_date_year=${year}`;
-      const tvRes = await fetch(tvUrl);
-      const tvData = await tvRes.json();
-      for (const t of (tvData.results || []).slice(0, 10)) {
+    if (searchType !== "movie") {
+      let tvResults = await searchTmdbTv(query, tmdbApiKey, year || null);
+      if (year) {
+        const filteredResponse = await fetch(
+          `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${encodeURIComponent(query)}&language=en-US&page=1&first_air_date_year=${year}`,
+        );
+        const filteredData = await filteredResponse.json();
+        if ((filteredData.results || []).length > 0) tvResults = filteredData.results;
+      }
+
+      for (const show of tvResults.slice(0, 10)) {
         results.push({
-          tmdb_id: t.id,
-          title: t.name,
-          year: t.first_air_date ? parseInt(t.first_air_date.substring(0, 4)) : null,
-          poster_url: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
-          rating: t.vote_average || null,
-          overview: t.overview || null,
+          tmdb_id: show.id,
+          title: show.name,
+          year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
+          poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+          rating: show.vote_average || null,
+          overview: show.overview || null,
           media_type: "tv",
         });
       }
     }
 
-    // Search TV seasons if query looks like "Show: Season N"
-    const seasonMatch = query.match(/^(.+?)[\s:]+[Ss]eason\s*(\d+)$/);
-    if (seasonMatch) {
-      const showName = seasonMatch[1].trim();
-      const seasonNum = parseInt(seasonMatch[2]);
-      const showUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(showName)}&language=en-US&page=1`;
-      const showRes = await fetch(showUrl);
-      const showData = await showRes.json();
-      if (showData.results?.length > 0) {
-        const show = showData.results[0];
-        const seasonUrl = `https://api.themoviedb.org/3/tv/${show.id}/season/${seasonNum}?api_key=${TMDB_API_KEY}&language=en-US`;
-        const seasonRes = await fetch(seasonUrl);
-        if (seasonRes.ok) {
-          const season = await seasonRes.json();
-          results.unshift({
-            tmdb_id: show.id,
-            tmdb_series_id: show.id,
-            season_number: seasonNum,
-            title: `${show.name}: Season ${seasonNum}`,
-            year: season.air_date ? parseInt(season.air_date.substring(0, 4)) : null,
-            poster_url: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
-            rating: show.vote_average || null,
-            overview: season.overview || show.overview || null,
-            media_type: "tv_season",
-          });
-        }
+    const queryIndicator = parseTvIndicator(query);
+    if (queryIndicator.kind === "single" && queryIndicator.seasonNum != null) {
+      const tvResults = await searchTmdbTv(queryIndicator.showName || query, tmdbApiKey, year || null);
+      if (tvResults.length > 0) {
+        const payload = await buildTvSeasonPayload(tvResults[0], queryIndicator.seasonNum, tmdbApiKey, query, []);
+        results.unshift({
+          tmdb_id: payload.tmdb_id,
+          tmdb_series_id: payload.tmdb_series_id,
+          season_number: payload.season_number,
+          series_title: payload.series_title,
+          title: payload.title,
+          year: payload.year,
+          poster_url: payload.poster_url,
+          rating: payload.rating,
+          overview: payload.overview,
+          media_type: payload.media_type,
+          episode_count: payload.episode_count || null,
+        });
       }
     }
 

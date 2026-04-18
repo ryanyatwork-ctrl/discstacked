@@ -175,6 +175,10 @@ export async function createMultiMovieProduct(
           if (movie.runtime) metadata.runtime = movie.runtime;
           if (movie.cast) metadata.cast = movie.cast;
           if (movie.crew) metadata.crew = movie.crew;
+          metadata.edition = {
+            package_title: product.productTitle,
+            formats: product.formats,
+          };
 
           const { data: newItem, error: insertError } = await supabase
             .from("media_items")
@@ -221,7 +225,13 @@ export async function createMultiMovieProduct(
             media_type: product.mediaType,
             formats: product.formats,
             format: product.formats[0] || null,
-            metadata: movie.overview ? { overview: movie.overview } : {},
+            metadata: {
+              ...(movie.overview ? { overview: movie.overview } : {}),
+              edition: {
+                package_title: product.productTitle,
+                formats: product.formats,
+              },
+            },
           } as any)
           .select()
           .single();
@@ -243,6 +253,151 @@ export async function createMultiMovieProduct(
       } as any);
 
     // Ignore duplicate constraint errors (item may already be linked)
+    if (mcError && !mcError.message.includes("duplicate")) throw mcError;
+  }
+
+  return { physicalProduct: pp, mediaItemIds };
+}
+
+/**
+ * Creates a multi-season TV physical product (e.g. "Friends: The Complete Series")
+ * and links one media_item per season to it.
+ *
+ * Seasons stay in the current tab's media_type so they remain visible in the
+ * collection, while metadata.content_type + the composite external_id preserve
+ * their season-specific identity for dedupe and artwork lookups.
+ */
+export async function createMultiSeasonProduct(
+  userId: string,
+  product: {
+    barcode?: string | null;
+    productTitle: string;
+    formats: string[];
+    mediaType: string;
+    discCount?: number;
+    purchaseDate?: string | null;
+    purchasePrice?: number | null;
+    purchaseLocation?: string | null;
+  },
+  show: {
+    tmdb_series_id: number;
+    show_name: string;
+  },
+  seasons: {
+    season_number: number;
+    title: string;
+    year: number | null;
+    poster_url: string | null;
+    overview?: string | null;
+    episode_count?: number | null;
+    genre?: string | null;
+  }[]
+): Promise<{ physicalProduct: any; mediaItemIds: string[] }> {
+  // Create the physical product
+  const { data: pp, error: ppError } = await supabase
+    .from("physical_products")
+    .insert({
+      user_id: userId,
+      barcode: product.barcode || null,
+      product_title: product.productTitle,
+      formats: product.formats,
+      media_type: product.mediaType,
+      is_multi_title: true,
+      disc_count: product.discCount || seasons.length,
+      purchase_date: product.purchaseDate || null,
+      purchase_price: product.purchasePrice || null,
+      purchase_location: product.purchaseLocation || null,
+    } as any)
+    .select()
+    .single();
+
+  if (ppError) throw ppError;
+
+  const mediaItemIds: string[] = [];
+
+  for (const season of seasons) {
+    // Composite external_id pins each row to its show + season so future
+    // scans (whether single-season or another box set) reuse this row.
+    const externalId = `${show.tmdb_series_id}:${season.season_number}`;
+    let mediaItemId: string;
+
+    // Look up existing season by external_id first
+    const { data: existing } = await supabase
+      .from("media_items")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("external_id", externalId)
+      .eq("media_type", product.mediaType)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      mediaItemId = existing[0].id;
+    } else {
+      // Fall back to title match (legacy items)
+      const { data: titleMatch } = await supabase
+        .from("media_items")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("media_type", product.mediaType)
+        .ilike("title", season.title)
+        .limit(1);
+
+      if (titleMatch && titleMatch.length > 0) {
+        mediaItemId = titleMatch[0].id;
+        // Backfill external_id on the legacy row
+        await supabase
+          .from("media_items")
+          .update({ external_id: externalId } as any)
+          .eq("id", mediaItemId);
+      } else {
+        const metadata: Record<string, any> = {
+          content_type: "tv_season",
+          tmdb_series_id: show.tmdb_series_id,
+          season_number: season.season_number,
+          series_title: show.show_name,
+          show_name: show.show_name,
+          edition: {
+            package_title: product.productTitle,
+            formats: product.formats,
+          },
+        };
+        if (season.overview) metadata.overview = season.overview;
+        if (season.episode_count) metadata.episode_count = season.episode_count;
+
+        const { data: newItem, error: insertError } = await supabase
+          .from("media_items")
+          .insert({
+            user_id: userId,
+            title: season.title,
+            year: season.year,
+            poster_url: season.poster_url,
+            genre: season.genre || null,
+            media_type: product.mediaType,
+            external_id: externalId,
+            formats: product.formats,
+            format: product.formats[0] || null,
+            metadata,
+          } as any)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        mediaItemId = newItem.id;
+      }
+    }
+
+    mediaItemIds.push(mediaItemId);
+
+    // Link this season's media_item to the physical_product
+    const { error: mcError } = await supabase
+      .from("media_copies")
+      .insert({
+        media_item_id: mediaItemId,
+        physical_product_id: pp.id,
+        format: product.formats[0] || null,
+        disc_label: `Season ${season.season_number}`,
+      } as any);
+
     if (mcError && !mcError.message.includes("duplicate")) throw mcError;
   }
 
