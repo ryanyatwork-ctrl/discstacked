@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - "codex/**"
   pull_request:
   workflow_dispatch:
 
@@ -53,4 +54,3 @@ jobs:
           set -euo pipefail
           BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           npx wrangler pages deploy dist --project-name="$PROJECT_NAME" --branch="$BRANCH_NAME"
-
