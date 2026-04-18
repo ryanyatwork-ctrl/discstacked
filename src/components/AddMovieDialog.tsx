@@ -14,8 +14,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult } from "@/lib/media-lookup";
-import { createPhysicalProductForItem, createMultiMovieProduct } from "@/hooks/usePhysicalProducts";
+import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
+import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
+import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -55,6 +56,8 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [multiMovieResult, setMultiMovieResult] = useState<MultiMovieResult | null>(null);
   const [multiMovieSaving, setMultiMovieSaving] = useState(false);
   const [multiMovieOwned, setMultiMovieOwned] = useState<Record<number, string[]>>({});
+  const [multiSeasonResult, setMultiSeasonResult] = useState<MultiSeasonResult | null>(null);
+  const [multiSeasonSaving, setMultiSeasonSaving] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<any>(null);
   const { user } = useAuth();
@@ -73,6 +76,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
     setMultiSelect([]); setMultiSelectMode(false); setOwnershipWarning(null);
     setMultiMovieResult(null); setMultiMovieSaving(false); setMultiMovieOwned({});
+    setMultiSeasonResult(null); setMultiSeasonSaving(false);
   };
 
   const stopScanner = async () => {
@@ -144,6 +148,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (!upc.trim()) return;
     setLookingUp(true);
     setMultiMovieResult(null);
+    setMultiSeasonResult(null);
     try {
       await checkOwnership(undefined, upc.trim());
 
@@ -176,6 +181,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           setMultiMovieOwned(ownedMap);
         }
         toast({ title: "Multi-Movie Set Detected!", description: `${result.multiMovie.product_title} — ${result.multiMovie.movies.length} titles found` });
+      } else if (result.multiSeason) {
+        setMultiSeasonResult(result.multiSeason);
+        if (result.multiSeason.detected_formats?.length) {
+          setFormats(result.multiSeason.detected_formats);
+          setFormat(result.multiSeason.detected_formats[0]);
+        }
+        toast({ title: "TV Box Set Detected!", description: `${result.multiSeason.product_title} â€” ${result.multiSeason.seasons.length} seasons found` });
       } else if (result.direct) {
         applyResult(result.direct);
         await checkOwnership(result.direct.title, upc.trim());
@@ -230,31 +242,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     }
 
     // Build metadata from scratch — not additive
-    const meta: Record<string, any> = {};
-    if (r.runtime) meta.runtime = r.runtime;
-    if (r.tagline) meta.tagline = r.tagline;
-    if (r.overview || r.description) meta.overview = r.overview || r.description;
-    if (r.cast) meta.cast = r.cast;
-    if (r.crew) meta.crew = r.crew;
-    if (r.page_count) meta.page_count = r.page_count;
-    if (r.publisher) meta.publisher = r.publisher;
-    if (r.isbn) meta.isbn = r.isbn;
-    if (r.label) meta.label = r.label;
-    if (r.tracklist && r.tracklist.length > 0) meta.tracklist = r.tracklist;
-    if (r.platforms && r.platforms.length > 0) meta.platforms = r.platforms;
-    if (r.developer) meta.developer = r.developer;
-    if (r.source) meta.source = r.source;
-    if (r.tmdb_id) meta.tmdb_id = r.tmdb_id;
-    // Content type
-    if (r.media_type) meta.content_type = r.media_type;
-    // TV Season fields
-    if (r.tmdb_series_id) meta.tmdb_series_id = r.tmdb_series_id;
-    if (r.season_number) meta.season_number = r.season_number;
-    // Box set included titles
-    if (r.included_titles?.length) meta.included_titles = r.included_titles;
-    // Edition / package layer (kept separate from content)
-    if (r.edition) meta.edition = r.edition;
-    setExtraMeta(meta);
+    setExtraMeta(buildLookupMetadata(r));
   };
 
   const toggleMultiSelect = (result: MediaLookupResult) => {
@@ -339,6 +327,42 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setMultiMovieSaving(false);
   };
 
+  const handleAddMultiSeason = async () => {
+    if (!multiSeasonResult || !user) return;
+    setMultiSeasonSaving(true);
+    try {
+      await createMultiSeasonProduct(
+        user.id,
+        {
+          barcode: barcode || null,
+          productTitle: multiSeasonResult.product_title,
+          formats: multiSeasonResult.detected_formats,
+          mediaType: activeTab,
+          discCount: multiSeasonResult.seasons.length,
+        },
+        {
+          tmdb_series_id: multiSeasonResult.tmdb_series_id,
+          show_name: multiSeasonResult.show_name,
+        },
+        multiSeasonResult.seasons.map((season) => ({
+          season_number: season.season_number,
+          title: season.title,
+          year: season.year,
+          poster_url: season.poster_url,
+          overview: season.overview || null,
+          episode_count: season.episode_count || null,
+        })),
+      );
+      toast({ title: "Added!", description: `${multiSeasonResult.seasons.length} seasons added from "${multiSeasonResult.product_title}"` });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      resetForm();
+      setOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add", description: err.message, variant: "destructive" });
+    }
+    setMultiSeasonSaving(false);
+  };
+
   const handleSave = async () => {
     if (!title.trim() || !user) return;
     setSaving(true);
@@ -348,7 +372,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         metaPayload["artist"] = artist;
       }
 
-      const tmdbId = extraMeta.tmdb_id || null;
+      const externalId = getLookupExternalId({
+        tmdb_id: extraMeta.tmdb_id || null,
+        media_type: extraMeta.content_type || null,
+        tmdb_series_id: extraMeta.tmdb_series_id || null,
+        season_number: extraMeta.season_number || null,
+      });
       const effectiveFormats = formats.length > 0 ? formats : (format ? [format] : []);
 
       const { data: newItem, error } = await supabase.from("media_items").insert({
@@ -366,7 +395,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         wishlist,
         want_to_watch: effectiveWantToWatch,
         media_type: activeTab,
-        external_id: tmdbId ? String(tmdbId) : null,
+        external_id: externalId,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       } as any).select().single();
       if (error) throw error;
@@ -570,8 +599,51 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           )}
 
+          {multiSeasonResult && (
+            <div className="rounded-lg border-2 border-primary/50 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">TV Box Set Detected</p>
+                  <p className="text-xs text-muted-foreground">{multiSeasonResult.product_title}</p>
+                </div>
+              </div>
+              {multiSeasonResult.detected_formats.length > 0 && (
+                <div className="flex gap-1">
+                  {multiSeasonResult.detected_formats.map((detectedFormat) => (
+                    <span key={detectedFormat} className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary/20 text-primary border border-primary/30">
+                      {detectedFormat}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {multiSeasonResult.seasons.map((season) => (
+                  <div key={season.season_number} className="flex gap-2 items-start p-2 rounded-md bg-background border border-border">
+                    {season.poster_url ? (
+                      <img src={season.poster_url} alt={season.title} className="w-10 h-14 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-14 rounded bg-secondary shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{season.title}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {season.year || "Unknown year"}
+                        {season.episode_count ? ` â€¢ ${season.episode_count} eps` : ""}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleAddMultiSeason} disabled={multiSeasonSaving} className="w-full gap-2">
+                {multiSeasonSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add All {multiSeasonResult.seasons.length} Seasons to Collection
+              </Button>
+            </div>
+          )}
+
           {/* Ownership warning */}
-          {ownershipWarning && !multiMovieResult && (
+          {ownershipWarning && !multiMovieResult && !multiSeasonResult && (
             <div className={`flex items-start gap-2 rounded-md border p-3 ${
               ownershipWarning.type === "barcode" 
                 ? "border-warning/40 bg-warning/10" 

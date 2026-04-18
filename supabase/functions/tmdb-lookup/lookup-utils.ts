@@ -5,6 +5,16 @@ export interface TmdbMovieSearchResult {
   popularity?: number;
 }
 
+export const MULTI_MOVIE_KEYWORDS = /\b(collection|trilogy|quadrilogy|pentalogy|hexalogy|anthology|box\s*set|boxset|double\s*feature|triple\s*feature|complete\s*saga|pack|[2-9][\s-]?(film|movie)s?)\b/i;
+export const TV_KEYWORDS = /\b(complete\s*(series|seasons?)|season[s]?\s*\d+(\s*[-\u2013]\s*\d+)?|the\s+complete\s+\w+\s+season|mini[-\s]?series)\b/i;
+
+const ORDINAL_WORDS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+  seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
+  thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
+  seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
+};
+
 const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
 const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b[:\s-]*/i;
 const GENRE_SUFFIX_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|sci\s*-?fi|science\s*fiction|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music)\b\.?$/i;
@@ -106,6 +116,127 @@ export function generateTitleCandidates(rawTitle: string, cleanedTitle = cleanPr
   }
 
   return Array.from(candidates);
+}
+
+export function parseTvIndicator(title: string): {
+  kind: "single" | "range" | "complete" | "none";
+  seasonNum?: number;
+  from?: number;
+  to?: number;
+  showName?: string;
+} {
+  const completeSeriesMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?complete\s+series\b.*$/i);
+  if (completeSeriesMatch) {
+    return { kind: "complete", showName: completeSeriesMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
+  }
+
+  const rangeMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*seasons?\s*(\d+)\s*[-\u2013]\s*(\d+)\b/i);
+  if (rangeMatch) {
+    const from = parseInt(rangeMatch[2], 10);
+    const to = parseInt(rangeMatch[3], 10);
+    if (from && to && to >= from) {
+      return { kind: "range", from, to, showName: rangeMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
+    }
+  }
+
+  const numericMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)\b/i);
+  if (numericMatch) {
+    const seasonNum = parseInt(numericMatch[2], 10);
+    if (seasonNum) {
+      return { kind: "single", seasonNum, showName: numericMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
+    }
+  }
+
+  const ordinalMatch = title.match(/^(.+?)\s*[:\-\u2013]\s*(?:the\s+)?(?:complete\s+)?(\w+)\s+season\b/i);
+  if (ordinalMatch) {
+    const seasonNum = ORDINAL_WORDS[ordinalMatch[2].toLowerCase()];
+    if (seasonNum) {
+      return { kind: "single", seasonNum, showName: ordinalMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
+    }
+  }
+
+  const miniSeriesMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*mini[-\s]?series\b/i);
+  if (miniSeriesMatch) {
+    return { kind: "complete", showName: miniSeriesMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
+  }
+
+  return { kind: "none" };
+}
+
+export function splitMultiTitleCandidates(title: string): string[] {
+  const cleaned = title.replace(/\s+/g, " ").trim();
+  if (!cleaned) return [];
+
+  if (cleaned.includes("/")) {
+    return cleaned.split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean);
+  }
+
+  const numericSet = cleaned.match(/^(.+?)\s+(\d+)\s*&\s*(\d+)$/i);
+  if (numericSet) {
+    const base = numericSet[1].trim();
+    return [numericSet[2], numericSet[3]].map((n) => `${base} ${n}`);
+  }
+
+  return [];
+}
+
+export function expandSharedFranchiseTitles(movieTitles: string[]): string[] {
+  if (movieTitles.length <= 1) return movieTitles;
+
+  const first = movieTitles[0];
+  const franchisePrefixMatch = first.match(/^(.+?)(?::|\s+-\s+|\s+chapter\b|\s+part\b|\s+\d\b)/i);
+  const franchisePrefix = franchisePrefixMatch?.[1]?.trim();
+
+  if (!franchisePrefix) return movieTitles;
+
+  if (MULTI_MOVIE_KEYWORDS.test(franchisePrefix)) {
+    const colonIndex = first.indexOf(":");
+    const stripped = colonIndex !== -1
+      ? first.slice(colonIndex + 1).trim()
+      : first.replace(franchisePrefix, "").trim();
+    return [stripped, ...movieTitles.slice(1)];
+  }
+
+  const prefixPattern = new RegExp(`^${franchisePrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+
+  return movieTitles.map((title, index) => {
+    if (index === 0 || prefixPattern.test(title)) return title;
+    return `${franchisePrefix} ${title}`.replace(/\s+/g, " ").trim();
+  });
+}
+
+export function extractCollectionFranchiseName(title: string): string {
+  const globalKeywords = new RegExp(MULTI_MOVIE_KEYWORDS.source, "gi");
+
+  return title
+    .replace(globalKeywords, " ")
+    .replace(/\b(?:chapters?\s*\d+(?:\s*[-\u2013]\s*\d+)?|\d+\s*&\s*\d+|\d+\s*[-\u2013]\s*\d+)\b/gi, " ")
+    .replace(/[:,;]+/g, " ")
+    .replace(/\s+-\s+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function scoreCollectionMatch(query: string, name: string): number {
+  const normalizedQuery = normalizeLookupText(query)
+    .replace(/\b(?:chapters?|collection|trilogy|quadrilogy|pentalogy|hexalogy|anthology|pack|box\s*set|double\s*feature|triple\s*feature|feature|film|movie|complete|saga|series)\b/g, " ")
+    .replace(/\b\d+\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedName = normalizeLookupText(name)
+    .replace(/\b(?:collection|series|saga|trilogy|quadrilogy|pentalogy|hexalogy|anthology)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalizedQuery || !normalizedName) return 0;
+  if (normalizedName === normalizedQuery) return 100;
+  if (normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName)) return 85;
+
+  const queryWords = new Set(normalizedQuery.split(" ").filter(Boolean));
+  const nameWords = new Set(normalizedName.split(" ").filter(Boolean));
+  const overlap = Array.from(queryWords).filter((word) => nameWords.has(word)).length;
+
+  return Math.round((overlap / Math.max(queryWords.size, 1)) * 70);
 }
 
 function getResultYear(releaseDate?: string): number | null {

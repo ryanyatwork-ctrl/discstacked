@@ -138,7 +138,7 @@ function getIncludedTitles(item: DbMediaItem): string[] {
 function getSeriesInfo(item: DbMediaItem): { seriesTitle?: string; seasonNumber?: number; tmdbSeriesId?: number } | null {
   const meta = item.metadata as Record<string, any> | null;
   if (!meta) return null;
-  const seriesTitle = meta.series_title;
+  const seriesTitle = meta.series_title || meta.show_name;
   const seasonNumber = meta.season_number;
   const tmdbSeriesId = meta.tmdb_series_id;
   if (seriesTitle || seasonNumber) return { seriesTitle, seasonNumber, tmdbSeriesId };

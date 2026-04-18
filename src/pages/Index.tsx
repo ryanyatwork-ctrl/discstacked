@@ -28,6 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
 import logo from "@/assets/DiscStacked_16x9.png";
+import { buildCollectionSearchText } from "@/lib/media-item-utils";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   const formats = (db as any).formats as string[] | null;
@@ -128,7 +129,7 @@ export default function Index() { // force rebuild
     let items = allItems;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      items = items.filter((i) => i.title.toLowerCase().includes(q));
+      items = items.filter((i) => buildCollectionSearchText(i).includes(q));
     }
     if (activeFormats.length > 0) {
       items = items.filter((i) => {

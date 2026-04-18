@@ -11,6 +11,7 @@ import { Search, X, LayoutGrid, List, Heart, Eye, ExternalLink, ImageIcon } from
 import { Button } from "@/components/ui/button";
 import { SharedDetailDrawer } from "@/components/SharedDetailDrawer";
 import logo from "@/assets/DiscStacked_16x9.png";
+import { buildCollectionSearchText } from "@/lib/media-item-utils";
 
 type ViewMode = "covers" | "list";
 type StatusFilter = "wishlist" | "wantToWatch" | null;
@@ -63,7 +64,7 @@ export default function SharedCollection() {
     let result = mediaItems;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter((i) => i.title.toLowerCase().includes(q));
+      result = result.filter((i) => buildCollectionSearchText(i).includes(q));
     }
     if (activeFormats.length > 0) {
       result = result.filter((item) => {

@@ -887,7 +887,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
       // Only preserve non-content keys (tags, edition, source, physical details)
-      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "included_titles"];
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "series_title", "show_name", "episode_count", "included_titles"];
       const newMeta: Record<string, any> = {};
       for (const key of preserveKeys) {
         if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
@@ -907,6 +907,9 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       if (best.media_type) newMeta.content_type = best.media_type;
       if (best.tmdb_series_id) newMeta.tmdb_series_id = best.tmdb_series_id;
       if (best.season_number) newMeta.season_number = best.season_number;
+      if ((best as any).series_title) newMeta.series_title = (best as any).series_title;
+      if ((best as any).show_name) newMeta.show_name = (best as any).show_name;
+      if ((best as any).episode_count != null) newMeta.episode_count = (best as any).episode_count;
       if (best.included_titles?.length) newMeta.included_titles = best.included_titles;
       // Overwrite artist/label/tracklist if result provides them
       if (best.artist) newMeta.artist = best.artist;
@@ -1028,8 +1031,10 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   // Content type
   const contentType = meta.content_type as string | undefined;
   // TV Season
+  const seriesTitle = (meta.series_title || meta.show_name) as string | undefined;
   const seasonNumber = meta.season_number as number | undefined;
   const tmdbSeriesId = meta.tmdb_series_id as number | undefined;
+  const episodeCount = meta.episode_count as number | undefined;
   // Box Set included titles
   const includedTitles = meta.included_titles as { title: string; year?: number | null; tmdb_id?: number | null }[] | undefined;
   // Edition / package
@@ -1052,7 +1057,7 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
 
   const hasAny = genre || runtime || tagline || cast?.length || crew || overview
     || artist || label || tracklist?.length || author || pageCount || publisher
-    || platforms?.length || developer || includedTitles?.length || seasonNumber || contentType;
+    || platforms?.length || developer || includedTitles?.length || seasonNumber || contentType || seriesTitle || episodeCount;
 
   if (!hasAny) {
     return (
@@ -1077,6 +1082,13 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
         <Badge variant="outline" className="text-[10px] capitalize">
           {contentType === "tv_season" ? `TV Season${seasonNumber ? ` ${seasonNumber}` : ""}` : contentType === "box_set" ? "Box Set" : contentType}
         </Badge>
+      )}
+
+      {seriesTitle && (
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Series</p>
+          <p className="text-sm text-foreground">{seriesTitle}{episodeCount ? ` â€¢ ${episodeCount} episodes` : ""}</p>
+        </div>
       )}
 
       {/* Edition / Package info */}
