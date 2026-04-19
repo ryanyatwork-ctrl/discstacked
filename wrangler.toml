@@ -1,4 +1,5 @@
 "$schema" = "./node_modules/wrangler/config-schema.json"
 name = "discstacked"
 pages_build_output_dir = "./dist"
+compatibility_date = "2026-04-19"
 
