@@ -54,10 +54,10 @@ This repo is ready to deploy as a static Cloudflare Pages project.
 The repo now includes [cloudflare-pages.yml](/D:/Projects/DiscStacked/.github/workflows/cloudflare-pages.yml), which:
 
 - installs dependencies
-- runs `npm test`
+- runs `npm test` on pushes and pull requests
 - builds the app
 - creates the `discstacked` Pages project if it does not already exist
-- deploys `dist` to Cloudflare Pages
+- deploys `dist` to Cloudflare Pages on branch pushes and manual runs
 
 Required GitHub repository secrets:
 
