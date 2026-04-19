@@ -42,6 +42,11 @@ Legacy fallback still supported:
 
 The app also includes a checked-in fallback for the public Supabase URL and publishable key so a static Pages deployment does not blank-screen if Pages build vars are temporarily missing. Cloudflare Pages variables are still the preferred source of truth.
 
+Canonical project note:
+
+- Active Supabase project ref: `uehokbnqudoabjfzcfaj`
+- The older `eesngfxqbaalpfxcaxqc` ref came from the Lovable-era backend and should now be treated as deprecated during cutover cleanup.
+
 ## Cloudflare Pages Deployment
 
 This repo is configured for a static Cloudflare Pages project named `discstacked`.

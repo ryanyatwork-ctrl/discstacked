@@ -35,3 +35,9 @@ Run these after each meaningful deployment-related change:
 - Cloudflare DNS records for `discstacked.app` and `www.discstacked.app`
 - Supabase Auth Site URL and redirect URLs
 - Any Cloudflare analytics or challenge features that inject additional scripts into production responses
+
+## Supabase cutover note
+
+- Canonical Supabase project ref: `uehokbnqudoabjfzcfaj`
+- Deprecated Lovable-era project ref: `eesngfxqbaalpfxcaxqc`
+- Until the cutover is fully validated, treat any auth email, magic link, or dashboard action against `eesngfxqbaalpfxcaxqc` as non-production and avoid mixing the two backends.

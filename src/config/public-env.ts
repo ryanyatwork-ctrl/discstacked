@@ -1,6 +1,6 @@
-const FALLBACK_SUPABASE_URL = "https://eesngfxqbaalpfxcaxqc.supabase.co";
+const FALLBACK_SUPABASE_URL = "https://uehokbnqudoabjfzcfaj.supabase.co";
 const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlc25nZnhxYmFhbHBmeGNheHFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3OTU2OTAsImV4cCI6MjA4OTM3MTY5MH0.9Rp8rWBZoLU75ijD3MTEuS_cILqbJkjHihHHVRFUZEo";
+  "sb_publishable_KA_3Ih_2CilLB1HzW0-c4g_8F7jKL-1";
 
 type PublicEnvInput = {
   VITE_SUPABASE_URL?: string;

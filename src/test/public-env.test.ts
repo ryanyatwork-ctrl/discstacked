@@ -31,7 +31,7 @@ describe("resolvePublicEnv", () => {
   it("uses the checked-in public fallback when Cloudflare build vars are absent", () => {
     const resolved = resolvePublicEnv({});
 
-    expect(resolved.supabaseUrl).toBe("https://eesngfxqbaalpfxcaxqc.supabase.co");
-    expect(resolved.supabasePublishableKey).toMatch(/^eyJ/);
+    expect(resolved.supabaseUrl).toBe("https://uehokbnqudoabjfzcfaj.supabase.co");
+    expect(resolved.supabasePublishableKey).toBe("sb_publishable_KA_3Ih_2CilLB1HzW0-c4g_8F7jKL-1");
   });
 });
