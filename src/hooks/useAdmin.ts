@@ -13,6 +13,13 @@ interface AdminUser {
   roles: string[];
 }
 
+interface UpsertTestUserResult {
+  success: boolean;
+  created: boolean;
+  email: string;
+  userId: string;
+}
+
 export function useAdmin() {
   const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -107,5 +114,14 @@ export function useAdmin() {
     return invokeAdminUsers<{ success: boolean }>({ action: "delete-user", targetUserId });
   };
 
-  return { isAdmin, loading, adminExists, checkAdminExists, setupAdmin, listUsers, deleteUser };
+  const upsertTestUser = async (email: string, password: string, displayName?: string) => {
+    return invokeAdminUsers<UpsertTestUserResult>({
+      action: "upsert-test-user",
+      email,
+      password,
+      displayName,
+    });
+  };
+
+  return { isAdmin, loading, adminExists, checkAdminExists, setupAdmin, listUsers, deleteUser, upsertTestUser };
 }

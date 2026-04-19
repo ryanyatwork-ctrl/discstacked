@@ -37,9 +37,27 @@ Deno.serve(async (req) => {
     }
 
     const userId = claims.sub;
-    const { action, targetUserId, password } = await req.json();
+    const { action, targetUserId, password, email, displayName } = await req.json();
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    const requireAdmin = async () => {
+      const { data: roleData } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .single();
+
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return null;
+    };
 
     if (action === "admin-status") {
       const [{ count: adminCount, error: adminCountError }, { data: roleData, error: roleError }] = await Promise.all([
@@ -67,18 +85,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list-users") {
-      const { data: roleData } = await adminClient
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .single();
-
-      if (!roleData) {
-        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const adminError = await requireAdmin();
+      if (adminError) return adminError;
 
       // Get all users from auth
       const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
@@ -125,18 +133,8 @@ Deno.serve(async (req) => {
     if (action === "delete-user") {
       if (!targetUserId) throw new Error("targetUserId required");
 
-      const { data: roleData } = await adminClient
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .single();
-
-      if (!roleData) {
-        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const adminError = await requireAdmin();
+      if (adminError) return adminError;
 
       if (targetUserId === userId) throw new Error("Cannot delete your own account");
 
@@ -150,6 +148,79 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "upsert-test-user") {
+      const adminError = await requireAdmin();
+      if (adminError) return adminError;
+
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const normalizedPassword = String(password || "");
+      const normalizedDisplayName = String(displayName || "").trim() || "Codex Test";
+
+      if (!normalizedEmail) {
+        throw new Error("email required");
+      }
+
+      if (normalizedPassword.length < 8) {
+        throw new Error("password must be at least 8 characters");
+      }
+
+      const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      if (listError) throw listError;
+
+      const existingUser = users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail);
+
+      let authUserId: string;
+      let created = false;
+
+      if (existingUser) {
+        const { data, error } = await adminClient.auth.admin.updateUserById(existingUser.id, {
+          password: normalizedPassword,
+          email_confirm: true,
+          user_metadata: {
+            ...(existingUser.user_metadata || {}),
+            display_name: normalizedDisplayName,
+            test_account: true,
+          },
+        });
+        if (error) throw error;
+        authUserId = data.user.id;
+      } else {
+        const { data, error } = await adminClient.auth.admin.createUser({
+          email: normalizedEmail,
+          password: normalizedPassword,
+          email_confirm: true,
+          user_metadata: {
+            display_name: normalizedDisplayName,
+            test_account: true,
+          },
+        });
+        if (error) throw error;
+        authUserId = data.user.id;
+        created = true;
+      }
+
+      const { error: profileError } = await adminClient
+        .from("profiles")
+        .upsert(
+          {
+            user_id: authUserId,
+            display_name: normalizedDisplayName,
+          },
+          { onConflict: "user_id" },
+        );
+
+      if (profileError) throw profileError;
+
+      return new Response(JSON.stringify({
+        success: true,
+        created,
+        email: normalizedEmail,
+        userId: authUserId,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

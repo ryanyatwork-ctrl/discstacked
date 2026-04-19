@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Shield, Trash2, Users, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Shield, Trash2, Users, Loader2, AlertTriangle, UserPlus, KeyRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,7 +36,7 @@ interface AdminUser {
 export default function Admin() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, loading: adminLoading, setupAdmin, listUsers, deleteUser, checkAdminExists } = useAdmin();
+  const { isAdmin, loading: adminLoading, setupAdmin, listUsers, deleteUser, checkAdminExists, upsertTestUser } = useAdmin();
 
   const [setupMode, setSetupMode] = useState(false);
   const [setupPassword, setSetupPassword] = useState("");
@@ -48,6 +48,10 @@ export default function Admin() {
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
+  const [testEmail, setTestEmail] = useState("codex-test@discstacked.app");
+  const [testPassword, setTestPassword] = useState("");
+  const [testDisplayName, setTestDisplayName] = useState("Codex Test");
+  const [savingTestUser, setSavingTestUser] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -111,6 +115,26 @@ export default function Admin() {
       toast.error(err.message || "Delete failed");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const generatePassword = () => {
+    const token = crypto.randomUUID().replace(/-/g, "").slice(0, 18);
+    const generated = `Ds!${token}9`;
+    setTestPassword(generated);
+  };
+
+  const handleUpsertTestUser = async () => {
+    if (!testEmail || !testPassword) return;
+    setSavingTestUser(true);
+    try {
+      const result = await upsertTestUser(testEmail, testPassword, testDisplayName);
+      toast.success(result.created ? "Test account created" : "Test account password reset");
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create test account");
+    } finally {
+      setSavingTestUser(false);
     }
   };
 
@@ -196,6 +220,60 @@ export default function Admin() {
       </header>
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 space-y-6">
+        <section className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <UserPlus className="h-4 w-4 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-foreground font-semibold">Disposable Test Account</h2>
+              <p className="text-sm text-muted-foreground">
+                Create a new QA login or reset the password for an existing one without exposing credentials in the public app.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              type="email"
+              placeholder="test-account@example.com"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+            />
+            <Input
+              placeholder="Display name"
+              value={testDisplayName}
+              onChange={(e) => setTestDisplayName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <Input
+              type="text"
+              placeholder="Temporary password"
+              value={testPassword}
+              onChange={(e) => setTestPassword(e.target.value)}
+            />
+            <Button variant="outline" type="button" onClick={generatePassword} className="gap-2">
+              <KeyRound className="h-4 w-4" />
+              Generate Password
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={handleUpsertTestUser}
+              disabled={savingTestUser || !testEmail || testPassword.length < 8}
+              className="gap-2"
+            >
+              {savingTestUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              Create / Reset Test Account
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Existing users keep their data. This action only creates the account or resets its password.
+            </p>
+          </div>
+        </section>
 
         <div className="flex items-center justify-between">
           <h2 className="text-foreground font-semibold">Registered Users</h2>
