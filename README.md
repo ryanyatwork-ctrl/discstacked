@@ -1,6 +1,6 @@
 # DiscStacked
 
-DiscStacked is a Vite + React + TypeScript PWA for cataloging physical media collections. The app is a static frontend that talks to Supabase for auth, storage, database access, and metadata lookup via Supabase Edge Functions.
+DiscStacked is a Vite + React + TypeScript PWA for cataloging physical media collections. The app is a static frontend hosted on Cloudflare Pages and backed by Supabase for auth, storage, database access, and metadata lookup via Supabase Edge Functions.
 
 ## Stack
 
@@ -31,33 +31,39 @@ npm run dev
 
 ## Environment Variables
 
-The frontend only needs public Supabase values at build time:
+Preferred build-time variables:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_SUPABASE_ANON_KEY` is supported as a legacy fallback, but `VITE_SUPABASE_PUBLISHABLE_KEY` is the preferred variable
 
-Supabase Edge Functions keep their own server-side secrets in Supabase, not in Cloudflare Pages.
+Legacy fallback still supported:
+
+- `VITE_SUPABASE_ANON_KEY`
+
+The app also includes a checked-in fallback for the public Supabase URL and publishable key so a static Pages deployment does not blank-screen if Pages build vars are temporarily missing. Cloudflare Pages variables are still the preferred source of truth.
 
 ## Cloudflare Pages Deployment
 
-This repo is ready to deploy as a static Cloudflare Pages project.
+This repo is configured for a static Cloudflare Pages project named `discstacked`.
 
-- Framework preset: `None` or `Vite`
 - Build command: `npm run build:cloudflare`
 - Build output directory: `dist`
 - Node version: `22` via [.node-version](/D:/Projects/DiscStacked/.node-version)
-- Optional repo config: [wrangler.toml](/D:/Projects/DiscStacked/wrangler.toml)
+- Pages config: [wrangler.toml](/D:/Projects/DiscStacked/wrangler.toml)
+- SPA routing: [public/_redirects](/D:/Projects/DiscStacked/public/_redirects)
+- Security headers: [public/_headers](/D:/Projects/DiscStacked/public/_headers)
 
-### GitHub Actions deployment
+### GitHub Actions behavior
 
-The repo now includes [cloudflare-pages.yml](/D:/Projects/DiscStacked/.github/workflows/cloudflare-pages.yml), which:
+The repo includes [cloudflare-pages.yml](/D:/Projects/DiscStacked/.github/workflows/cloudflare-pages.yml), which:
 
-- installs dependencies
-- runs `npm test` on pushes and pull requests
-- builds the app
-- creates the `discstacked` Pages project if it does not already exist
-- deploys `dist` to Cloudflare Pages on branch pushes and manual runs
+- runs `npm test` on pushes, pull requests, and manual runs
+- builds the app before deployment
+- ensures the `discstacked` Pages project exists
+- deploys `main` as production
+- deploys every non-`main` branch push as a preview deployment
+
+Cloudflare Pages preview aliases are stable per branch and follow the documented branch-alias format: the branch name is lowercased, non-alphanumeric characters become hyphens, and the result is served at `https://<branch-alias>.discstacked.pages.dev`.
 
 Required GitHub repository secrets:
 
@@ -66,38 +72,17 @@ Required GitHub repository secrets:
 
 The API token needs `Account -> Cloudflare Pages -> Edit` permissions.
 
-### Why the migration is straightforward
+## Operations Notes
 
-- There are no Vercel Functions or Vercel Edge Functions in this repo to port.
-- The server-side logic already lives in `supabase/functions/*`.
-- SPA routing is already handled by [public/_redirects](/D:/Projects/DiscStacked/public/_redirects), which Cloudflare Pages supports for static assets.
+- Production custom domains: `discstacked.app` and `www.discstacked.app`
+- Share links and auth redirects use `window.location.origin`, so they follow the active host automatically.
+- Google Analytics only initializes on the two production custom domains. Preview deployments stay quieter and do not send production GA pageviews.
 
-## DNS Switch Notes
+Decommission runbooks:
 
-Code changes required for the Vercel -> Cloudflare DNS switch:
-
-- None for runtime routing. The app uses `window.location.origin` for auth redirects and share links, so it follows the active host automatically.
-
-Operational changes still required outside the repo:
-
-- Add `discstacked.app` and `www.discstacked.app` as custom domains in Cloudflare Pages.
-- Move the domain to Cloudflare DNS or point the required DNS records at the Pages project.
-- Update Supabase Auth settings so the Site URL and allowed redirect URLs include the Cloudflare-hosted production and preview domains.
-- If the canonical production domain changes, update the hardcoded Open Graph URLs in [index.html](/D:/Projects/DiscStacked/index.html).
-
-### First unattended run checklist
-
-Once the two GitHub secrets exist, the workflow can deploy unattended. The only one-time dashboard work left is:
-
-1. Make sure the Cloudflare account can own the `discstacked` Pages project.
-2. Add the custom domains in Pages.
-3. Update Supabase Auth redirect settings to include the Pages production and preview URLs.
-
-## Cost Guardrails
-
-- The frontend deploys as static assets, so normal page requests do not invoke paid compute.
-- Supabase Edge Functions continue to run only when the app explicitly calls them.
-- No Vercel-proprietary services are required for the frontend deployment path.
+- [Cloudflare post-cutover notes](/D:/Projects/DiscStacked/docs/cloudflare-pages-migration.md)
+- [Vercel decommission checklist](/D:/Projects/DiscStacked/docs/decommission-vercel.md)
+- [Lovable decommission checklist](/D:/Projects/DiscStacked/docs/decommission-lovable.md)
 
 ## Validation
 

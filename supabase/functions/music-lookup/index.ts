@@ -98,7 +98,7 @@ async function discogsSearch(query: string, barcode?: string) {
 // MusicBrainz search (always free, no key)
 async function musicBrainzSearch(query: string, barcode?: string) {
   const headers = {
-    "User-Agent": "DiscStacked/1.0 (https://discstacked.lovable.app)",
+    "User-Agent": "DiscStacked/1.0 (https://discstacked.app)",
     Accept: "application/json",
   };
 
