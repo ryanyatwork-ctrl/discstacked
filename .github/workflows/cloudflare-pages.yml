@@ -72,10 +72,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if npx wrangler pages project list --json | node -e "const fs=require('fs'); const projects=JSON.parse(fs.readFileSync(0,'utf8')); process.exit(projects.some((p)=>p.name===process.argv[1]) ? 0 : 1)" "$PROJECT_NAME"; then
+          output="$(npx wrangler pages project create "$PROJECT_NAME" --production-branch main 2>&1)" || status=$?
+          status="${status:-0}"
+          if [ "$status" -eq 0 ]; then
+            echo "$output"
+            echo "Pages project $PROJECT_NAME created."
+          elif printf '%s' "$output" | grep -qi "already exists"; then
+            echo "$output"
             echo "Pages project $PROJECT_NAME already exists."
           else
-            npx wrangler pages project create "$PROJECT_NAME" --production-branch main
+            echo "$output"
+            exit "$status"
           fi
 
       - name: Deploy to Cloudflare Pages
