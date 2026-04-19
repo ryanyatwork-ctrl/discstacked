@@ -1,1 +1,25 @@
 project_id = "uehokbnqudoabjfzcfaj"
+
+[functions.admin-users]
+verify_jwt = false
+
+[functions.book-lookup]
+verify_jwt = false
+
+[functions.cleanup-slash-titles]
+verify_jwt = false
+
+[functions.game-lookup]
+verify_jwt = false
+
+[functions.generate-cover-art]
+verify_jwt = false
+
+[functions.music-lookup]
+verify_jwt = false
+
+[functions.tmdb-lookup]
+verify_jwt = false
+
+[functions.vgg-collection]
+verify_jwt = false
