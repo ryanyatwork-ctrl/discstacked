@@ -47,7 +47,7 @@ export function FetchArtworkButton({ items }: FetchArtworkButtonProps) {
           ? `Fetching… ${progress.done}/${progress.total}`
           : missingCount > 0
             ? `Fetch Artwork (${missingCount} missing)`
-            : "All artwork found"}
+            : "No empty artwork slots"}
       </Button>
       {isRunning && (
         <Progress value={(progress.done / progress.total) * 100} className="h-1.5" />

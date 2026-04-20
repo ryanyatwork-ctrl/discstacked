@@ -17,6 +17,7 @@ import { FormatEditor } from "@/components/FormatEditor";
 import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
+import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
@@ -40,6 +41,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
   const [localFormats, setLocalFormats] = useState<string[] | null>(null);
+  const [displayPoster, setDisplayPoster] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const yearInputRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
@@ -52,6 +54,10 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
     setLocalFormats(null);
     setEditingTags(false);
   }, [item?.id]);
+
+  useEffect(() => {
+    setDisplayPoster(item?.posterUrl || null);
+  }, [item?.id, item?.posterUrl]);
 
   useEffect(() => {
     if (editingTitle && inputRef.current) {
@@ -68,6 +74,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   }, [editingYear]);
 
   if (!item) return null;
+
+  const fallbackPoster = getFallbackPosterUrl(item);
+  const packagePosterFit = isPackageArtwork(item, displayPoster);
 
   // Prev/Next navigation
   const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
@@ -228,8 +237,19 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
           <div className="space-y-6">
             {/* Poster */}
             <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
-              {item.posterUrl ? (
-                <img src={item.posterUrl} alt={item.title} className="w-full h-full object-cover" />
+              {displayPoster ? (
+                <img
+                  src={displayPoster}
+                  alt={item.title}
+                  className={`w-full h-full ${packagePosterFit ? "object-contain bg-card" : "object-cover"}`}
+                  onError={() => {
+                    if (fallbackPoster && displayPoster !== fallbackPoster) {
+                      setDisplayPoster(fallbackPoster);
+                    } else {
+                      setDisplayPoster(null);
+                    }
+                  }}
+                />
               ) : (
                 <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
                   <ImageIcon className="w-12 h-12 text-muted-foreground/40" />

@@ -1,11 +1,12 @@
 // PosterCard component
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MediaItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Monitor, Download, Eye, Heart, Disc, Disc3, Cloud, AlertTriangle } from "lucide-react";
 import { getEditionLabel } from "@/lib/edition-utils";
 import { hasCopyIssue } from "@/lib/collector-utils";
+import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
 
 interface PosterCardProps {
   item: MediaItem;
@@ -14,13 +15,36 @@ interface PosterCardProps {
 
 export function PosterCard({ item, onClick }: PosterCardProps) {
   const [loaded, setLoaded] = useState(false);
-  const [errored, setErrored] = useState(false);
-  const hasPoster = item.posterUrl && !errored;
+  const [displaySrc, setDisplaySrc] = useState<string | null>(item.posterUrl || null);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const fallbackSrc = getFallbackPosterUrl(item);
+  const hasPoster = !!displaySrc;
+
+  useEffect(() => {
+    setLoaded(false);
+    setDisplaySrc(item.posterUrl || null);
+    setFailedSources([]);
+  }, [item.id, item.posterUrl]);
 
   const formatBadges = (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
   const physicalFormats = formatBadges.filter(f => f !== "Digital");
   const isDigitalOnly = formatBadges.length > 0 && physicalFormats.length === 0;
   const hasIssue = hasCopyIssue(item.metadata);
+  const useContainFit = isPackageArtwork(item, displaySrc);
+
+  const handleImageError = () => {
+    if (displaySrc && fallbackSrc && displaySrc !== fallbackSrc && !failedSources.includes(fallbackSrc)) {
+      setFailedSources((prev) => [...prev, displaySrc]);
+      setLoaded(false);
+      setDisplaySrc(fallbackSrc);
+      return;
+    }
+
+    if (displaySrc) {
+      setFailedSources((prev) => [...prev, displaySrc]);
+    }
+    setDisplaySrc(null);
+  };
 
   const getFormatVariant = (f: string) =>
     f === "4K" ? "4k" as const
@@ -43,12 +67,12 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
             <div className="absolute inset-0 bg-secondary animate-pulse" />
           )}
           <img
-            src={item.posterUrl}
+            src={displaySrc!}
             alt={item.title}
             loading="lazy"
             onLoad={() => setLoaded(true)}
-            onError={() => setErrored(true)}
-            className={`w-full h-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+            onError={handleImageError}
+            className={`w-full h-full transition-opacity duration-150 ${useContainFit ? "object-contain bg-card" : "object-cover"} ${loaded ? "opacity-100" : "opacity-0"}`}
           />
         </>
       ) : (

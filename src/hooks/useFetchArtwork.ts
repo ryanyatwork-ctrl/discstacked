@@ -17,7 +17,7 @@ async function lookupByBarcode(barcode: string): Promise<ArtworkResult | null> {
       body: { barcode },
     });
     if (error || !data) return null;
-    const posterUrl = data.poster_url || data.results?.[0]?.poster_url;
+    const posterUrl = data.package_image_url || data.poster_url || data.results?.[0]?.package_image_url || data.results?.[0]?.poster_url;
     if (posterUrl) return { poster_url: posterUrl, source: "matched by barcode", match_type: "exact_owned_cover" };
     return null;
   } catch {

@@ -372,6 +372,15 @@ async function deleteMediaCopies(copyIds: string[]) {
   if (error) throw error;
 }
 
+async function deletePhysicalProducts(productIds: string[]) {
+  if (productIds.length === 0) return;
+  const { error } = await supabase
+    .from("physical_products")
+    .delete()
+    .in("id", productIds);
+  if (error) throw error;
+}
+
 async function createPhysicalProduct(userId: string, scope: BarcodeScope, productTitle: string, formats: string[], discCount: number, metadata: Record<string, any>, editionLabel?: string | null) {
   const { data, error } = await supabase
     .from("physical_products")
@@ -400,6 +409,37 @@ function findBestExistingItem(pool: DbMediaItem[], tmdbId: number | null, extern
     || pool.find((item) => externalId && item.external_id === externalId)
     || pool.find((item) => normalizeTitle(item.title) === normalizedTitle)
     || null;
+}
+
+async function collapseDuplicateProducts(scope: BarcodeScope) {
+  if (scope.products.length <= 1) return 0;
+
+  const orderedProducts = [...scope.products].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  const primary = orderedProducts[0];
+  const extras = orderedProducts.slice(1);
+  const primaryCopies = scope.copies.filter((copy) => copy.physical_product_id === primary.id);
+  const linkedIds = new Set(primaryCopies.map((copy) => copy.media_item_id));
+
+  for (const extra of extras) {
+    const extraCopies = scope.copies.filter((copy) => copy.physical_product_id === extra.id);
+    for (const copy of extraCopies) {
+      if (!linkedIds.has(copy.media_item_id)) {
+        await insertMediaCopy(primary.id, copy.media_item_id, copy.format, copy.disc_label);
+        linkedIds.add(copy.media_item_id);
+      }
+    }
+  }
+
+  await deleteMediaCopies(
+    scope.copies
+      .filter((copy) => extras.some((product) => product.id === copy.physical_product_id))
+      .map((copy) => copy.id),
+  );
+  await deletePhysicalProducts(extras.map((product) => product.id));
+
+  scope.products = [primary];
+  scope.copies = await fetchCopiesForProducts([primary.id]);
+  return extras.length;
 }
 
 async function syncDirectScope(scope: BarcodeScope, result: MediaLookupResult) {
@@ -720,6 +760,7 @@ export async function reapplyBarcodeDetailsForUser(userId: string, options: Reap
     options.onProgress?.(`${index + 1}/${scopes.length} — checking ${scope.barcode}`);
 
     try {
+      stats.updated += await collapseDuplicateProducts(scope);
       const result = await lookupBarcode(scope.mediaType, scope.barcode);
 
       if (result.direct) {

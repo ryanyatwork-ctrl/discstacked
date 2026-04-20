@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { MediaItem } from "@/lib/types";
 import { getEditionLabel } from "@/lib/edition-utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 import { CollectionEditor } from "@/components/CollectionEditor";
+import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
 
 interface SharedDetailDrawerProps {
   item: MediaItem | null;
@@ -38,6 +40,12 @@ function ConditionBadge({ condition }: { condition: string }) {
 }
 
 export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }: SharedDetailDrawerProps) {
+  const [displayPoster, setDisplayPoster] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDisplayPoster(item?.posterUrl || null);
+  }, [item?.id, item?.posterUrl]);
+
   if (!item) return null;
 
   const currentIndex = itemList?.findIndex((i) => i.id === item.id) ?? -1;
@@ -48,6 +56,8 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
   const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, any>;
   const tags = (meta.tags as string[]) || [];
   const discs = (meta.discs as DiscEntry[]) || [];
+  const fallbackPoster = getFallbackPosterUrl(item);
+  const packagePosterFit = isPackageArtwork(item, displayPoster);
 
   const amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(item.title)}+${encodeURIComponent(item.format || "")}&tag=bookstacked05-20`;
 
@@ -83,8 +93,19 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           <div className="space-y-5">
           {/* Poster */}
           <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
-            {item.posterUrl ? (
-              <img src={item.posterUrl} alt={item.title} className="w-full h-full object-cover" />
+            {displayPoster ? (
+              <img
+                src={displayPoster}
+                alt={item.title}
+                className={`w-full h-full ${packagePosterFit ? "object-contain bg-card" : "object-cover"}`}
+                onError={() => {
+                  if (fallbackPoster && displayPoster !== fallbackPoster) {
+                    setDisplayPoster(fallbackPoster);
+                  } else {
+                    setDisplayPoster(null);
+                  }
+                }}
+              />
             ) : (
               <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
                 <ImageIcon className="w-12 h-12 text-muted-foreground/40" />
