@@ -308,4 +308,15 @@ export const BARCODE_OVERRIDES: Record<string, BarcodeOverride> = {
     digitalCodeExpected: true,
     slipcoverExpected: null,
   },
+  "032429243775": {
+    kind: "multi_movie",
+    productTitle: "Star Trek II, III, IV Motion Picture Trilogy (Blu-ray)",
+    collectionName: "Star Trek II, III, IV Collection",
+    editionLabel: "Motion Picture Trilogy",
+    movieTmdbIds: [154, 157, 168],
+    formats: ["Blu-ray"],
+    discCount: 3,
+    digitalCodeExpected: false,
+    slipcoverExpected: null,
+  },
 };
