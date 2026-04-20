@@ -224,7 +224,7 @@ export async function lookupBarcode(
     // Barcode not found or partial match — return partial data for soft-fail UX
     if (data?.barcode_not_found || (data?.title && !data?.tmdb_id)) {
       return {
-        partialTitle: data.title || "",
+        partialTitle: data.product_title || data.barcode_title || data.title || "",
         partialFormats: data.detected_formats || [],
       };
     }

@@ -462,10 +462,14 @@ function addBoxSetSource(movie: Record<string, any>, setItem: Record<string, any
 /** RFC 4180-compliant CSV parser */
 export function parseCsv(text: string): Record<string, string>[] {
   const rows = parseDelimitedRows(text, detectDelimiter(text));
-  if (rows.length < 2) return [];
+  if (rows.length === 0) return [];
 
-  const headers = rows[0].map((h) => h.trim().replace(/^\uFEFF/, ""));
-  return rows.slice(1).map((values) => {
+  const firstRow = rows[0].map((h) => h.trim().replace(/^\uFEFF/, ""));
+  const hasHeaderRow = isLikelyHeaderRow(firstRow);
+  const headers = hasHeaderRow ? firstRow : inferHeaders(firstRow.length);
+  const dataRows = hasHeaderRow ? rows.slice(1) : rows;
+
+  return dataRows.map((values) => {
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => {
       const v = values[i]?.trim();
@@ -537,4 +541,19 @@ function parseDelimitedRows(text: string, delimiter: "," | "\t" | ";"): string[]
   }
 
   return rows;
+}
+
+function isLikelyHeaderRow(values: string[]) {
+  const normalized = values.map((value) => value.toLowerCase().trim());
+  const knownCount = normalized.filter((value) => Boolean(COLUMN_MAP[value])).length;
+  return knownCount >= Math.max(1, Math.ceil(values.length / 3));
+}
+
+function inferHeaders(columnCount: number): string[] {
+  if (columnCount >= 4) return ["Title", "Format", "Barcode", "Year"];
+  if (columnCount === 3) return ["Title", "Format", "Barcode"];
+  if (columnCount === 2) return ["Title", "Format"];
+  if (columnCount === 1) return ["Title"];
+
+  return Array.from({ length: columnCount }, (_, index) => `Column ${index + 1}`);
 }

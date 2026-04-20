@@ -281,6 +281,17 @@ function isStrongResolvedMatch(payload: Record<string, any> | null) {
   );
 }
 
+function isUsableWeakMatch(payload: Record<string, any> | null) {
+  if (!payload) return false;
+  return Boolean(
+    payload.tmdb_id ||
+    payload.tmdb_series_id ||
+    payload.is_multi_movie ||
+    payload.is_multi_season ||
+    (payload._matchScore || 0) >= 40,
+  );
+}
+
 async function fetchTmdbMovieDetails(tmdbId: number, apiKey: string) {
   const [detailRes, creditsRes] = await Promise.all([
     fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=en-US`),
@@ -951,14 +962,18 @@ serve(async (req) => {
         }
       }
 
-      if (bestResolved) return buildJsonResponse(bestResolved, debugLog);
+      if (isUsableWeakMatch(bestResolved)) return buildJsonResponse(bestResolved!, debugLog);
 
       debugLog.push({ source: "ALL", status: "FAILED" });
       return new Response(JSON.stringify({
         barcode_not_found: true,
         barcode_value: barcode,
-        title: "",
-        detected_formats: [],
+        title: packageContext.productTitle || packageContext.rawTitle || bestResolved?.product_title || bestResolved?.barcode_title || bestResolved?.title || "",
+        product_title: packageContext.productTitle || bestResolved?.product_title || bestResolved?.barcode_title || null,
+        barcode_title: packageContext.rawTitle || bestResolved?.barcode_title || bestResolved?.product_title || null,
+        detected_formats: packageContext.detectedFormats.length > 0
+          ? packageContext.detectedFormats
+          : (bestResolved?.detected_formats || []),
         _debug: debugLog,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

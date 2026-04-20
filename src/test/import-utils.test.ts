@@ -27,6 +27,28 @@ describe("import-utils", () => {
     ]);
   });
 
+  it("infers default movie headers when the first row is data", () => {
+    const rows = parseCsv([
+      "1917,Blu-ray + DVD + Digital,191329125663,2019",
+      "The American,Blu-ray,025192053733,2010",
+    ].join("\n"));
+
+    expect(rows).toEqual([
+      {
+        Title: "1917",
+        Format: "Blu-ray + DVD + Digital",
+        Barcode: "191329125663",
+        Year: "2019",
+      },
+      {
+        Title: "The American",
+        Format: "Blu-ray",
+        Barcode: "025192053733",
+        Year: "2010",
+      },
+    ]);
+  });
+
   it("maps Blu-ray.com style headers into collector metadata", () => {
     const mapped = mapClzRow({
       Release: "Men in Black 3",
