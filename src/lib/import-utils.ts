@@ -7,32 +7,51 @@ export const TAB_LABELS: Record<string, string> = {
   games: "Games",
 };
 
-// Maps CLZ / common CSV headers → our DB columns
+// Maps CLZ / Blu-ray.com / common CSV headers → our DB columns
 const COLUMN_MAP: Record<string, string> = {
   title: "title",
   name: "title",
   "movie title": "title",
+  movie: "title",
+  release: "title",
+  "release title": "title",
+  "original title": "title",
   "album title": "title",
   "book title": "title",
   "game title": "title",
   year: "year",
   "movie release year": "year",
   "release year": "year",
+  released: "year",
   format: "format",
+  media: "format",
+  "video format": "format",
   edition: "edition",
+  version: "edition",
   genre: "genre",
   genres: "genre",
   rating: "rating",
   "my rating": "rating",
   notes: "notes",
   barcode: "_barcode",
+  upc: "_barcode",
+  ean: "_barcode",
+  "upc/ean": "_barcode",
+  "ean/upc": "_barcode",
   "running time": "_running_time",
+  runtime: "_running_time",
   "no. of discs/tapes": "_disc_count",
+  discs: "_disc_count",
+  "disc count": "_disc_count",
   "audio tracks": "_audio_tracks",
   quantity: "_quantity",
   qty: "_quantity",
   subtitles: "_subtitles",
   director: "_director",
+  studio: "_studio",
+  studios: "_studio",
+  country: "_country",
+  countries: "_country",
   // CLZ Music Collector columns
   artist: "_artist",
   label: "_label",
@@ -54,17 +73,33 @@ const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors ed
 export function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
   const found: string[] = [];
-  if (v.includes("4k") || v.includes("uhd") || v.includes("atmos")) {
+  if (v.includes("4k") || v.includes("ultra hd") || v.includes("uhd") || v.includes("atmos")) {
     found.push("4K");
   }
   if (
     v.includes("blu-ray") || v.includes("blu ray") || v.includes("bluray") ||
+    v.includes("bd-25") || v.includes("bd-50") || v.includes("bd-66") || v.includes("bd-100") ||
     v.includes("dts-hd") || v.includes("truehd") || v.includes("true hd")
   ) {
     found.push("Blu-ray");
   }
+  if (v.includes("3d")) {
+    found.push("3D");
+  }
   if (v.includes("dvd")) {
     found.push("DVD");
+  }
+  if (
+    v.includes("digital") ||
+    v.includes("streaming") ||
+    v.includes("movies anywhere") ||
+    v.includes("digital copy") ||
+    v.includes("digital code")
+  ) {
+    found.push("Digital");
+  }
+  if (v.includes("ultraviolet")) {
+    found.push("UltraViolet");
   }
   // Music formats
   if (v.includes("cd") || v.includes("compact disc")) {
@@ -426,7 +461,7 @@ function addBoxSetSource(movie: Record<string, any>, setItem: Record<string, any
 
 /** RFC 4180-compliant CSV parser */
 export function parseCsv(text: string): Record<string, string>[] {
-  const rows = parseCsvRows(text);
+  const rows = parseDelimitedRows(text, detectDelimiter(text));
   if (rows.length < 2) return [];
 
   const headers = rows[0].map((h) => h.trim().replace(/^\uFEFF/, ""));
@@ -440,7 +475,21 @@ export function parseCsv(text: string): Record<string, string>[] {
   });
 }
 
-function parseCsvRows(text: string): string[][] {
+function detectDelimiter(text: string): "," | "\t" | ";" {
+  const sample = text
+    .split(/\r?\n/)
+    .find((line) => line.trim().length > 0) || "";
+
+  const commaCount = (sample.match(/,/g) || []).length;
+  const tabCount = (sample.match(/\t/g) || []).length;
+  const semicolonCount = (sample.match(/;/g) || []).length;
+
+  if (tabCount >= commaCount && tabCount >= semicolonCount && tabCount > 0) return "\t";
+  if (semicolonCount > commaCount && semicolonCount > 0) return ";";
+  return ",";
+}
+
+function parseDelimitedRows(text: string, delimiter: "," | "\t" | ";"): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -462,7 +511,7 @@ function parseCsvRows(text: string): string[][] {
     } else {
       if (ch === '"') {
         inQuotes = true;
-      } else if (ch === ",") {
+      } else if (ch === delimiter) {
         row.push(field);
         field = "";
       } else if (ch === "\r" && next === "\n") {

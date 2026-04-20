@@ -65,9 +65,11 @@ function detectFormats(text) {
   const detected = [];
   if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(t)) detected.push("4K");
   if (/\bBLU[-\s]?RAY\b/.test(t)) detected.push("Blu-ray");
+  if (/\b3D\b/.test(t)) detected.push("3D");
   if (/\bDVD\b/.test(t)) detected.push("DVD");
   if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(t)) detected.push("Digital");
   if (/\bVHS\b/.test(t)) detected.push("VHS");
+  if (/\bULTRAVIOLET\b/.test(t)) detected.push("UltraViolet");
   return detected;
 }
 
@@ -154,6 +156,10 @@ test("Digital Copy captured alongside Blu-ray", () =>
   assert.deepEqual(detectFormats("Movie Title Blu-ray + Digital Copy"), ["Blu-ray", "Digital"]));
 test("Digital HD captured alongside 4K", () =>
   assert.deepEqual(detectFormats("Movie 4K UHD + Digital HD"), ["4K", "Digital"]));
+test("Blu-ray 3D captured alongside Blu-ray", () =>
+  assert.deepEqual(detectFormats("Men in Black 3 Blu-ray 3D + Blu-ray + DVD"), ["Blu-ray", "3D", "DVD"]));
+test("UltraViolet captured as its own format", () =>
+  assert.deepEqual(detectFormats("Movie Blu-ray + UltraViolet"), ["Blu-ray", "UltraViolet"]));
 test("Bluray no hyphen", () => assert.deepEqual(detectFormats("Bluray edition"), ["Blu-ray"]));
 test("Blu Ray with space", () => assert.deepEqual(detectFormats("Blu Ray special"), ["Blu-ray"]));
 test("DVD alone", () => assert.deepEqual(detectFormats("Movie on DVD"), ["DVD"]));

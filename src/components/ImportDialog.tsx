@@ -137,6 +137,11 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               <p>With CLZ's default movie fields from your screenshot, DiscStacked maps:</p>
               <p><code>Title</code> → title, <code>Movie Release Year</code> → year, <code>Running Time</code> → runtime metadata, <code>Genre</code> → genre, <code>Director</code> → crew metadata.</p>
               <p>If you add more CLZ fields later, DiscStacked also understands <code>Format</code>, <code>Edition</code>, <code>Barcode</code>, <code>No. of Discs/Tapes</code>, <code>Rating</code>, and <code>Notes</code>.</p>
+              <div className="pt-2 border-t border-border/50 space-y-1">
+                <p className="font-medium text-foreground">Blu-ray.com exports</p>
+                <p>DiscStacked also accepts Blu-ray.com collection exports as <strong>.csv</strong> or <strong>.txt</strong>. Comma-delimited and tab-delimited text exports are both supported.</p>
+                <p>For best results, include columns like <code>Title</code>, <code>Release</code>, <code>Year</code>/<code>Released</code>, <code>Format</code>/<code>Media</code>, <code>Barcode</code>/<code>UPC/EAN</code>, <code>Edition</code>/<code>Version</code>, and <code>Discs</code>.</p>
+              </div>
             </div>
           )}
           <input

@@ -435,6 +435,30 @@ export default function Settings() {
           </div>
         </section>
 
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Import from Blu-ray.com
+          </h2>
+          <div className="rounded-lg bg-card p-3 space-y-3 text-xs text-muted-foreground">
+            <p className="text-foreground font-medium">Recommended Blu-ray.com export setup</p>
+            <p>
+              Export your collection from Blu-ray.com as <strong>CSV</strong> or <strong>TXT</strong>. DiscStacked now accepts both comma-delimited and tab-delimited text exports, so Mark does not need to convert the file first.
+            </p>
+            <div className="space-y-1">
+              <p className="text-foreground font-medium">Ideal Blu-ray.com fields to include</p>
+              <p><code>Title</code> or <code>Release</code>, <code>Year</code> or <code>Released</code>, <code>Format</code> or <code>Media</code>, <code>Barcode</code> or <code>UPC/EAN</code>, <code>Edition</code> or <code>Version</code>, <code>Discs</code>, <code>Genre</code>, <code>Director</code>, <code>Studio</code>, <code>Country</code>, and <code>Notes</code>.</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-foreground font-medium">What DiscStacked maps today</p>
+              <p><code>Title</code>/<code>Release</code> → title, <code>Year</code>/<code>Released</code> → year, <code>Format</code>/<code>Media</code> → collector formats, <code>Barcode</code>/<code>UPC/EAN</code> → UPC/barcode, <code>Edition</code>/<code>Version</code> → edition metadata, <code>Discs</code> → disc count metadata, <code>Genre</code> → genre, <code>Director</code> → crew metadata, <code>Studio</code> and <code>Country</code> → stored metadata, <code>Notes</code> → notes.</p>
+            </div>
+            <p>
+              Best results come from including the barcode and edition-style columns, because DiscStacked can then re-run package-aware lookup after import and fill in artwork, expected formats, and disc details more reliably.
+            </p>
+          </div>
+        </section>
+
         {/* VGG Import */}
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">

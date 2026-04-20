@@ -24,9 +24,11 @@ function detectFormats(text: string): string[] {
 
   if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(upper)) detected.push("4K");
   if (/\bBLU[-\s]?RAY\b/.test(upper)) detected.push("Blu-ray");
+  if (/\b3D\b/.test(upper)) detected.push("3D");
   if (/\bDVD\b/.test(upper)) detected.push("DVD");
   if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(upper)) detected.push("Digital");
   if (/\bVHS\b/.test(upper)) detected.push("VHS");
+  if (/\bULTRAVIOLET\b/.test(upper)) detected.push("UltraViolet");
 
   return detected;
 }
@@ -42,8 +44,29 @@ type PackageContext = {
   packageImageUrl?: string | null;
 };
 
+type BluRayDotComLookup = {
+  packageTitle: string;
+  imageUrl: string | null;
+  formats: string[];
+  discCount: number | null;
+  sourceUrl: string;
+};
+
 function dedupeFormats(formats: string[]) {
   return Array.from(new Set(formats.filter(Boolean)));
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }
 
 function extractDiscCount(text?: string | null): number | null {
@@ -71,6 +94,54 @@ function extractDiscCount(text?: string | null): number | null {
   if (wordMatch) return wordMap[wordMatch[1].toLowerCase()] ?? null;
 
   return null;
+}
+
+function stripHtml(value: string) {
+  return decodeHtmlEntities(value.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+async function lookupBluRayDotCom(barcode: string): Promise<BluRayDotComLookup | null> {
+  const response = await fetch(
+    `https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword=${encodeURIComponent(barcode)}&section=bluraymovies`,
+    {
+      headers: {
+        "user-agent": "DiscStacked/1.0 (+https://discstacked.app)",
+      },
+    },
+  );
+
+  if (!response.ok) return null;
+
+  const finalUrl = response.url || "";
+  if (!/https:\/\/www\.blu-ray\.com\/movies\/.+\/\d+\/?$/i.test(finalUrl)) {
+    return null;
+  }
+
+  const html = await response.text();
+  const ogTitleMatch = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i);
+  const ogImageMatch = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i);
+  const discsBlockMatch = html.match(/Discs<\/span><br>\s*(.*?)<br><span class="subheading">/is);
+
+  const packageTitle = ogTitleMatch
+    ? decodeHtmlEntities(ogTitleMatch[1]).trim()
+    : "";
+
+  if (!packageTitle) return null;
+
+  const discBlock = discsBlockMatch ? stripHtml(discsBlockMatch[1]) : "";
+  const discCount = extractDiscCount(discBlock || packageTitle);
+  const detectedFormats = dedupeFormats([
+    ...detectFormats(packageTitle),
+    ...detectFormats(discBlock),
+  ]);
+
+  return {
+    packageTitle,
+    imageUrl: ogImageMatch ? decodeHtmlEntities(ogImageMatch[1]).trim() : null,
+    formats: detectedFormats,
+    discCount,
+    sourceUrl: finalUrl,
+  };
 }
 
 function attachPackageContext(payload: Record<string, any>, context: PackageContext) {
@@ -717,6 +788,65 @@ serve(async (req) => {
         }
       } catch (error) {
         debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(error) });
+      }
+
+      try {
+        const bluRayMatch = await lookupBluRayDotCom(barcode);
+        if (bluRayMatch) {
+          const bluRayFormats = bluRayMatch.formats.length > 0
+            ? bluRayMatch.formats
+            : upcFormats;
+          const bluRayYear = extractYearFromText(bluRayMatch.packageTitle);
+
+          packageContext = {
+            rawTitle: bluRayMatch.packageTitle,
+            productTitle: bluRayMatch.packageTitle,
+            detectedFormats: bluRayFormats,
+            discCount: bluRayMatch.discCount,
+            packageImageUrl: bluRayMatch.imageUrl,
+          };
+
+          upcTitle = bluRayMatch.packageTitle;
+          upcCleanTitle = cleanProductTitle(bluRayMatch.packageTitle);
+          upcFormats = bluRayFormats;
+          if (!barcodeYear && bluRayYear) barcodeYear = bluRayYear;
+
+          debugLog.push({
+            source: "BluRay.com",
+            status: "HIT",
+            raw: {
+              title: bluRayMatch.packageTitle,
+              url: bluRayMatch.sourceUrl,
+              formats: bluRayFormats,
+              discCount: bluRayMatch.discCount,
+            },
+          });
+
+          if (barcodeOverride) {
+            const overrideContext: PackageContext = {
+              ...packageContext,
+              productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+              detectedFormats: dedupeFormats([...bluRayFormats, ...barcodeOverride.formats]),
+              discCount: barcodeOverride.discCount,
+              editionLabel: barcodeOverride.editionLabel || null,
+              digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
+              slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
+            };
+            const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
+            debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
+            return buildJsonResponse(overridePayload, debugLog);
+          }
+
+          if (upcCleanTitle) {
+            const result = await processBarcodeTitle(upcCleanTitle, bluRayMatch.packageTitle, bluRayFormats, barcodeYear);
+            const packagedResult = result ? attachPackageContext(result, packageContext) : null;
+            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
+          }
+        } else {
+          debugLog.push({ source: "BluRay.com", status: "MISS" });
+        }
+      } catch (error) {
+        debugLog.push({ source: "BluRay.com", status: "ERROR", raw: String(error) });
       }
 
       if (barcodeOverride) {
