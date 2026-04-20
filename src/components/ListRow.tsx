@@ -12,6 +12,7 @@ interface ListRowProps {
 export function ListRow({ item, onClick }: ListRowProps) {
   const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
   const hasIssue = hasCopyIssue(item.metadata);
+  const isUpgradeTarget = !!item.metadata?.upgrade_target;
 
   const getFormatVariant = (format: string) =>
     format === "4K" ? "4k" as const
@@ -44,7 +45,7 @@ export function ListRow({ item, onClick }: ListRowProps) {
       {hasIssue && (
         <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">
           <AlertTriangle className="w-3 h-3 mr-1" />
-          Incomplete
+          {isUpgradeTarget ? "Upgrade" : "Incomplete"}
         </Badge>
       )}
       <div className="flex items-center gap-1 shrink-0">

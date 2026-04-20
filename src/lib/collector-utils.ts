@@ -117,6 +117,7 @@ export function hasCopyIssue(metadata: Record<string, any> | null | undefined) {
 
   if (metadata.slipcover_status === "missing" || metadata.slipcover_status === "damaged") return true;
   if (metadata.digital_code_status === "Missing" || metadata.digital_code_status === "Expired") return true;
+  if (metadata.upgrade_target) return true;
 
   return false;
 }

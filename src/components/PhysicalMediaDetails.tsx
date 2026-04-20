@@ -6,6 +6,7 @@ import { usePhysicalProductsForItem, useUpdatePhysicalProduct } from "@/hooks/us
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,8 @@ type MetadataFields = {
   distributor?: string;
   region?: string;
   disc_layers?: string;
+  former_rental?: boolean;
+  upgrade_target?: boolean;
 };
 
 function getMetadataFields(input: unknown): MetadataFields {
@@ -172,6 +175,8 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     meta.distributor ||
     meta.region ||
     meta.disc_layers ||
+    meta.former_rental ||
+    meta.upgrade_target ||
     (meta.expectedFormats && meta.expectedFormats.length > 0) ||
     meta.expectedDiscCount;
 
@@ -204,6 +209,8 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           {meta.editionLabel && <DetailRow label="Edition" value={meta.editionLabel} fullWidth />}
           {meta.expectedFormats?.length > 0 && <DetailRow label="Expected Formats" value={meta.expectedFormats.join(", ")} fullWidth />}
           {meta.expectedDiscCount && <DetailRow label="Expected Disc Count" value={String(meta.expectedDiscCount)} />}
+          {meta.former_rental ? <DetailRow label="Former Rental" value="Yes" /> : null}
+          {meta.upgrade_target ? <DetailRow label="Upgrade Target" value="Yes" /> : null}
           {meta.case_type && <DetailRow label="Case" value={meta.case_type} />}
           {meta.slipcoverStatus && <DetailRow label="Slipcover" value={toSlipcoverLabel(meta.slipcoverStatus)} />}
           {meta.condition && (
@@ -306,6 +313,19 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             </SelectContent>
           </Select>
         </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <ToggleField
+            label="Former Rental"
+            checked={!!draft.former_rental}
+            onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, former_rental: checked }))}
+          />
+          <ToggleField
+            label="Upgrade Target"
+            checked={!!draft.upgrade_target}
+            onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, upgrade_target: checked }))}
+          />
+        </div>
 
         <Field label="Slipcover / Sleeve">
           <Select value={draft.slipcover_status || "unknown"} onValueChange={(value) => updateField("slipcover_status", value)}>
@@ -439,6 +459,23 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1">
       <label className="text-xs text-muted-foreground font-medium">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function ToggleField({
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+      <label className="text-xs text-muted-foreground font-medium">{label}</label>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }

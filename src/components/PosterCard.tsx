@@ -30,6 +30,7 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
   const physicalFormats = formatBadges.filter(f => f !== "Digital");
   const isDigitalOnly = formatBadges.length > 0 && physicalFormats.length === 0;
   const hasIssue = hasCopyIssue(item.metadata);
+  const isUpgradeTarget = !!item.metadata?.upgrade_target;
   const useContainFit = isPackageArtwork(item, displaySrc);
 
   const handleImageError = () => {
@@ -135,7 +136,7 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
         <div className="absolute bottom-1.5 right-1.5">
           <Badge variant="outline" className="text-[9px] bg-warning/15 backdrop-blur-sm border-warning/40 text-warning">
             <AlertTriangle className="w-3 h-3 mr-1" />
-            Incomplete
+            {isUpgradeTarget ? "Upgrade" : "Incomplete"}
           </Badge>
         </div>
       )}
