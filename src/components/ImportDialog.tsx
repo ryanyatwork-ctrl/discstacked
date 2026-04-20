@@ -23,14 +23,15 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     try {
       const text = await file.text();
       let rawItems: Record<string, string>[];
+      const fileName = file.name.toLowerCase();
 
-      if (file.name.endsWith(".json")) {
+      if (fileName.endsWith(".json")) {
         const parsed = JSON.parse(text);
         rawItems = Array.isArray(parsed) ? parsed : [parsed];
-      } else if (file.name.endsWith(".csv")) {
+      } else if (fileName.endsWith(".csv") || fileName.endsWith(".txt")) {
         rawItems = parseCsv(text);
       } else {
-        toast({ title: "Invalid file", description: "Please upload a .csv or .json file.", variant: "destructive" });
+        toast({ title: "Invalid file", description: "Please upload a .csv, .txt, or .json file.", variant: "destructive" });
         return;
       }
 
@@ -103,6 +104,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   };
 
   const isCds = activeTab === "cds";
+  const isMovies = activeTab === "movies" || activeTab === "music-films";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -117,7 +119,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         </DialogHeader>
         <div className="space-y-4 py-4">
           <p className="text-sm text-muted-foreground">
-            Upload a <strong>.csv</strong> or <strong>.json</strong> file. This will <strong>replace</strong> all existing items in {TAB_LABELS[activeTab]}.
+            Upload a <strong>.csv</strong>, <strong>.txt</strong>, or <strong>.json</strong> file. This will <strong>replace</strong> all existing items in {TAB_LABELS[activeTab]}.
           </p>
           <p className="text-xs text-muted-foreground">
             {isCds ? (
@@ -125,13 +127,22 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             ) : activeTab === "games" ? (
               <>Supports <code className="text-accent">CLZ Game Collector</code> exports (Title, Platform, Genre, Developer, Publisher) and standard CSV files. You can also import from VideoGameGeek in Settings.</>
             ) : (
-              <>Supports <code className="text-accent">CLZ</code> exports and standard CSV files. Box sets and multi-movie titles are automatically detected and expanded.</>
+              <>Supports <code className="text-accent">CLZ</code> exports and standard CSV-style text files. Box sets and multi-movie titles are automatically detected and expanded.</>
             )}
           </p>
+          {isMovies && (
+            <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Recommended CLZ export settings</p>
+              <p>Use <strong>Text...</strong> export in CLZ. Keep <strong>Include Field Names on First Row</strong> on, choose <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>UTF8</strong> encoding.</p>
+              <p>With CLZ's default movie fields from your screenshot, DiscStacked maps:</p>
+              <p><code>Title</code> → title, <code>Movie Release Year</code> → year, <code>Running Time</code> → runtime metadata, <code>Genre</code> → genre, <code>Director</code> → crew metadata.</p>
+              <p>If you add more CLZ fields later, DiscStacked also understands <code>Format</code>, <code>Edition</code>, <code>Barcode</code>, <code>No. of Discs/Tapes</code>, <code>Rating</code>, and <code>Notes</code>.</p>
+            </div>
+          )}
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,.json"
+            accept=".csv,.txt,.json"
             onChange={handleFile}
             className="hidden"
           />

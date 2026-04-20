@@ -16,3 +16,12 @@ export function isPackageArtwork(item: MediaItem, src?: string | null) {
   const edition = getEditionObject(item);
   return src === edition.cover_art_url;
 }
+
+export function hasManualArtworkOverride(metadata: unknown) {
+  const meta = metadata && typeof metadata === "object" ? (metadata as Record<string, any>) : {};
+  const source = typeof meta.artwork_source === "string" ? meta.artwork_source.toLowerCase() : "";
+
+  return meta.artwork_locked === true
+    || source.startsWith("manual")
+    || source === "ai generated";
+}

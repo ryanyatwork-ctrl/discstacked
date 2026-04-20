@@ -203,6 +203,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
         metadata: {
           ...currentMeta,
           artwork_source: searchSource || "manual selection",
+          artwork_locked: true,
         },
       } as any);
       toast({ title: "Cover updated!" });
@@ -222,6 +223,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
         metadata: {
           ...currentMeta,
           artwork_source: "manual game cover selection",
+          artwork_locked: true,
         },
       } as any);
       toast({ title: "Cover updated!" });
@@ -254,7 +256,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
       await updateItem.mutateAsync({
         id: item.id,
         poster_url: publicUrl,
-        metadata: { ...currentMeta, artwork_source: "manual upload" },
+        metadata: { ...currentMeta, artwork_source: "manual upload", artwork_locked: true },
       } as any);
       toast({ title: "Custom cover uploaded!" });
       onClose();
@@ -379,7 +381,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                     updateItem.mutate({
                       id: item.id,
                       poster_url: url,
-                      metadata: { ...currentMeta, artwork_source: "AI generated" },
+                      metadata: { ...currentMeta, artwork_source: "AI generated", artwork_locked: true },
                     } as any);
                     toast({ title: "AI cover applied!" });
                     onClose();

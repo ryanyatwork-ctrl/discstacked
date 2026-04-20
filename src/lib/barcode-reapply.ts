@@ -9,6 +9,7 @@ import {
 import { buildDiscEntries, type DiscEntry } from "@/lib/collector-utils";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import type { MediaTab } from "@/lib/types";
+import { hasManualArtworkOverride } from "@/lib/cover-utils";
 
 type DbMediaItem = Tables<"media_items">;
 type DbPhysicalProduct = Tables<"physical_products">;
@@ -118,7 +119,9 @@ function buildSingleUpdatePayload(existing: DbMediaItem, result: MediaLookupResu
     title: result.title || existing.title,
     year: result.year ?? existing.year,
     genre: result.genre ?? existing.genre,
-    poster_url: result.cover_url || existing.poster_url,
+    poster_url: hasManualArtworkOverride(existing.metadata)
+      ? existing.poster_url
+      : (result.cover_url || existing.poster_url),
     external_id: externalId || existing.external_id,
     formats: nextFormats,
     format: nextFormats[0] || existing.format,

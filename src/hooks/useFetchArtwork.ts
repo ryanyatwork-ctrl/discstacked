@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { searchTmdb } from "@/lib/tmdb";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DbMediaItem } from "@/hooks/useMediaItems";
+import { hasManualArtworkOverride } from "@/lib/cover-utils";
 
 interface ArtworkResult {
   poster_url: string;
@@ -259,6 +260,10 @@ async function findRepairCandidates(items: DbMediaItem[]) {
   const candidates: DbMediaItem[] = [];
 
   for (const item of items) {
+    if (item.poster_url && hasManualArtworkOverride(item.metadata)) {
+      continue;
+    }
+
     const edition = getEditionMeta(item);
     const hasBrokenPoster = item.poster_url ? !(await canLoadImage(item.poster_url)) : false;
     const hasFallbackPoster = !!edition.tmdb_poster_url;

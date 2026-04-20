@@ -17,7 +17,7 @@ import { FormatEditor } from "@/components/FormatEditor";
 import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
-import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
+import { getFallbackPosterUrl, hasManualArtworkOverride, isPackageArtwork } from "@/lib/cover-utils";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
@@ -259,9 +259,15 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
                     artist={item.metadata?.artist || item.artist}
                     genre={item.genre}
                     onGenerated={(url) => {
+                      const currentMeta = (item.metadata as Record<string, any>) || {};
                       updateItem.mutate({
                         id: item.id,
                         poster_url: url,
+                        metadata: {
+                          ...currentMeta,
+                          artwork_source: "AI generated",
+                          artwork_locked: true,
+                        },
                       } as any);
                     }}
                   />
@@ -954,7 +960,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
       // Only preserve non-content keys (tags, edition, source, physical details)
-      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "series_title", "show_name", "episode_count", "included_titles"];
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "series_title", "show_name", "episode_count", "included_titles", "artwork_source", "artwork_match_type", "artwork_locked"];
       const newMeta: Record<string, any> = {};
       for (const key of preserveKeys) {
         if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
@@ -990,7 +996,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
         title: best.title || item.title,
         genre: best.genre || null,
         rating: best.rating || null,
-        poster_url: best.cover_url || null,
+        poster_url: hasManualArtworkOverride(item.metadata) ? item.posterUrl : (best.cover_url || null),
         year: best.year || null,
         external_id: best.tmdb_id ? String(best.tmdb_id) : null,
       };

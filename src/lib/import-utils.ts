@@ -32,6 +32,7 @@ const COLUMN_MAP: Record<string, string> = {
   quantity: "_quantity",
   qty: "_quantity",
   subtitles: "_subtitles",
+  director: "_director",
   // CLZ Music Collector columns
   artist: "_artist",
   label: "_label",
@@ -176,6 +177,27 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   }
 
   if (Object.keys(metadata).length > 0) {
+    if (metadata.running_time) {
+      const parsedRuntime = parseInt(metadata.running_time, 10);
+      if (!isNaN(parsedRuntime)) {
+        (metadata as any).runtime = parsedRuntime;
+      }
+    }
+
+    if (metadata.director) {
+      const directors = metadata.director
+        .split(";")
+        .map((entry) => cleanString(entry).trim())
+        .filter(Boolean);
+
+      if (directors.length > 0) {
+        (metadata as any).crew = {
+          ...((metadata as any).crew || {}),
+          director: directors,
+        };
+      }
+    }
+
     mapped.metadata = metadata;
   }
 
