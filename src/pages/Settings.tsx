@@ -407,6 +407,34 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* Import from CLZ */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Import from CLZ
+          </h2>
+          <div className="rounded-lg bg-card p-3 space-y-3 text-xs text-muted-foreground">
+            <p className="text-foreground font-medium">Recommended CLZ export settings</p>
+            <p>
+              In CLZ Movies, use <strong>Export to &gt; Text...</strong>. DiscStacked now accepts that CLZ text export directly, even if the file ends in <code>.txt</code>.
+            </p>
+            <p>
+              Best settings: <strong>UTF8</strong>, <strong>Include Field Names on First Row</strong>, <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>Replace Line Breaks by Space</strong>.
+            </p>
+            <div className="space-y-1">
+              <p className="text-foreground font-medium">Ideal CLZ fields to include</p>
+              <p><code>Title</code>, <code>Movie Release Year</code>, <code>Format</code>, <code>Edition</code>, <code>Barcode</code>, <code>No. of Discs/Tapes</code>, <code>Genre</code>, <code>Running Time</code>, <code>Director</code>, <code>Rating</code>, and <code>Notes</code>.</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-foreground font-medium">What DiscStacked maps today</p>
+              <p><code>Title</code> → title, <code>Movie Release Year</code> → year, <code>Format</code>/<code>Edition</code> → formats and edition metadata, <code>Barcode</code> → UPC/barcode, <code>No. of Discs/Tapes</code> → disc count metadata, <code>Genre</code> → genre, <code>Running Time</code> → runtime metadata, <code>Director</code> → crew metadata, <code>Rating</code> → rating, <code>Notes</code> → notes.</p>
+            </div>
+            <p>
+              Best results come from including <code>Barcode</code>, <code>Edition</code>, and <code>No. of Discs/Tapes</code>, because that gives DiscStacked the most to work with when it builds collector details and package expectations.
+            </p>
+          </div>
+        </section>
+
         {/* VGG Import */}
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">

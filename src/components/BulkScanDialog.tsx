@@ -382,11 +382,27 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         setQueue((prev) =>
           prev.map((item) =>
             item.barcode === barcode
-              ? { ...item, status: "not_found" as const, title: searchTitle }
+              ? {
+                  ...item,
+                  status: "found" as const,
+                  title: searchTitle,
+                  year: searchYear ?? null,
+                  genre: null,
+                  posterUrl: null,
+                  tmdb_id: null,
+                  extraMeta: {
+                    ...(item.extraMeta || {}),
+                    source: "manual_barcode_entry",
+                  },
+                  selected: true,
+                }
               : item
           )
         );
-        toast({ title: "No results", description: `No match for "${searchTitle}". Try a different title.` });
+        toast({
+          title: "Using manual title",
+          description: `No lookup match for "${searchTitle}", but you can still add it manually.`,
+        });
       }
     } catch {
       setQueue((prev) =>
