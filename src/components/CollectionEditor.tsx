@@ -12,9 +12,10 @@ import { Package, Pencil, Check, X, Plus, Trash2, Barcode, DollarSign, Calendar 
 interface CollectionEditorProps {
   item: MediaItem;
   readOnly?: boolean;
+  onNavigate?: (item: MediaItem) => void;
 }
 
-export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
+export function CollectionEditor({ item, readOnly, onNavigate }: CollectionEditorProps) {
   const { data: physicalProducts, isLoading } = usePhysicalProductsForItem(item.id);
   const [editing, setEditing] = useState(false);
   const [isSet, setIsSet] = useState(false);
@@ -48,11 +49,25 @@ export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
         {(physicalProducts || []).map((pp: any) => (
           <div key={pp.id} className="rounded-md border border-border bg-secondary/50 p-3 space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{pp.product_title}</p>
-                {pp.edition && (
-                  <p className="text-xs text-muted-foreground">{pp.edition}</p>
+              <div className="min-w-0 flex gap-3">
+                {pp.metadata?.edition?.cover_art_url && (
+                  <img
+                    src={pp.metadata.edition.cover_art_url}
+                    alt={pp.product_title}
+                    className="h-20 w-14 rounded-md border border-border object-cover shrink-0"
+                  />
                 )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{pp.product_title}</p>
+                  {pp.edition && (
+                    <p className="text-xs text-muted-foreground">{pp.edition}</p>
+                  )}
+                  {pp.disc_count ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {pp.disc_count} {pp.disc_count === 1 ? "disc" : "discs"}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               {pp.formats && pp.formats.length > 0 && (
                 <div className="flex gap-1 shrink-0">
@@ -98,12 +113,31 @@ export function CollectionEditor({ item, readOnly }: CollectionEditorProps) {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Also in this set:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {pp.linkedItems.map((linked: any) => (
-                    <Badge key={linked.id} variant="outline" className="text-[10px] gap-1">
+                    <button
+                      key={linked.id}
+                      type="button"
+                      onClick={() => onNavigate?.({
+                        id: linked.id,
+                        title: linked.title,
+                        year: linked.year ?? undefined,
+                        posterUrl: linked.poster_url ?? undefined,
+                        genre: linked.genre ?? undefined,
+                        format: linked.format ?? undefined,
+                        formats: linked.formats ?? undefined,
+                        barcode: linked.barcode ?? undefined,
+                        metadata: linked.metadata ?? undefined,
+                        mediaType: (linked.media_type || item.mediaType) as MediaItem["mediaType"],
+                      })}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${
+                        onNavigate ? "border-border hover:border-primary hover:text-primary" : "border-border cursor-default"
+                      }`}
+                      disabled={!onNavigate}
+                    >
                       {linked.poster_url && (
                         <img src={linked.poster_url} alt="" className="w-3 h-4 rounded-sm object-cover" />
                       )}
-                      {linked.title} {linked.year ? `(${linked.year})` : ""}
-                    </Badge>
+                      <span>{linked.title} {linked.year ? `(${linked.year})` : ""}</span>
+                    </button>
                   ))}
                 </div>
               </div>

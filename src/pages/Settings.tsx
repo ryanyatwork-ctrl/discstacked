@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Moon, Sun, LayoutGrid, List, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database, Sparkles, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { TABS, MediaTab, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
+import { reapplyBarcodeDetailsForUser } from "@/lib/barcode-reapply";
 
 const PASSWORD_RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -376,6 +378,12 @@ export default function Settings() {
               Re-fetch metadata for your existing collection. Movies use TMDB; CDs use Discogs/MusicBrainz; Games use IGDB/RAWG.
             </p>
             <BackfillTmdbButton userId={user.id} />
+          </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Re-apply corrected barcode details across your existing collection. This updates exact package metadata, restores collection links, and refreshes posters for barcoded items.
+            </p>
+            <ReapplyBarcodeDetailsButton userId={user.id} />
           </div>
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">
@@ -855,6 +863,54 @@ function GenerateAiCoversButton({ userId }: { userId: string }) {
       {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
       <p className="text-[11px] text-muted-foreground">
         Creates AI-generated album covers for items without artwork. Uses artist name and title. Only affects items with no existing cover.
+      </p>
+    </div>
+  );
+}
+
+function ReapplyBarcodeDetailsButton({ userId }: { userId: string }) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+  const queryClient = useQueryClient();
+
+  const handleReapply = async () => {
+    setRunning(true);
+    setProgress("Scanning your barcoded collection...");
+    try {
+      const stats = await reapplyBarcodeDetailsForUser(userId, {
+        onProgress: setProgress,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      queryClient.invalidateQueries({ queryKey: ["physical_products_for_item"] });
+
+      toast({
+        title: "Barcode refresh complete!",
+        description: `Checked ${stats.scanned} barcodes, updated ${stats.updated} records, created ${stats.created} linked items, added ${stats.linked} product links.${stats.failures ? ` ${stats.failures} failed.` : ""}`,
+      });
+    } catch (err: any) {
+      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2"
+        onClick={handleReapply}
+        disabled={running}
+      >
+        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        {running ? "Re-applying..." : "Re-Apply Barcode Details"}
+      </Button>
+      {progress && <p className="text-xs text-muted-foreground text-center">{progress}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Best for movie and TV box sets that were scanned before the newer package-matching fixes. It preserves your collector notes while refreshing the expected edition details.
       </p>
     </div>
   );

@@ -383,7 +383,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
             <PhysicalMediaDetails item={item} />
 
             {/* Collection / Box Set */}
-            <CollectionEditor item={item} />
+            <CollectionEditor item={item} onNavigate={onNavigate} />
 
             {/* TMDB Metadata (genre, runtime, tagline) */}
             <TmdbMetadata item={item} />

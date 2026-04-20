@@ -191,7 +191,7 @@ export async function createMultiMovieProduct(
               user_id: userId,
               title: movie.title,
               year: movie.year,
-              poster_url: product.metadata?.edition?.cover_art_url || movie.poster_url,
+              poster_url: movie.poster_url,
               genre: movie.genre || null,
               media_type: product.mediaType,
               external_id: movie.tmdb_id ? String(movie.tmdb_id) : null,
@@ -225,7 +225,7 @@ export async function createMultiMovieProduct(
             user_id: userId,
             title: movie.title,
             year: movie.year,
-            poster_url: product.metadata?.edition?.cover_art_url || movie.poster_url,
+            poster_url: movie.poster_url,
             genre: movie.genre || null,
             media_type: product.mediaType,
             formats: product.formats,
@@ -379,7 +379,7 @@ export async function createMultiSeasonProduct(
             user_id: userId,
             title: season.title,
             year: season.year,
-            poster_url: product.metadata?.edition?.cover_art_url || season.poster_url,
+            poster_url: season.poster_url,
             genre: season.genre || null,
             media_type: product.mediaType,
             external_id: externalId,
@@ -454,7 +454,7 @@ export function usePhysicalProductsForItem(mediaItemId: string | undefined) {
         if (linkedItemIds.length > 0) {
           const { data: items } = await supabase
             .from("media_items")
-            .select("id, title, year, poster_url")
+            .select("id, title, year, poster_url, genre, format, formats, media_type, barcode, metadata")
             .in("id", linkedItemIds);
           linkedItems = items || [];
         }

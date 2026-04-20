@@ -358,7 +358,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           )}
 
           {/* Collection / Box Set info */}
-          <CollectionEditor item={item} readOnly />
+          <CollectionEditor item={item} readOnly onNavigate={onNavigate} />
 
           {/* Notes */}
           {item.notes && (
