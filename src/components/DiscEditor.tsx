@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DISC_CONDITIONS, DiscEntry } from "@/lib/collector-utils";
 
 const DISC_FORMATS = ["4K", "Blu-ray", "3D", "DVD", "CD", "Digital"];
 const ASPECT_RATIOS = [
@@ -18,13 +19,6 @@ const ASPECT_RATIOS = [
   "1.33:1 (4:3)",
   "Dual-Sided (WS/FS)",
 ];
-
-export interface DiscEntry {
-  label: string;
-  format: string;
-  missing?: boolean;
-  aspectRatio?: string;
-}
 
 interface DiscEditorProps {
   discs: DiscEntry[];
@@ -55,9 +49,17 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
               {disc.aspectRatio && (
                 <span className="text-[10px] text-muted-foreground">({disc.aspectRatio})</span>
               )}
+              {disc.condition && disc.condition !== "Unknown" && !disc.missing && (
+                <span className="text-[10px] text-muted-foreground">{disc.condition}</span>
+              )}
               {disc.missing && (
                 <span className="flex items-center gap-0.5 text-destructive text-xs">
                   <AlertTriangle className="w-3 h-3" /> Missing
+                </span>
+              )}
+              {disc.replacementNeeded && (
+                <span className="flex items-center gap-0.5 text-warning text-xs">
+                  <AlertTriangle className="w-3 h-3" /> Replace
                 </span>
               )}
             </div>
@@ -68,7 +70,7 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
   }
 
   const addDisc = () => {
-    onChange([...discs, { label: "", format: "Blu-ray" }]);
+    onChange([...discs, { label: "", format: "Blu-ray", condition: "Unknown", missing: false, replacementNeeded: false }]);
   };
 
   const removeDisc = (index: number) => {
@@ -122,17 +124,37 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
             </Button>
           </div>
           <div className="pl-[7.5rem]">
-            <Select value={disc.aspectRatio || "none"} onValueChange={(v) => updateDisc(i, { aspectRatio: v === "none" ? undefined : v })}>
-              <SelectTrigger className="h-7 text-xs w-48">
-                <SelectValue placeholder="Aspect ratio…" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No aspect ratio set</SelectItem>
-                {ASPECT_RATIOS.map((ar) => (
-                  <SelectItem key={ar} value={ar}>{ar}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={disc.aspectRatio || "none"} onValueChange={(v) => updateDisc(i, { aspectRatio: v === "none" ? undefined : v })}>
+                <SelectTrigger className="h-7 text-xs w-48">
+                  <SelectValue placeholder="Aspect ratio…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No aspect ratio set</SelectItem>
+                  {ASPECT_RATIOS.map((ar) => (
+                    <SelectItem key={ar} value={ar}>{ar}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={disc.condition || "Unknown"} onValueChange={(v) => updateDisc(i, { condition: v as DiscEntry["condition"] })}>
+                <SelectTrigger className="h-7 text-xs w-32">
+                  <SelectValue placeholder="Condition…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DISC_CONDITIONS.map((condition) => (
+                    <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-1 shrink-0" title="Needs replacement?">
+                <Checkbox
+                  checked={disc.replacementNeeded || false}
+                  onCheckedChange={(checked) => updateDisc(i, { replacementNeeded: !!checked })}
+                  className="h-4 w-4"
+                />
+                <span className="text-[10px] text-muted-foreground">Needs replacement</span>
+              </div>
+            </div>
           </div>
         </div>
       ))}

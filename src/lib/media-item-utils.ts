@@ -1,4 +1,5 @@
 import type { MediaLookupResult } from "@/lib/media-lookup";
+import { buildCollectorFields } from "@/lib/collector-utils";
 
 type MetadataShape = Record<string, any> | undefined | null;
 
@@ -40,6 +41,8 @@ export function buildLookupMetadata(result: Partial<MediaLookupResult>): Record<
   if (result.episode_count != null) metadata.episode_count = result.episode_count;
   if (result.included_titles?.length) metadata.included_titles = result.included_titles;
   if (result.edition) metadata.edition = result.edition;
+
+  Object.assign(metadata, buildCollectorFields(result));
 
   return metadata;
 }

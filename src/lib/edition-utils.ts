@@ -13,9 +13,10 @@ export function getEditionLabel(metadata: unknown): string | undefined {
   if (typeof edition === "object" && edition !== null) {
     const ed = edition as Record<string, unknown>;
     // Prefer a human-readable field from the edition object
+    if (typeof ed.label === "string") return ed.label;
     if (typeof ed.barcode_title === "string") return ed.barcode_title;
     if (typeof ed.name === "string") return ed.name;
-    if (typeof ed.label === "string") return ed.label;
+    if (typeof ed.package_title === "string") return ed.package_title;
     // Build from formats if available
     if (Array.isArray(ed.formats) && ed.formats.length > 0) {
       return ed.formats.join(" / ");

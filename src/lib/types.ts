@@ -1,5 +1,7 @@
 export type MediaTab = "movies" | "music-films" | "cds" | "games";
 
+export const DEFAULT_MEDIA_TAB: MediaTab = "movies";
+
 export interface MediaItem {
   id: string;
   title: string;
@@ -32,6 +34,21 @@ export const TABS: { id: MediaTab; label: string; icon: string }[] = [
   { id: "cds", label: "CDs", icon: "💿" },
   { id: "games", label: "Games", icon: "🎮" },
 ];
+
+const LEGACY_MEDIA_TAB_MAP: Record<string, MediaTab> = {
+  tv: "movies",
+  music: "cds",
+};
+
+export function coerceMediaTab(value: string | null | undefined): MediaTab {
+  if (!value) return DEFAULT_MEDIA_TAB;
+
+  if (TABS.some((tab) => tab.id === value)) {
+    return value as MediaTab;
+  }
+
+  return LEGACY_MEDIA_TAB_MAP[value] || DEFAULT_MEDIA_TAB;
+}
 
 export const FORMATS: Record<MediaTab, string[]> = {
   movies: ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "UMD", "VHS"],

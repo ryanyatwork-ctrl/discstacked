@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab } from "@/lib/types";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface PhysicalProduct {
   id: string;
@@ -50,6 +50,7 @@ export async function createPhysicalProductForItem(
     purchaseDate?: string | null;
     purchasePrice?: number | null;
     purchaseLocation?: string | null;
+    metadata?: Record<string, any>;
   }
 ) {
   const { data: pp, error: ppError } = await supabase
@@ -66,6 +67,7 @@ export async function createPhysicalProductForItem(
       purchase_date: opts.purchaseDate || null,
       purchase_price: opts.purchasePrice || null,
       purchase_location: opts.purchaseLocation || null,
+      metadata: opts.metadata || {},
     } as any)
     .select()
     .single();
@@ -101,6 +103,7 @@ export async function createMultiMovieProduct(
     purchaseDate?: string | null;
     purchasePrice?: number | null;
     purchaseLocation?: string | null;
+    metadata?: Record<string, any>;
   },
   movies: {
     tmdb_id: number | null;
@@ -128,6 +131,7 @@ export async function createMultiMovieProduct(
       purchase_date: product.purchaseDate || null,
       purchase_price: product.purchasePrice || null,
       purchase_location: product.purchaseLocation || null,
+      metadata: product.metadata || {},
     } as any)
     .select()
     .single();
@@ -178,6 +182,7 @@ export async function createMultiMovieProduct(
           metadata.edition = {
             package_title: product.productTitle,
             formats: product.formats,
+            ...(product.metadata?.edition || {}),
           };
 
           const { data: newItem, error: insertError } = await supabase
@@ -186,7 +191,7 @@ export async function createMultiMovieProduct(
               user_id: userId,
               title: movie.title,
               year: movie.year,
-              poster_url: movie.poster_url,
+              poster_url: product.metadata?.edition?.cover_art_url || movie.poster_url,
               genre: movie.genre || null,
               media_type: product.mediaType,
               external_id: movie.tmdb_id ? String(movie.tmdb_id) : null,
@@ -220,7 +225,7 @@ export async function createMultiMovieProduct(
             user_id: userId,
             title: movie.title,
             year: movie.year,
-            poster_url: movie.poster_url,
+            poster_url: product.metadata?.edition?.cover_art_url || movie.poster_url,
             genre: movie.genre || null,
             media_type: product.mediaType,
             formats: product.formats,
@@ -230,6 +235,7 @@ export async function createMultiMovieProduct(
               edition: {
                 package_title: product.productTitle,
                 formats: product.formats,
+                ...(product.metadata?.edition || {}),
               },
             },
           } as any)
@@ -278,6 +284,7 @@ export async function createMultiSeasonProduct(
     purchaseDate?: string | null;
     purchasePrice?: number | null;
     purchaseLocation?: string | null;
+    metadata?: Record<string, any>;
   },
   show: {
     tmdb_series_id: number;
@@ -307,6 +314,7 @@ export async function createMultiSeasonProduct(
       purchase_date: product.purchaseDate || null,
       purchase_price: product.purchasePrice || null,
       purchase_location: product.purchaseLocation || null,
+      metadata: product.metadata || {},
     } as any)
     .select()
     .single();
@@ -359,6 +367,7 @@ export async function createMultiSeasonProduct(
           edition: {
             package_title: product.productTitle,
             formats: product.formats,
+            ...(product.metadata?.edition || {}),
           },
         };
         if (season.overview) metadata.overview = season.overview;
@@ -370,7 +379,7 @@ export async function createMultiSeasonProduct(
             user_id: userId,
             title: season.title,
             year: season.year,
-            poster_url: season.poster_url,
+            poster_url: product.metadata?.edition?.cover_art_url || season.poster_url,
             genre: season.genre || null,
             media_type: product.mediaType,
             external_id: externalId,
@@ -462,5 +471,23 @@ export function usePhysicalProductsForItem(mediaItemId: string | undefined) {
       return results;
     },
     enabled: !!mediaItemId,
+  });
+}
+
+export function useUpdatePhysicalProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<PhysicalProduct>) => {
+      const { error } = await supabase
+        .from("physical_products")
+        .update(updates as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["physical_products_for_item"] });
+      queryClient.invalidateQueries({ queryKey: ["media_items"] });
+    },
   });
 }

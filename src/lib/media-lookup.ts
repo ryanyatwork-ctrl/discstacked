@@ -45,10 +45,16 @@ export interface MediaLookupResult {
   included_titles?: { title: string; year?: number | null; tmdb_id?: number | null }[];
   // Edition / Package
   edition?: {
+    label?: string;
     barcode_title?: string;
     package_title?: string;
     package_year?: number | null;
     formats?: string[];
+    cover_art_url?: string | null;
+    tmdb_poster_url?: string | null;
+    disc_count?: number | null;
+    digital_code_expected?: boolean | null;
+    slipcover_expected?: boolean | null;
   };
 }
 
@@ -57,6 +63,11 @@ export interface MultiMovieResult {
   product_title: string;
   barcode_title: string;
   detected_formats: string[];
+  cover_art_url?: string | null;
+  disc_count?: number | null;
+  edition_label?: string | null;
+  digital_code_expected?: boolean | null;
+  slipcover_expected?: boolean | null;
   collection_name?: string;
   movies: {
     tmdb_id: number | null;
@@ -78,6 +89,11 @@ export interface MultiSeasonResult {
   product_title: string;
   barcode_title: string;
   detected_formats: string[];
+  cover_art_url?: string | null;
+  disc_count?: number | null;
+  edition_label?: string | null;
+  digital_code_expected?: boolean | null;
+  slipcover_expected?: boolean | null;
   show_name: string;
   tmdb_series_id: number;
   seasons: {
@@ -129,6 +145,11 @@ export async function lookupBarcode(
           product_title: data.product_title,
           barcode_title: data.barcode_title,
           detected_formats: data.detected_formats || [],
+          cover_art_url: data.package_image_url || null,
+          disc_count: data.disc_count || null,
+          edition_label: data.edition_label || null,
+          digital_code_expected: data.digital_code_expected ?? null,
+          slipcover_expected: data.slipcover_expected ?? null,
           collection_name: data.collection_name,
           movies: data.multi_movies,
         },
@@ -143,6 +164,11 @@ export async function lookupBarcode(
           product_title: data.product_title,
           barcode_title: data.barcode_title,
           detected_formats: data.detected_formats || [],
+          cover_art_url: data.package_image_url || null,
+          disc_count: data.disc_count || null,
+          edition_label: data.edition_label || null,
+          digital_code_expected: data.digital_code_expected ?? null,
+          slipcover_expected: data.slipcover_expected ?? null,
           show_name: data.show_name,
           tmdb_series_id: data.tmdb_series_id,
           seasons: data.seasons,
@@ -163,7 +189,7 @@ export async function lookupBarcode(
           tmdb_id: data.tmdb_id || null,
           title: data.title,
           year: data.year || null,
-          cover_url: data.poster_url || null,
+          cover_url: data.package_image_url || data.poster_url || null,
           genre: data.genre || null,
           runtime: data.runtime,
           tagline: data.tagline,
@@ -182,6 +208,12 @@ export async function lookupBarcode(
             barcode_title: data.barcode_title,
             package_title: data.product_title || data.barcode_title,
             formats: data.detected_formats || [],
+            label: data.edition_label || undefined,
+            cover_art_url: data.package_image_url || null,
+            tmdb_poster_url: data.tmdb_poster_url || data.poster_url || null,
+            disc_count: data.disc_count || null,
+            digital_code_expected: data.digital_code_expected ?? null,
+            slipcover_expected: data.slipcover_expected ?? null,
           } : undefined,
         },
       };

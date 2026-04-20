@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
+import { buildDiscEntries } from "@/lib/collector-utils";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -265,23 +266,34 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     if (multiSelect.length === 0 || !user) return;
     setSaving(true);
     try {
-      const rows = multiSelect.map((r) => ({
-        user_id: user.id,
-        title: r.title,
-        year: r.year ?? null,
-        format: null,
-        formats: [] as string[],
-        genre: r.genre ?? null,
-        poster_url: r.cover_url ?? null,
-        want_to_watch: true,
-        media_type: activeTab,
-        metadata: {
+      const rows = multiSelect.map((r) => {
+        const metadata = {
+          ...buildLookupMetadata(r),
           ...(r.artist ? { artist: r.artist } : {}),
           ...(r.author ? { author: r.author } : {}),
-          ...(r.overview || r.description ? { overview: r.overview || r.description } : {}),
-          ...(r.source ? { source: r.source } : {}),
-        },
-      }));
+        };
+
+        const externalId = getLookupExternalId({
+          tmdb_id: r.tmdb_id || null,
+          media_type: r.media_type || null,
+          tmdb_series_id: r.tmdb_series_id || null,
+          season_number: r.season_number || null,
+        });
+
+        return {
+          user_id: user.id,
+          title: r.title,
+          year: r.year ?? null,
+          format: null,
+          formats: [] as string[],
+          genre: r.genre ?? null,
+          poster_url: r.cover_url ?? null,
+          want_to_watch: true,
+          media_type: activeTab,
+          external_id: externalId,
+          metadata,
+        };
+      });
       const { error } = await supabase.from("media_items").insert(rows);
       if (error) throw error;
       toast({ title: "Added!", description: `${multiSelect.length} titles added to ${labels.wantAction}.` });
@@ -307,7 +319,22 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           productTitle: multiMovieResult.collection_name || multiMovieResult.product_title,
           formats: multiMovieResult.detected_formats,
           mediaType: activeTab,
-          discCount: multiMovieResult.movies.length,
+          discCount: multiMovieResult.disc_count || multiMovieResult.movies.length,
+          metadata: {
+            edition: {
+              label: multiMovieResult.edition_label || undefined,
+              package_title: multiMovieResult.collection_name || multiMovieResult.product_title,
+              barcode_title: multiMovieResult.barcode_title,
+              formats: multiMovieResult.detected_formats,
+              cover_art_url: multiMovieResult.cover_art_url || null,
+              disc_count: multiMovieResult.disc_count || multiMovieResult.movies.length,
+              digital_code_expected: multiMovieResult.digital_code_expected ?? multiMovieResult.detected_formats.includes("Digital"),
+              slipcover_expected: multiMovieResult.slipcover_expected ?? null,
+            },
+            discs: buildDiscEntries(multiMovieResult.detected_formats, multiMovieResult.disc_count || multiMovieResult.movies.length),
+            slipcover_status: multiMovieResult.slipcover_expected === false ? "not_included" : "unknown",
+            digital_code_status: (multiMovieResult.digital_code_expected ?? multiMovieResult.detected_formats.includes("Digital")) ? "Unknown" : "Not Included",
+          },
         },
         multiMovieResult.movies.map(m => ({
           tmdb_id: m.tmdb_id,
@@ -338,7 +365,22 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           productTitle: multiSeasonResult.product_title,
           formats: multiSeasonResult.detected_formats,
           mediaType: activeTab,
-          discCount: multiSeasonResult.seasons.length,
+          discCount: multiSeasonResult.disc_count || multiSeasonResult.seasons.length,
+          metadata: {
+            edition: {
+              label: multiSeasonResult.edition_label || undefined,
+              package_title: multiSeasonResult.product_title,
+              barcode_title: multiSeasonResult.barcode_title,
+              formats: multiSeasonResult.detected_formats,
+              cover_art_url: multiSeasonResult.cover_art_url || null,
+              disc_count: multiSeasonResult.disc_count || multiSeasonResult.seasons.length,
+              digital_code_expected: multiSeasonResult.digital_code_expected ?? multiSeasonResult.detected_formats.includes("Digital"),
+              slipcover_expected: multiSeasonResult.slipcover_expected ?? null,
+            },
+            discs: buildDiscEntries(multiSeasonResult.detected_formats, multiSeasonResult.disc_count || multiSeasonResult.seasons.length),
+            slipcover_status: multiSeasonResult.slipcover_expected === false ? "not_included" : "unknown",
+            digital_code_status: (multiSeasonResult.digital_code_expected ?? multiSeasonResult.detected_formats.includes("Digital")) ? "Unknown" : "Not Included",
+          },
         },
         {
           tmdb_series_id: multiSeasonResult.tmdb_series_id,
@@ -404,10 +446,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       try {
         await createPhysicalProductForItem(user.id, newItem.id, {
           barcode: barcode || null,
-          productTitle: title.trim(),
+          productTitle: extraMeta?.edition?.package_title || title.trim(),
           formats: effectiveFormats,
           mediaType: activeTab,
           format: effectiveFormats[0] || null,
+          discCount: extraMeta?.edition?.disc_count || extraMeta?.discs?.length || 1,
+          metadata: metaPayload,
         });
       } catch (ppErr) {
         console.warn("Physical product creation failed (non-critical):", ppErr);

@@ -14,10 +14,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
+import { buildDiscEntries } from "@/lib/collector-utils";
 
 interface ScanQueueItem {
   barcode: string;
-  status: "looking" | "found" | "not_found" | "error" | "multi_movie" | "multi_season";
+  status: "looking" | "found" | "not_found" | "error" | "ambiguous" | "multi_movie" | "multi_season";
   title?: string;
   year?: number | null;
   genre?: string | null;
@@ -35,6 +36,7 @@ interface ScanQueueItem {
   existingTitle?: string;
   existingFormats?: string[];
   extraMeta?: Record<string, any>;
+  candidates?: MediaLookupResult[];
   // Multi-movie fields
   multiMovie?: MultiMovieResult;
   // Multi-season TV box set fields
@@ -85,6 +87,29 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     setScanning(false);
   };
 
+  const buildFoundQueueItem = (result: MediaLookupResult): Partial<ScanQueueItem> => {
+    const detectedFormats = result.detected_formats;
+
+    return {
+      status: "found",
+      title: result.title,
+      year: result.year,
+      genre: result.genre,
+      posterUrl: result.cover_url,
+      runtime: result.runtime,
+      tagline: result.tagline,
+      artist: result.artist,
+      author: result.author,
+      tmdb_id: result.tmdb_id,
+      ...(detectedFormats && detectedFormats.length > 0 ? {
+        format: detectedFormats[0],
+        formats: detectedFormats,
+      } : {}),
+      extraMeta: buildLookupMetadata(result),
+      candidates: undefined,
+    };
+  };
+
   const doLookup = async (barcode: string): Promise<Partial<ScanQueueItem>> => {
     try {
       const result = await unifiedLookupBarcode(activeTab, barcode);
@@ -112,39 +137,14 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       }
 
       if (result.direct) {
-        const detectedFormats = result.direct.detected_formats;
-        return {
-          status: "found",
-          title: result.direct.title,
-          year: result.direct.year,
-          genre: result.direct.genre,
-          posterUrl: result.direct.cover_url,
-          runtime: result.direct.runtime,
-          tagline: result.direct.tagline,
-          artist: result.direct.artist,
-          author: result.direct.author,
-          tmdb_id: result.direct.tmdb_id,
-          ...(detectedFormats && detectedFormats.length > 0 ? {
-            format: detectedFormats[0],
-            formats: detectedFormats,
-          } : {}),
-          extraMeta: buildLookupMetadata(result.direct),
-        };
+        return buildFoundQueueItem(result.direct);
       }
       if (result.results && result.results.length > 0) {
-        const top = result.results[0];
         return {
-          status: "found",
-          title: top.title,
-          year: top.year,
-          genre: top.genre,
-          posterUrl: top.cover_url,
-          runtime: top.runtime,
-          tagline: top.tagline,
-          artist: top.artist,
-          author: top.author,
-          tmdb_id: top.tmdb_id,
-          extraMeta: buildLookupMetadata(top),
+          status: result.results.length === 1 ? "found" : "ambiguous",
+          ...(result.results.length === 1 ? buildFoundQueueItem(result.results[0]) : {}),
+          title: result.results[0]?.title,
+          candidates: result.results.length > 1 ? result.results.slice(0, 5) : undefined,
         };
       }
       return { status: "not_found" };
@@ -292,6 +292,44 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const startEditTitle = (barcode: string, currentTitle: string) => {
     setEditingBarcode(barcode);
     setEditTitle(currentTitle || "");
+  };
+
+  const handleCandidateSelect = async (barcode: string, candidate: MediaLookupResult) => {
+    const queueItem = queue.find((item) => item.barcode === barcode);
+    let differentEdition = false;
+    let existingTitle = queueItem?.alreadyOwned ? queueItem.existingTitle : undefined;
+    let existingFormats = queueItem?.alreadyOwned ? queueItem.existingFormats : undefined;
+
+    if (!queueItem?.alreadyOwned && user && candidate.title) {
+      const { data: titleMatch } = await supabase
+        .from("media_items")
+        .select("title, formats")
+        .eq("user_id", user.id)
+        .eq("media_type", activeTab)
+        .ilike("title", candidate.title)
+        .limit(1);
+
+      if (titleMatch && titleMatch.length > 0) {
+        differentEdition = true;
+        existingTitle = titleMatch[0].title;
+        existingFormats = titleMatch[0].formats || [];
+      }
+    }
+
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.barcode === barcode
+          ? {
+              ...item,
+              ...buildFoundQueueItem(candidate),
+              differentEdition,
+              existingTitle,
+              existingFormats,
+              selected: !(item.alreadyOwned ?? false),
+            }
+          : item
+      )
+    );
   };
 
   const handleTitleSearch = async (barcode: string) => {
@@ -462,10 +500,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               try {
                 await createPhysicalProductForItem(user.id, inserted[j].id, {
                   barcode: item.barcode,
-                  productTitle: item.title!,
+                  productTitle: item.extraMeta?.edition?.package_title || item.title!,
                   formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
                   mediaType: activeTab,
                   format: item.formats[0] || item.format || null,
+                  discCount: item.extraMeta?.edition?.disc_count || item.extraMeta?.discs?.length || 1,
+                  metadata: rows[i + j].metadata as Record<string, any>,
                 });
               } catch (ppErr) {
                 console.warn("Physical product creation failed:", ppErr);
@@ -486,7 +526,22 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               productTitle: mm.collection_name || mm.product_title,
               formats: mm.detected_formats,
               mediaType: activeTab,
-              discCount: mm.movies.length,
+              discCount: mm.disc_count || mm.movies.length,
+              metadata: {
+                edition: {
+                  label: mm.edition_label || undefined,
+                  package_title: mm.collection_name || mm.product_title,
+                  barcode_title: mm.barcode_title,
+                  formats: mm.detected_formats,
+                  cover_art_url: mm.cover_art_url || null,
+                  disc_count: mm.disc_count || mm.movies.length,
+                  digital_code_expected: mm.digital_code_expected ?? mm.detected_formats.includes("Digital"),
+                  slipcover_expected: mm.slipcover_expected ?? null,
+                },
+                discs: buildDiscEntries(mm.detected_formats, mm.disc_count || mm.movies.length),
+                slipcover_status: mm.slipcover_expected === false ? "not_included" : "unknown",
+                digital_code_status: (mm.digital_code_expected ?? mm.detected_formats.includes("Digital")) ? "Unknown" : "Not Included",
+              },
             },
             mm.movies.map(m => ({
               tmdb_id: m.tmdb_id,
@@ -511,7 +566,22 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               productTitle: seasonBox.product_title,
               formats: seasonBox.detected_formats,
               mediaType: activeTab,
-              discCount: seasonBox.seasons.length,
+              discCount: seasonBox.disc_count || seasonBox.seasons.length,
+              metadata: {
+                edition: {
+                  label: seasonBox.edition_label || undefined,
+                  package_title: seasonBox.product_title,
+                  barcode_title: seasonBox.barcode_title,
+                  formats: seasonBox.detected_formats,
+                  cover_art_url: seasonBox.cover_art_url || null,
+                  disc_count: seasonBox.disc_count || seasonBox.seasons.length,
+                  digital_code_expected: seasonBox.digital_code_expected ?? seasonBox.detected_formats.includes("Digital"),
+                  slipcover_expected: seasonBox.slipcover_expected ?? null,
+                },
+                discs: buildDiscEntries(seasonBox.detected_formats, seasonBox.disc_count || seasonBox.seasons.length),
+                slipcover_status: seasonBox.slipcover_expected === false ? "not_included" : "unknown",
+                digital_code_status: (seasonBox.digital_code_expected ?? seasonBox.detected_formats.includes("Digital")) ? "Unknown" : "Not Included",
+              },
             },
             {
               tmdb_series_id: seasonBox.tmdb_series_id,
@@ -736,6 +806,24 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                               ))}
                             </div>
                           )}
+                        </>
+                      ) : item.status === "ambiguous" && item.candidates && item.candidates.length > 0 ? (
+                        <>
+                          <p className="text-sm font-medium text-warning">Multiple matches found</p>
+                          <p className="text-[10px] text-muted-foreground">Choose the correct title for {item.barcode}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {item.candidates.map((candidate) => (
+                              <button
+                                key={candidate.id}
+                                type="button"
+                                onClick={() => handleCandidateSelect(item.barcode, candidate)}
+                                className="rounded border border-border bg-background px-2 py-1 text-[10px] text-foreground hover:border-primary hover:text-primary"
+                              >
+                                {candidate.title}
+                                {candidate.year ? ` (${candidate.year})` : ""}
+                              </button>
+                            ))}
+                          </div>
                         </>
                       ) : item.status === "found" ? (
                          <>

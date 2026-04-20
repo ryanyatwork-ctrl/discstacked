@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MediaTab, MediaItem } from "@/lib/types";
+import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
 import { sortTitle, groupLetter } from "@/lib/utils";
@@ -67,7 +67,7 @@ function getStored<T>(key: string, fallback: T): T {
 }
 
 export default function Index() { // force rebuild
-  const [activeTab, setActiveTab] = useState<MediaTab>(() => getStored("ds-default-tab", "movies"));
+  const [activeTab, setActiveTab] = useState<MediaTab>(() => coerceMediaTab(getStored("ds-default-tab", DEFAULT_MEDIA_TAB)));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);

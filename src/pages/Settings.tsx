@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, LayoutGrid, List, Film, Tv, Music, Gamepad2, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database, Sparkles, Download, Upload } from "lucide-react";
+import { ArrowLeft, Moon, Sun, LayoutGrid, List, Save, Share2, Eye, EyeOff, RefreshCw, Check, X, Disc, Loader2, Database, Sparkles, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { TABS } from "@/lib/types";
+import { TABS, MediaTab, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 
 const PASSWORD_RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -52,7 +52,6 @@ function generateStrongPassword(): string {
 
 type Theme = "dark" | "light";
 type ViewMode = "covers" | "list";
-type DefaultTab = "movies" | "tv" | "music" | "games";
 
 function getStoredSetting<T>(key: string, fallback: T): T {
   try {
@@ -69,13 +68,13 @@ function setSetting<T>(key: string, value: T) {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
 
   const { profile, updateProfile } = useProfile();
 
   const [theme, setTheme] = useState<Theme>(() => getStoredSetting("ds-theme", "dark"));
   const [defaultView, setDefaultView] = useState<ViewMode>(() => getStoredSetting("ds-default-view", "covers"));
-  const [defaultTab, setDefaultTab] = useState<DefaultTab>(() => getStoredSetting("ds-default-tab", "movies"));
+  const [defaultTab, setDefaultTab] = useState<MediaTab>(() => coerceMediaTab(getStoredSetting("ds-default-tab", DEFAULT_MEDIA_TAB)));
 
   // Shared tabs state
   const [sharedTabs, setSharedTabs] = useState<string[]>([]);
@@ -134,8 +133,9 @@ export default function Settings() {
   };
 
   const handleTabChange = (tab: string) => {
-    setDefaultTab(tab as DefaultTab);
-    setSetting("ds-default-tab", tab);
+    const nextTab = coerceMediaTab(tab);
+    setDefaultTab(nextTab);
+    setSetting("ds-default-tab", nextTab);
   };
 
   const handlePasswordChange = async () => {
@@ -173,8 +173,6 @@ export default function Settings() {
     navigate("/auth");
     return null;
   }
-
-  const tabIcons = { movies: Film, tv: Tv, music: Music, games: Gamepad2 };
 
   return (
     <div className="min-h-screen bg-background">
@@ -233,11 +231,11 @@ export default function Settings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(tabIcons).map(([key, Icon]) => (
-                <SelectItem key={key} value={key}>
+              {TABS.map((tab) => (
+                <SelectItem key={tab.id} value={tab.id}>
                   <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span className="capitalize">{key}</span>
+                    <span className="text-base">{tab.icon}</span>
+                    <span>{tab.label}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -633,10 +631,20 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
         try {
           let lookupFn: string;
           let body: Record<string, any>;
+          const currentMeta = item.metadata || {};
+          const isTvSeason = currentMeta.content_type === "tv_season";
 
           if (type === "movies" || type === "music-films") {
             lookupFn = "tmdb-lookup";
-            body = { query: item.title, year: item.year, search_type: "movie" };
+            body = isTvSeason
+              ? {
+                  query: currentMeta.show_name || currentMeta.series_title
+                    ? `${currentMeta.show_name || currentMeta.series_title} Season ${currentMeta.season_number || ""}`.trim()
+                    : item.title,
+                  year: item.year,
+                  search_type: "tv",
+                }
+              : { query: item.title, year: item.year, search_type: "movie" };
           } else if (type === "cds") {
             lookupFn = "music-lookup";
             body = { query: item.title };
@@ -657,23 +665,29 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           }
 
           const top = results[0];
-          const currentMeta = item.metadata || {};
           let updatedMeta = { ...currentMeta };
           const updatePayload: any = {};
 
           if (type === "movies" || type === "music-films") {
             // Get full details
+            const detailSearchType = top.media_type === "tv" || top.media_type === "tv_season" ? "tv" : "movie";
             const { data: details } = await supabase.functions.invoke("tmdb-lookup", {
-              body: { tmdb_id: top.tmdb_id, search_type: top.media_type || "movie" },
+              body: { tmdb_id: top.tmdb_id, search_type: detailSearchType },
             });
             if (details) {
               updatedMeta = {
                 ...updatedMeta,
+                ...(top.media_type ? { content_type: top.media_type } : {}),
                 runtime: details.runtime || currentMeta.runtime,
                 tagline: details.tagline || currentMeta.tagline,
                 overview: details.overview || currentMeta.overview,
                 cast: details.cast || currentMeta.cast,
                 crew: details.crew || currentMeta.crew,
+                ...(top.tmdb_series_id ? { tmdb_series_id: top.tmdb_series_id } : {}),
+                ...(top.season_number ? { season_number: top.season_number } : {}),
+                ...(top.series_title ? { series_title: top.series_title } : {}),
+                ...(top.show_name ? { show_name: top.show_name } : {}),
+                ...(top.episode_count != null ? { episode_count: top.episode_count } : {}),
               };
               if (details.genre && !item.genre) updatePayload.genre = details.genre;
             }

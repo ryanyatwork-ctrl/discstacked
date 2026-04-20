@@ -1,30 +1,37 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { MediaItem } from "@/lib/types";
 import { getEditionLabel } from "@/lib/edition-utils";
 import { useUpdateItem } from "@/hooks/useMediaItems";
+import { usePhysicalProductsForItem, useUpdatePhysicalProduct } from "@/hooks/usePhysicalProducts";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Check, X, Disc, Package, HardDrive, Shield } from "lucide-react";
-import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
-const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];
-const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Poor"];
-const DIGITAL_CODE_STATUSES = ["Not Included", "Included (Unused)", "Redeemed", "Expired"];
-const RIP_STATUSES = ["Not Ripped", "Ripped", "Unrippable"];
+import { Pencil, Check, X, Disc, HardDrive, Shield } from "lucide-react";
+import { DiscEditor } from "@/components/DiscEditor";
+import {
+  CASE_TYPES,
+  CONDITIONS,
+  DIGITAL_CODE_STATUSES,
+  RIP_STATUSES,
+  SLIPCOVER_STATUSES,
+  digitalCodeStatusProvidesAccess,
+  type DiscEntry,
+} from "@/lib/collector-utils";
 
 interface PhysicalMediaDetailsProps {
   item: MediaItem;
 }
 
 type MetadataFields = {
-  edition?: string;
+  edition?: string | Record<string, any>;
   case_type?: string;
   discs?: DiscEntry[];
   condition?: string;
   slipcover?: string;
+  slipcover_status?: string;
   digital_code_status?: string;
   digital_code_platform?: string;
   rip_status?: string;
@@ -35,47 +42,119 @@ type MetadataFields = {
   disc_layers?: string;
 };
 
-function getMetadata(item: MediaItem): MetadataFields {
-  const raw = item.metadata;
-  if (!raw || typeof raw !== "object") return {};
-  const result = raw as MetadataFields;
-  // Safely coerce edition to string if it's an object
-  if (result.edition && typeof result.edition !== "string") {
-    result.edition = getEditionLabel(raw) || undefined;
-  }
-  return result;
+function getMetadataFields(input: unknown): MetadataFields {
+  if (!input || typeof input !== "object") return {};
+  return { ...(input as MetadataFields) };
+}
+
+function normalizeMetadataForDisplay(metadata: MetadataFields) {
+  const editionObject = metadata.edition && typeof metadata.edition === "object" ? metadata.edition as Record<string, any> : {};
+  const editionLabel = typeof metadata.edition === "string"
+    ? metadata.edition
+    : getEditionLabel(metadata as Record<string, any>) || undefined;
+  const slipcoverStatus = metadata.slipcover_status
+    || (metadata.slipcover === "yes" ? "included" : metadata.slipcover === "no" ? "missing" : "unknown");
+
+  return {
+    ...metadata,
+    editionLabel,
+    editionObject,
+    packageTitle: editionObject.package_title || editionObject.barcode_title || undefined,
+    expectedFormats: Array.isArray(editionObject.formats) ? editionObject.formats : [],
+    expectedDiscCount: editionObject.disc_count ?? null,
+    slipcoverStatus,
+  };
 }
 
 export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
   const [editing, setEditing] = useState(false);
   const updateItem = useUpdateItem();
-  const meta = getMetadata(item);
+  const updatePhysicalProduct = useUpdatePhysicalProduct();
+  const { data: physicalProducts = [] } = usePhysicalProductsForItem(item.id);
+  const primaryProduct = physicalProducts[0];
+
+  const meta = useMemo(() => {
+    const itemMeta = getMetadataFields(item.metadata);
+    const productMeta = getMetadataFields(primaryProduct?.metadata);
+    return normalizeMetadataForDisplay({ ...itemMeta, ...productMeta });
+  }, [item.metadata, primaryProduct?.metadata]);
 
   const [draft, setDraft] = useState<MetadataFields>({});
 
   const startEditing = () => {
-    setDraft({ ...meta });
+    setDraft({
+      ...meta,
+      edition: {
+        ...(meta.editionObject || {}),
+      },
+      discs: meta.discs ? [...meta.discs] : [],
+    });
     setEditing(true);
+  };
+
+  const updateField = (key: keyof MetadataFields, value: string) => {
+    setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async () => {
     try {
-      const currentMeta = (item as any).metadata || {};
-      const merged = { ...currentMeta, ...draft };
-      // Clean empty strings (but keep arrays)
-      Object.keys(merged).forEach((k) => {
-        if (merged[k] === "" || merged[k] === undefined) delete merged[k];
+      const currentMeta = getMetadataFields(item.metadata);
+      const currentProductMeta = getMetadataFields(primaryProduct?.metadata);
+      const merged: Record<string, any> = { ...currentMeta, ...currentProductMeta, ...draft };
+      const editionObject = {
+        ...((currentMeta.edition && typeof currentMeta.edition === "object") ? currentMeta.edition as Record<string, any> : {}),
+        ...((currentProductMeta.edition && typeof currentProductMeta.edition === "object") ? currentProductMeta.edition as Record<string, any> : {}),
+        ...((draft.edition && typeof draft.edition === "object") ? draft.edition as Record<string, any> : {}),
+      };
+
+      if (Object.keys(editionObject).length > 0) {
+        merged.edition = editionObject;
+      } else if (typeof draft.edition === "string" && draft.edition.trim()) {
+        merged.edition = draft.edition.trim();
+      }
+
+      if (merged.slipcover) delete merged.slipcover;
+
+      Object.keys(merged).forEach((key) => {
+        if (merged[key] === "" || merged[key] === undefined) delete merged[key];
       });
-      // Derive formats from discs
-      const updatePayload: any = { id: item.id, metadata: merged };
-      if (draft.discs && draft.discs.length > 0) {
-        const discFormats = [...new Set(draft.discs.filter(d => !d.missing).map(d => d.format))];
+
+      const discFormats = Array.isArray(merged.discs)
+        ? [...new Set(merged.discs.filter((disc: DiscEntry) => !disc.missing).map((disc: DiscEntry) => disc.format))]
+        : [];
+
+      if (merged.edition && typeof merged.edition === "object") {
         if (discFormats.length > 0) {
-          updatePayload.formats = discFormats;
-          updatePayload.format = discFormats[0];
+          merged.edition.formats = discFormats;
+        }
+        if (Array.isArray(merged.discs) && merged.discs.length > 0) {
+          merged.edition.disc_count = merged.discs.length;
         }
       }
+
+      const updatePayload: any = {
+        id: item.id,
+        metadata: merged,
+        digital_copy: digitalCodeStatusProvidesAccess(merged.digital_code_status),
+      };
+
+      if (discFormats.length > 0) {
+        updatePayload.formats = discFormats;
+        updatePayload.format = discFormats[0];
+      }
+
       await updateItem.mutateAsync(updatePayload);
+
+      if (primaryProduct) {
+        await updatePhysicalProduct.mutateAsync({
+          id: primaryProduct.id,
+          metadata: merged,
+          disc_count: merged.edition?.disc_count || merged.discs?.length || primaryProduct.disc_count || 1,
+          formats: discFormats.length > 0 ? discFormats : primaryProduct.formats,
+          product_title: merged.edition?.package_title || primaryProduct.product_title,
+        } as any);
+      }
+
       toast({ title: "Details saved!" });
       setEditing(false);
     } catch {
@@ -83,11 +162,18 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     }
   };
 
-  const updateField = (key: keyof MetadataFields, value: string) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const hasAnyData = meta.edition || meta.case_type || (meta.discs && meta.discs.length > 0) || meta.condition || meta.rip_status || meta.distributor || meta.region || meta.disc_layers;
+  const hasAnyData =
+    meta.editionLabel ||
+    meta.packageTitle ||
+    meta.case_type ||
+    (meta.discs && meta.discs.length > 0) ||
+    meta.condition ||
+    meta.rip_status ||
+    meta.distributor ||
+    meta.region ||
+    meta.disc_layers ||
+    (meta.expectedFormats && meta.expectedFormats.length > 0) ||
+    meta.expectedDiscCount;
 
   if (!editing && !hasAnyData) {
     return (
@@ -96,7 +182,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           <Disc className="w-3 h-3" /> Physical Details
         </p>
         <Button variant="outline" size="sm" onClick={startEditing} className="gap-1.5 text-xs">
-          <Pencil className="w-3 h-3" /> Add physical media details
+          <Pencil className="w-3 h-3" /> Add collector details
         </Button>
       </div>
     );
@@ -114,9 +200,12 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-          {meta.edition && <DetailRow label="Edition" value={meta.edition} />}
+          {meta.packageTitle && <DetailRow label="Package" value={meta.packageTitle} fullWidth />}
+          {meta.editionLabel && <DetailRow label="Edition" value={meta.editionLabel} fullWidth />}
+          {meta.expectedFormats?.length > 0 && <DetailRow label="Expected Formats" value={meta.expectedFormats.join(", ")} fullWidth />}
+          {meta.expectedDiscCount && <DetailRow label="Expected Disc Count" value={String(meta.expectedDiscCount)} />}
           {meta.case_type && <DetailRow label="Case" value={meta.case_type} />}
-          {meta.slipcover && <DetailRow label="Slipcover" value={meta.slipcover === "yes" ? "Yes" : "No"} />}
+          {meta.slipcoverStatus && <DetailRow label="Slipcover" value={toSlipcoverLabel(meta.slipcoverStatus)} />}
           {meta.condition && (
             <DetailRow label="Condition" value={meta.condition}>
               <ConditionBadge condition={meta.condition} />
@@ -150,8 +239,8 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     );
   }
 
-  // Editing mode
-  const d = draft;
+  const draftEdition = draft.edition && typeof draft.edition === "object" ? draft.edition as Record<string, any> : {};
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -159,7 +248,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           <Disc className="w-3 h-3" /> Physical Details
         </p>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSave} disabled={updateItem.isPending}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSave} disabled={updateItem.isPending || updatePhysicalProduct.isPending}>
             <Check className="w-4 h-4 text-success" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(false)}>
@@ -169,170 +258,169 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
       </div>
 
       <div className="space-y-3">
-        {/* Edition */}
-        <Field label="Edition">
+        <Field label="Package Title">
           <Input
-            value={d.edition || ""}
-            onChange={(e) => updateField("edition", e.target.value)}
-            placeholder="e.g. Limited Edition, Special Edition, Criterion…"
+            value={(draftEdition.package_title as string) || ""}
+            onChange={(e) => setDraft((prev) => ({ ...prev, edition: { ...draftEdition, package_title: e.target.value } }))}
+            placeholder="Exact package title from the scan or cover"
             className="h-8 text-sm"
           />
         </Field>
 
-        {/* Case Type */}
+        <Field label="Edition Label">
+          <Input
+            value={(draftEdition.label as string) || ""}
+            onChange={(e) => setDraft((prev) => ({ ...prev, edition: { ...draftEdition, label: e.target.value } }))}
+            placeholder="e.g. Blu-ray + Digital Code, Ultimate Trilogy, Steelbook"
+            className="h-8 text-sm"
+          />
+        </Field>
+
+        <Field label="Expected Disc Count">
+          <Input
+            value={draftEdition.disc_count != null ? String(draftEdition.disc_count) : ""}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              setDraft((prev) => ({
+                ...prev,
+                edition: { ...draftEdition, disc_count: value ? Number(value) : null },
+              }));
+            }}
+            placeholder="e.g. 1, 2, 4"
+            className="h-8 text-sm"
+            type="number"
+            min={0}
+          />
+        </Field>
+
         <Field label="Case Type">
-          <Select value={d.case_type || "none"} onValueChange={(v) => updateField("case_type", v === "none" ? "" : v)}>
+          <Select value={draft.case_type || "none"} onValueChange={(value) => updateField("case_type", value === "none" ? "" : value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Not set</SelectItem>
-              {CASE_TYPES.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+              {CASE_TYPES.map((caseType) => (
+                <SelectItem key={caseType} value={caseType}>{caseType}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
 
-        {/* Slipcover */}
-        <Field label="Slipcover Included?">
-          <Select value={d.slipcover || "none"} onValueChange={(v) => updateField("slipcover", v === "none" ? "" : v)}>
+        <Field label="Slipcover / Sleeve">
+          <Select value={draft.slipcover_status || "unknown"} onValueChange={(value) => updateField("slipcover_status", value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Not set</SelectItem>
-              <SelectItem value="yes">Yes</SelectItem>
-              <SelectItem value="no">No</SelectItem>
+              {SLIPCOVER_STATUSES.map((status) => (
+                <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
 
-        {/* Condition */}
         <Field label="Condition">
-          <Select value={d.condition || "none"} onValueChange={(v) => updateField("condition", v === "none" ? "" : v)}>
+          <Select value={draft.condition || "none"} onValueChange={(value) => updateField("condition", value === "none" ? "" : value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Not set</SelectItem>
-              {CONDITIONS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+              {CONDITIONS.map((condition) => (
+                <SelectItem key={condition} value={condition}>{condition}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
 
-        {/* Discs */}
         <DiscEditor
-          discs={d.discs || []}
+          discs={draft.discs || []}
           onChange={(discs) => setDraft((prev) => ({ ...prev, discs }))}
         />
 
-        {/* Digital Code */}
         <Field label="Digital Code">
-          <Select value={d.digital_code_status || "none"} onValueChange={(v) => updateField("digital_code_status", v === "none" ? "" : v)}>
+          <Select value={draft.digital_code_status || "Unknown"} onValueChange={(value) => updateField("digital_code_status", value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Not set</SelectItem>
-              {DIGITAL_CODE_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+              {DIGITAL_CODE_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
 
-        {(d.digital_code_status === "Redeemed" || d.digital_code_status === "Included (Unused)") && (
-          <Field label="Redeemed On">
+        {(draft.digital_code_status === "Included (Unused)" || draft.digital_code_status === "Used / Redeemed") && (
+          <Field label="Digital Platform">
             <Input
-              value={d.digital_code_platform || ""}
+              value={draft.digital_code_platform || ""}
               onChange={(e) => updateField("digital_code_platform", e.target.value)}
-              placeholder="e.g. Movies Anywhere, Vudu, iTunes…"
+              placeholder="e.g. Movies Anywhere, Vudu, iTunes"
               className="h-8 text-sm"
             />
           </Field>
         )}
 
-        {/* Rip Status */}
         <Field label="Rip Status">
-          <Select value={d.rip_status || "none"} onValueChange={(v) => updateField("rip_status", v === "none" ? "" : v)}>
+          <Select value={draft.rip_status || "none"} onValueChange={(value) => updateField("rip_status", value === "none" ? "" : value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Not set</SelectItem>
-              {RIP_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+              {RIP_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
 
-        {(d.rip_status === "Unrippable" || d.rip_status === "Ripped") && (
+        {(draft.rip_status === "Unrippable" || draft.rip_status === "Ripped") && (
           <Field label="Rip Notes">
             <Textarea
-              value={d.rip_notes || ""}
+              value={draft.rip_notes || ""}
               onChange={(e) => updateField("rip_notes", e.target.value)}
-              placeholder={d.rip_status === "Unrippable" ? "e.g. Scratched disc, factory defect…" : "e.g. MakeMKV, HandBrake settings…"}
+              placeholder={draft.rip_status === "Unrippable" ? "e.g. Scratched disc, unreadable segment…" : "e.g. MakeMKV, Plex rip complete…"}
               rows={2}
               className="text-sm"
             />
           </Field>
         )}
 
-        {/* Distributor */}
         <Field label="Distributor">
           <Input
-            value={d.distributor || ""}
+            value={draft.distributor || ""}
             onChange={(e) => updateField("distributor", e.target.value)}
-            placeholder="e.g. Universal Studios, Warner Bros…"
+            placeholder="e.g. Universal, Warner Bros., Paramount"
             className="h-8 text-sm"
           />
         </Field>
 
-        {/* Region */}
         <Field label="Region">
-          <Select value={d.region || "none"} onValueChange={(v) => updateField("region", v === "none" ? "" : v)}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue placeholder="Select…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Not set</SelectItem>
-              <SelectItem value="Region A/1">Region A/1 (Americas, East Asia)</SelectItem>
-              <SelectItem value="Region B/2">Region B/2 (Europe, Africa, Oceania)</SelectItem>
-              <SelectItem value="Region C/3">Region C/3 (Asia, Russia)</SelectItem>
-              <SelectItem value="Region Free">Region Free</SelectItem>
-              <SelectItem value="Region 1">Region 1 (DVD - US/Canada)</SelectItem>
-              <SelectItem value="Region 2">Region 2 (DVD - Europe/Japan)</SelectItem>
-              <SelectItem value="Region 4">Region 4 (DVD - Oceania/Latin America)</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input
+            value={draft.region || ""}
+            onChange={(e) => updateField("region", e.target.value)}
+            placeholder="e.g. Region A, Region 1, Region Free"
+            className="h-8 text-sm"
+          />
         </Field>
 
-        {/* Disc Layers */}
         <Field label="Disc Layers">
-          <Select value={d.disc_layers || "none"} onValueChange={(v) => updateField("disc_layers", v === "none" ? "" : v)}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue placeholder="Select…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Not set</SelectItem>
-              <SelectItem value="Single side, Single layer">Single side, Single layer</SelectItem>
-              <SelectItem value="Single side, Dual layer">Single side, Dual layer</SelectItem>
-              <SelectItem value="Dual side, Single layer">Dual side, Single layer</SelectItem>
-              <SelectItem value="Dual side, Dual layer">Dual side, Dual layer</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input
+            value={draft.disc_layers || ""}
+            onChange={(e) => updateField("disc_layers", e.target.value)}
+            placeholder="e.g. Single side, dual layer"
+            className="h-8 text-sm"
+          />
         </Field>
 
-        {/* Additional physical notes */}
         <Field label="Additional Notes">
           <Textarea
-            value={d.physical_notes || ""}
+            value={draft.physical_notes || ""}
             onChange={(e) => updateField("physical_notes", e.target.value)}
-            placeholder="Any other notes about this copy…"
+            placeholder="Slipcover wear, thrift-store sticker residue, booklet missing, replacement disc needed…"
             rows={2}
             className="text-sm"
           />
@@ -340,6 +428,10 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
       </div>
     </div>
   );
+}
+
+function toSlipcoverLabel(value: string) {
+  return SLIPCOVER_STATUSES.find((status) => status.value === value)?.label || value;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

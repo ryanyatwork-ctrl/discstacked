@@ -1,7 +1,8 @@
 import { MediaItem } from "@/lib/types";
 import { getEditionLabel } from "@/lib/edition-utils";
-import { Monitor, Download, Heart, Eye } from "lucide-react";
+import { Monitor, Download, Heart, Eye, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { hasCopyIssue } from "@/lib/collector-utils";
 
 interface ListRowProps {
   item: MediaItem;
@@ -10,6 +11,7 @@ interface ListRowProps {
 
 export function ListRow({ item, onClick }: ListRowProps) {
   const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+  const hasIssue = hasCopyIssue(item.metadata);
 
   const getFormatVariant = (format: string) =>
     format === "4K" ? "4k" as const
@@ -38,6 +40,12 @@ export function ListRow({ item, onClick }: ListRowProps) {
             </Badge>
           ))}
         </div>
+      )}
+      {hasIssue && (
+        <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">
+          <AlertTriangle className="w-3 h-3 mr-1" />
+          Incomplete
+        </Badge>
       )}
       <div className="flex items-center gap-1 shrink-0">
         {item.inPlex && <Monitor className="w-3.5 h-3.5 text-primary" />}

@@ -11,6 +11,7 @@ import {
   scoreMovieResult,
   splitMultiTitleCandidates,
 } from "./lookup-utils.ts";
+import { BARCODE_OVERRIDES, type BarcodeOverride } from "./barcode-overrides.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,137 @@ function detectFormats(text: string): string[] {
   if (/\bVHS\b/.test(upper)) detected.push("VHS");
 
   return detected;
+}
+
+type PackageContext = {
+  rawTitle: string;
+  productTitle: string;
+  detectedFormats: string[];
+  discCount?: number | null;
+  editionLabel?: string | null;
+  digitalCodeExpected?: boolean | null;
+  slipcoverExpected?: boolean | null;
+  packageImageUrl?: string | null;
+};
+
+function dedupeFormats(formats: string[]) {
+  return Array.from(new Set(formats.filter(Boolean)));
+}
+
+function extractDiscCount(text?: string | null): number | null {
+  if (!text) return null;
+
+  const numericMatch = text.match(/\b(\d+)\s*[- ]?(?:disc|discs|dvd|blu[- ]?ray)\b/i);
+  if (numericMatch) return parseInt(numericMatch[1], 10);
+
+  const packMatch = text.match(/\b(\d+)\s*pack\b/i);
+  if (packMatch) return parseInt(packMatch[1], 10);
+
+  const wordMap: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+  };
+  const wordMatch = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)[- ]disc\b/i);
+  if (wordMatch) return wordMap[wordMatch[1].toLowerCase()] ?? null;
+
+  return null;
+}
+
+function attachPackageContext(payload: Record<string, any>, context: PackageContext) {
+  const detectedFormats = dedupeFormats(
+    context.detectedFormats.length > 0
+      ? context.detectedFormats
+      : (payload.detected_formats || []),
+  );
+  const productTitle = context.productTitle || payload.product_title || payload.barcode_title || payload.title || context.rawTitle;
+  const barcodeTitle = context.rawTitle || payload.barcode_title || productTitle;
+  const discCount = context.discCount ?? payload.disc_count ?? null;
+  const digitalCodeExpected = context.digitalCodeExpected ?? payload.digital_code_expected ?? detectedFormats.includes("Digital");
+  const slipcoverExpected = context.slipcoverExpected ?? payload.slipcover_expected ?? null;
+  const packageImageUrl = context.packageImageUrl ?? payload.package_image_url ?? null;
+  const editionLabel = context.editionLabel ?? payload.edition_label ?? null;
+
+  return {
+    ...payload,
+    barcode_title: barcodeTitle,
+    product_title: productTitle,
+    detected_formats: detectedFormats,
+    disc_count: discCount,
+    digital_code_expected: digitalCodeExpected,
+    slipcover_expected: slipcoverExpected,
+    package_image_url: packageImageUrl,
+    edition_label: editionLabel,
+    tmdb_poster_url: payload.tmdb_poster_url || payload.poster_url || null,
+  };
+}
+
+async function buildOverridePayload(override: BarcodeOverride, apiKey: string) {
+  switch (override.kind) {
+    case "movie": {
+      const detail = await fetchTmdbMovieDetails(override.tmdbId, apiKey);
+      return {
+        ...detail,
+        title: override.title,
+        year: override.year,
+        media_type: "movie",
+        _matchScore: 260,
+      };
+    }
+    case "multi_movie": {
+      const multiMovies = await enrichMovieSummaries(
+        override.movieTmdbIds.map((tmdbId) => ({
+          tmdb_id: tmdbId,
+          title: "",
+          year: null,
+          poster_url: null,
+          overview: null,
+        })),
+        apiKey,
+      );
+
+      return {
+        is_multi_movie: true,
+        product_title: override.productTitle,
+        collection_name: override.collectionName,
+        media_type: "box_set",
+        multi_movies: multiMovies,
+        included_titles: multiMovies.map((movie: any) => ({
+          title: movie.title,
+          year: movie.year,
+          tmdb_id: movie.tmdb_id,
+        })),
+        _matchScore: 260,
+      };
+    }
+    case "tv_box_set": {
+      const showDetail = await fetchShowSeasons(override.tmdbSeriesId, apiKey);
+      const seasons = showDetail?.seasons?.filter((season) => override.seasonNumbers.includes(season.season_number)) || [];
+
+      return {
+        is_multi_season: true,
+        product_title: override.productTitle,
+        show_name: override.showName,
+        tmdb_series_id: override.tmdbSeriesId,
+        media_type: "tv_box_set",
+        seasons,
+        included_titles: seasons.map((season) => ({
+          title: season.title,
+          year: season.year,
+          tmdb_id: override.tmdbSeriesId,
+          season_number: season.season_number,
+        })),
+        _matchScore: 260,
+      };
+    }
+  }
 }
 
 function mapMovieSummary(movie: any) {
@@ -340,7 +472,7 @@ serve(async (req) => {
     const { query, year, tmdb_id: tmdbId, search_type: searchType, barcode, get_posters: getPosters } = await req.json();
 
     if (getPosters && tmdbId) {
-      const type = searchType === "tv" ? "tv" : "movie";
+      const type = searchType === "tv" || searchType === "tv_season" ? "tv" : "movie";
       const imageResponse = await fetch(
         `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${tmdbApiKey}&include_image_language=en,null`,
       );
@@ -520,11 +652,17 @@ serve(async (req) => {
       }
 
       const debugLog: { source: string; status: string; raw?: any }[] = [];
+      const barcodeOverride = BARCODE_OVERRIDES[barcode];
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
       let barcodeYear: number | null = null;
       let bestResolved: Record<string, any> | null = null;
+      let packageContext: PackageContext = {
+        rawTitle: "",
+        productTitle: "",
+        detectedFormats: [],
+      };
 
       const considerResolved = (resolved: Record<string, any> | null) => {
         if (!resolved) return false;
@@ -541,16 +679,38 @@ serve(async (req) => {
         if (upcRaw?.items?.length > 0) {
           const upcItem = upcRaw.items[0];
           upcTitle = upcItem.title || "";
-          const allText = `${upcTitle} ${upcItem.category || ""} ${upcItem.description || ""}`;
-          upcFormats = detectFormats(allText);
+          upcFormats = detectFormats(upcTitle);
           upcCleanTitle = cleanProductTitle(upcTitle);
           if (!barcodeYear) barcodeYear = extractYearFromText(upcTitle);
+          packageContext = {
+            rawTitle: upcTitle,
+            productTitle: upcTitle,
+            detectedFormats: upcFormats,
+            discCount: extractDiscCount(`${upcTitle} ${upcItem.description || ""}`),
+            packageImageUrl: Array.isArray(upcItem.images) && upcItem.images.length > 0 ? upcItem.images[0] : null,
+          };
 
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
 
+          if (barcodeOverride) {
+            const overrideContext: PackageContext = {
+              ...packageContext,
+              productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+              detectedFormats: barcodeOverride.formats,
+              discCount: barcodeOverride.discCount,
+              editionLabel: barcodeOverride.editionLabel || null,
+              digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
+              slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
+            };
+            const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
+            debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
+            return buildJsonResponse(overridePayload, debugLog);
+          }
+
           if (upcCleanTitle) {
             const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
-            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
+            const packagedResult = result ? attachPackageContext(result, packageContext) : null;
+            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
           }
         } else {
           debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
@@ -559,37 +719,20 @@ serve(async (req) => {
         debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(error) });
       }
 
-      try {
-        const discogsResponse = await fetch(
-          `https://api.discogs.com/database/search?barcode=${encodeURIComponent(barcode)}&type=release`,
-          { headers: { "User-Agent": "DiscStacked/1.0" } },
-        );
-        const discogsRaw = discogsResponse.ok ? await discogsResponse.json() : null;
-
-        if (discogsRaw?.results?.length > 0) {
-          const discogsItem = discogsRaw.results[0];
-          const discogsTitle = discogsItem.title || "";
-          const discogsAllText = `${discogsTitle} ${(discogsItem.format || []).join(" ")} ${(discogsItem.label || []).join(" ")}`;
-          const discogsFormats = upcFormats.length > 0 ? upcFormats : detectFormats(discogsAllText);
-          const discogsCleanTitle = cleanProductTitle(discogsTitle);
-
-          if (discogsItem.year && !barcodeYear) {
-            const parsedYear = parseInt(String(discogsItem.year), 10);
-            if (parsedYear >= 1900 && parsedYear <= 2100) barcodeYear = parsedYear;
-          }
-          if (!barcodeYear) barcodeYear = extractYearFromText(discogsTitle);
-
-          debugLog.push({ source: "Discogs", status: "HIT", raw: { title: discogsTitle, format: discogsItem.format, type: discogsItem.type, year: discogsItem.year } });
-
-          if (discogsCleanTitle) {
-            const result = await processBarcodeTitle(discogsCleanTitle, discogsTitle, discogsFormats, barcodeYear);
-            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
-          }
-        } else {
-          debugLog.push({ source: "Discogs", status: "MISS", raw: discogsRaw });
-        }
-      } catch (error) {
-        debugLog.push({ source: "Discogs", status: "ERROR", raw: String(error) });
+      if (barcodeOverride) {
+        const fallbackContext: PackageContext = {
+          ...packageContext,
+          rawTitle: packageContext.rawTitle || (barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle),
+          productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+          detectedFormats: barcodeOverride.formats,
+          discCount: barcodeOverride.discCount,
+          editionLabel: barcodeOverride.editionLabel || null,
+          digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
+          slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
+        };
+        const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), fallbackContext);
+        debugLog.push({ source: "BarcodeOverride", status: "HIT-fallback", raw: { kind: barcodeOverride.kind, productTitle: fallbackContext.productTitle } });
+        return buildJsonResponse(overridePayload, debugLog);
       }
 
       try {
@@ -607,7 +750,13 @@ serve(async (req) => {
 
           if (openLibraryCleanTitle) {
             const result = await processBarcodeTitle(openLibraryCleanTitle, openLibraryTitle, openLibraryFormats, barcodeYear);
-            if (considerResolved(result)) return buildJsonResponse(result!, debugLog);
+            const packagedResult = result ? attachPackageContext(result, {
+              ...packageContext,
+              rawTitle: packageContext.rawTitle || openLibraryTitle,
+              productTitle: packageContext.productTitle || openLibraryTitle,
+              detectedFormats: openLibraryFormats,
+            }) : null;
+            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
           }
         } else {
           debugLog.push({ source: "OpenLibrary", status: "MISS", raw: openLibraryRaw });
@@ -627,13 +776,18 @@ serve(async (req) => {
         if (movieResults.length > 0) {
           const detail = await fetchTmdbMovieDetails(movieResults[0].id, tmdbApiKey);
           debugLog.push({ source: "TMDB-UPC", status: "HIT-movie", raw: { id: movieResults[0].id, title: movieResults[0].title } });
-          return buildJsonResponse({ ...detail, barcode_title: movieResults[0].title, detected_formats: upcFormats, _matchScore: 250 }, debugLog);
+          return buildJsonResponse(attachPackageContext({
+            ...detail,
+            barcode_title: movieResults[0].title,
+            detected_formats: upcFormats,
+            _matchScore: 250,
+          }, packageContext), debugLog);
         }
 
         if (tvResults.length > 0) {
           const tv = tvResults[0];
           debugLog.push({ source: "TMDB-UPC", status: "HIT-tv", raw: { id: tv.id, title: tv.name } });
-          return buildJsonResponse({
+          return buildJsonResponse(attachPackageContext({
             tmdb_id: tv.id,
             title: tv.name,
             year: tv.first_air_date ? parseInt(tv.first_air_date.slice(0, 4), 10) : null,
@@ -644,7 +798,7 @@ serve(async (req) => {
             barcode_title: tv.name,
             detected_formats: upcFormats,
             _matchScore: 230,
-          }, debugLog);
+          }, packageContext), debugLog);
         }
 
         debugLog.push({ source: "TMDB-UPC", status: "MISS", raw: findRaw });
@@ -655,12 +809,13 @@ serve(async (req) => {
       if (upcCleanTitle) {
         const fuzzyResult = await processBarcodeTitle(upcCleanTitle, upcTitle || upcCleanTitle, upcFormats, barcodeYear);
         if (fuzzyResult) {
+          const packagedFuzzyResult = attachPackageContext(fuzzyResult, packageContext);
           debugLog.push({
             source: "TMDB-fuzzy",
-            status: (fuzzyResult._matchScore || 0) >= 70 ? "HIT" : "PARTIAL",
-            raw: { query: upcCleanTitle, score: fuzzyResult._matchScore || 0 },
+            status: (packagedFuzzyResult._matchScore || 0) >= 70 ? "HIT" : "PARTIAL",
+            raw: { query: upcCleanTitle, score: packagedFuzzyResult._matchScore || 0 },
           });
-          considerResolved(fuzzyResult);
+          considerResolved(packagedFuzzyResult);
         } else {
           debugLog.push({ source: "TMDB-fuzzy", status: "MISS-noresults", raw: { query: upcCleanTitle } });
         }
@@ -681,7 +836,7 @@ serve(async (req) => {
     }
 
     if (tmdbId) {
-      const payload = searchType === "tv"
+      const payload = searchType === "tv" || searchType === "tv_season"
         ? await fetchTmdbTvDetails(tmdbId, tmdbApiKey)
         : await fetchTmdbMovieDetails(tmdbId, tmdbApiKey);
 
