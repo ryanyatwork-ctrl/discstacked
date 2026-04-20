@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdmin } from "@/hooks/useAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +43,6 @@ const COLLECTION_KEYWORDS = /\b(trilogy|quadrilogy|collection|complete\s+series|
 export default function CollectionCleanup() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, loading: adminLoading } = useAdmin();
   const [flaggedItems, setFlaggedItems] = useState<FlaggedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
@@ -139,10 +137,10 @@ export default function CollectionCleanup() {
   }, [user]);
 
   useEffect(() => {
-    if (user && isAdmin) scan();
-  }, [user, isAdmin, scan]);
+    if (user) scan();
+  }, [user, scan]);
 
-  if (authLoading || adminLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -150,13 +148,13 @@ export default function CollectionCleanup() {
     );
   }
 
-  if (!isAdmin) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-2">
           <AlertTriangle className="h-12 w-12 mx-auto text-destructive" />
-          <h2 className="text-xl font-bold text-foreground">Access Denied</h2>
-          <Button variant="outline" onClick={() => navigate("/")}>Go Home</Button>
+          <h2 className="text-xl font-bold text-foreground">Sign In Required</h2>
+          <Button variant="outline" onClick={() => navigate("/auth")}>Go to Sign In</Button>
         </div>
       </div>
     );

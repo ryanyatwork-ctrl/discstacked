@@ -22,36 +22,12 @@ export function useAutoHideHeader(scrollRef?: RefObject<HTMLElement | null>) {
   }, []);
 
   useEffect(() => {
-    if (pinned) return;
+    setVisible(true);
+    ticking.current = false;
+    lastScrollY.current = 0;
+  }, [scrollRef, pinned]);
 
-    const target = scrollRef?.current ?? window;
-    const getScrollY = () =>
-      scrollRef?.current ? scrollRef.current.scrollTop : window.scrollY;
-
-    const onScroll = () => {
-      if (ticking.current) return;
-      ticking.current = true;
-
-      requestAnimationFrame(() => {
-        const currentY = getScrollY();
-        const delta = currentY - lastScrollY.current;
-
-        if (currentY < 60) {
-          setVisible(true);
-        } else if (delta > 8) {
-          setVisible(false);
-        } else if (delta < -8) {
-          setVisible(true);
-        }
-
-        lastScrollY.current = currentY;
-        ticking.current = false;
-      });
-    };
-
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => target.removeEventListener("scroll", onScroll);
-  }, [pinned, scrollRef]);
-
-  return { visible: pinned || visible, pinned, togglePin };
+  // Keep the stats ribbon visible for now. The previous auto-hide behavior
+  // changed layout height while the user scrolled, which caused card jitter.
+  return { visible: true, pinned, togglePin };
 }

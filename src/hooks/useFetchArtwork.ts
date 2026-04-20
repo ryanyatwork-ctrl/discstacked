@@ -10,6 +10,22 @@ interface ArtworkResult {
   match_type: "exact_owned_cover" | "generic_content_poster";
 }
 
+function getEditionMeta(item: DbMediaItem) {
+  const meta = (item.metadata as Record<string, any>) || {};
+  return (meta.edition as Record<string, any>) || {};
+}
+
+async function canLoadImage(url: string): Promise<boolean> {
+  if (!url) return false;
+
+  return await new Promise<boolean>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
 // ── Barcode lookup via tmdb-lookup edge function ──
 async function lookupByBarcode(barcode: string): Promise<ArtworkResult | null> {
   try {
@@ -239,23 +255,58 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
   return null;
 }
 
+async function findRepairCandidates(items: DbMediaItem[]) {
+  const candidates: DbMediaItem[] = [];
+
+  for (const item of items) {
+    const edition = getEditionMeta(item);
+    const hasBrokenPoster = item.poster_url ? !(await canLoadImage(item.poster_url)) : false;
+    const hasFallbackPoster = !!edition.tmdb_poster_url;
+    const packagePosterNeedsFallback =
+      !!item.poster_url &&
+      !!edition.cover_art_url &&
+      item.poster_url === edition.cover_art_url &&
+      hasBrokenPoster &&
+      hasFallbackPoster;
+
+    if (!item.poster_url || hasBrokenPoster || packagePosterNeedsFallback) {
+      candidates.push(item);
+    }
+  }
+
+  return candidates;
+}
+
 export function useFetchArtwork() {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, found: 0 });
   const queryClient = useQueryClient();
 
   const fetchArtwork = useCallback(async (items: DbMediaItem[]) => {
-    const missing = items.filter((i) => !i.poster_url);
-    if (missing.length === 0) return { found: 0, total: 0 };
+    const candidates = await findRepairCandidates(items);
+    if (candidates.length === 0) return { found: 0, total: 0 };
 
     setIsRunning(true);
-    setProgress({ done: 0, total: missing.length, found: 0 });
+    setProgress({ done: 0, total: candidates.length, found: 0 });
     let found = 0;
 
-    for (let i = 0; i < missing.length; i++) {
-      const item = missing[i];
+    for (let i = 0; i < candidates.length; i++) {
+      const item = candidates[i];
       try {
-        const artworkResult = await resolveArtwork(item);
+        const edition = getEditionMeta(item);
+        const isBrokenPackageCover =
+          !!item.poster_url &&
+          !!edition.cover_art_url &&
+          item.poster_url === edition.cover_art_url &&
+          !!edition.tmdb_poster_url;
+
+        const artworkResult = isBrokenPackageCover
+          ? {
+              poster_url: edition.tmdb_poster_url,
+              source: "repaired from TMDB fallback poster",
+              match_type: "generic_content_poster" as const,
+            }
+          : await resolveArtwork(item);
 
         if (artworkResult?.poster_url) {
           const currentMeta = (item.metadata as Record<string, any>) || {};
@@ -276,16 +327,16 @@ export function useFetchArtwork() {
         // Skip failed lookups silently
       }
 
-      setProgress({ done: i + 1, total: missing.length, found });
+      setProgress({ done: i + 1, total: candidates.length, found });
 
-      if (i < missing.length - 1) {
+      if (i < candidates.length - 1) {
         await new Promise((r) => setTimeout(r, 250));
       }
     }
 
     setIsRunning(false);
     queryClient.invalidateQueries({ queryKey: ["media_items"] });
-    return { found, total: missing.length };
+    return { found, total: candidates.length };
   }, [queryClient]);
 
   return { fetchArtwork, isRunning, progress };

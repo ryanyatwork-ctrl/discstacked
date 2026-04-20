@@ -66,12 +66,6 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Verify admin role
-    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Admin only" }), { status: 403, headers: corsHeaders });
-    }
-
     const body = await req.json();
     const { action } = body;
 
@@ -80,6 +74,10 @@ serve(async (req) => {
     } else if (action === "merge") {
       return await handleMerge(admin, body.keep_id, body.delete_id, user.id);
     } else if (action === "ghost-products") {
+      const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: "Admin only" }), { status: 403, headers: corsHeaders });
+      }
       return await handleGhostProducts(admin, body.dry_run !== false, body.user_id);
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400, headers: corsHeaders });

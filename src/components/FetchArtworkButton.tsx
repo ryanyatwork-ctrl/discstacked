@@ -12,17 +12,14 @@ interface FetchArtworkButtonProps {
 export function FetchArtworkButton({ items }: FetchArtworkButtonProps) {
   const { fetchArtwork, isRunning, progress } = useFetchArtwork();
 
-  const missingCount = items.filter((i) => !i.poster_url).length;
-
   const handleClick = async () => {
-    if (missingCount === 0) {
-      toast({ title: "All set!", description: "Every item already has artwork." });
-      return;
-    }
-
-    toast({ title: "Fetching artwork…", description: `Looking up ${missingCount} items on TMDB.` });
+    toast({ title: "Checking artwork…", description: "Looking for missing or broken covers." });
 
     const result = await fetchArtwork(items);
+    if (result.total === 0) {
+      toast({ title: "All set!", description: "No missing or broken artwork was found." });
+      return;
+    }
     toast({
       title: "Artwork fetch complete",
       description: `Found posters for ${result.found} of ${result.total} items.`,
@@ -35,7 +32,7 @@ export function FetchArtworkButton({ items }: FetchArtworkButtonProps) {
         variant="outline"
         size="sm"
         onClick={handleClick}
-        disabled={isRunning || missingCount === 0}
+        disabled={isRunning}
         className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
       >
         {isRunning ? (
@@ -45,9 +42,7 @@ export function FetchArtworkButton({ items }: FetchArtworkButtonProps) {
         )}
         {isRunning
           ? `Fetching… ${progress.done}/${progress.total}`
-          : missingCount > 0
-            ? `Fetch Artwork (${missingCount} missing)`
-            : "No empty artwork slots"}
+          : "Fetch / Repair Artwork"}
       </Button>
       {isRunning && (
         <Progress value={(progress.done / progress.total) * 100} className="h-1.5" />
