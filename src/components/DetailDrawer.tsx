@@ -805,6 +805,53 @@ function StatusToggle({ icon: Icon, label, active, color, onToggle, readOnly }: 
   );
 }
 
+function normalizeLookupTitle(value: string): string {
+  return value
+    .replace(/[’']/g, "'")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanPackageLookupTitle(value: string): string {
+  return normalizeLookupTitle(value)
+    .replace(/\s*\[[^\]]*\]\s*$/g, "")
+    .replace(/\s*\([^)]*(blu-?ray|dvd|digital|uhd|4k|3d|collection|trilogy)[^)]*\)\s*$/gi, "")
+    .replace(/\s*[-:]\s*(blu-?ray|dvd|digital|uhd|4k|3d)\b.*$/gi, "")
+    .trim();
+}
+
+function buildLookupQueries(item: MediaItem): string[] {
+  const edition = (item.metadata as any)?.edition || {};
+  const candidates = [
+    item.title,
+    edition.package_title,
+    edition.barcode_title,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .flatMap((value) => {
+      const normalized = normalizeLookupTitle(value);
+      const cleaned = cleanPackageLookupTitle(value);
+      return cleaned && cleaned !== normalized ? [normalized, cleaned] : [normalized];
+    });
+
+  return [...new Set(candidates)];
+}
+
+async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<MediaLookupResult[]> {
+  for (const query of buildLookupQueries(item)) {
+    const exactResults = await searchMedia(mediaType, query, { year: item.year ?? undefined });
+    if (exactResults.length > 0) return exactResults;
+
+    if (item.year) {
+      const yearlessResults = await searchMedia(mediaType, query);
+      if (yearlessResults.length > 0) return yearlessResults;
+    }
+  }
+
+  return [];
+}
+
 function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnType<typeof useUpdateItem> }) {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [watchNote, setWatchNote] = useState("");
@@ -883,9 +930,9 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
   const handleFetch = async () => {
     setLoading(true);
     try {
-      const res = await searchMedia(mediaType, item.title, { year: item.year ?? undefined });
+      const res = await findDetailMatches(item, mediaType);
       if (!res.length) {
-        toast({ title: "No results found", description: "Try editing the title first, then fetch again.", variant: "destructive" });
+        toast({ title: "No results found", description: "Try adjusting the title or package details, then fetch again.", variant: "destructive" });
         setLoading(false);
         return;
       }

@@ -147,9 +147,6 @@ export function PosterCard({ item, onClick }: PosterCardProps) {
           <div>
             <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{item.title}</p>
             {item.year && <p className="text-[10px] text-muted-foreground mt-0.5">{item.year}</p>}
-            {getEditionLabel(item.metadata) && (
-              <p className="text-[10px] text-primary mt-0.5">{getEditionLabel(item.metadata)}</p>
-            )}
           </div>
         </div>
       )}
