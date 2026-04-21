@@ -5,13 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ScanBarcode, Camera, Loader2, Check, X, Trash2, Plus, AlertTriangle, Copy, Keyboard, Bluetooth, Layers, Package, Pencil, Search } from "lucide-react";
-import { searchTmdb } from "@/lib/tmdb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { lookupBarcode as unifiedLookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
+import { lookupBarcode as unifiedLookupBarcode, searchMedia, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
@@ -145,6 +144,30 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           ...(result.results.length === 1 ? buildFoundQueueItem(result.results[0]) : {}),
           title: result.results[0]?.title,
           candidates: result.results.length > 1 ? result.results.slice(0, 5) : undefined,
+        };
+      }
+      if (result.partialTitle) {
+        try {
+          const searchResults = await searchMedia(activeTab, result.partialTitle);
+          if (searchResults.length === 1) {
+            return buildFoundQueueItem(searchResults[0]);
+          }
+          if (searchResults.length > 1) {
+            return {
+              status: "ambiguous",
+              title: result.partialTitle,
+              candidates: searchResults.slice(0, 5),
+              format: result.partialFormats?.[0] || "",
+              formats: result.partialFormats || [],
+            };
+          }
+        } catch {}
+
+        return {
+          status: "not_found",
+          title: result.partialTitle,
+          format: result.partialFormats?.[0] || "",
+          formats: result.partialFormats || [],
         };
       }
       return { status: "not_found" };
@@ -348,7 +371,10 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     );
 
     try {
-      const results = await searchTmdb(searchTitle.replace(/\s*\((19\d{2}|20\d{2})\)$/, ""), searchYear);
+      const tvSeasonPattern = /\b(season|s\d|series|complete\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\b/i;
+      const strippedTitle = searchTitle.replace(/\s*\((19\d{2}|20\d{2})\)$/, "");
+      const searchType = tvSeasonPattern.test(strippedTitle) ? "tv" as const : undefined;
+      const results = await searchMedia(activeTab, strippedTitle, { year: searchYear, searchType });
       if (results.length > 0) {
         const top = results[0];
         setQueue((prev) =>

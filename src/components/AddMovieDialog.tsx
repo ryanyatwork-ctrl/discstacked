@@ -197,10 +197,26 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         setSearchResults(result.results);
         toast({ title: "Multiple results found", description: "Select the correct one below." });
       } else if (result.partialTitle) {
-        // Barcode found a product name but no TMDB match — pre-populate for the user
-        setTitle(result.partialTitle);
-        if (result.partialFormats?.length) setFormats(result.partialFormats);
-        toast({ title: "Barcode not recognized", description: "Please verify the title below and search manually.", variant: "default" });
+        let autoResults: MediaLookupResult[] = [];
+        try {
+          autoResults = await searchMedia(activeTab, result.partialTitle);
+        } catch {}
+
+        if (autoResults.length === 1) {
+          applyResult(autoResults[0]);
+          await checkOwnership(autoResults[0].title, upc.trim());
+          toast({ title: "Found it!", description: autoResults[0].title });
+        } else if (autoResults.length > 1) {
+          setTitle(result.partialTitle);
+          if (result.partialFormats?.length) setFormats(result.partialFormats);
+          setSearchResults(autoResults);
+          toast({ title: "Possible matches found", description: "Please select the correct title below." });
+        } else {
+          // Barcode found a product name but no TMDB match — pre-populate for the user
+          setTitle(result.partialTitle);
+          if (result.partialFormats?.length) setFormats(result.partialFormats);
+          toast({ title: "Barcode not recognized", description: "Please verify the title below and search manually.", variant: "default" });
+        }
       } else {
         toast({ title: "Barcode not recognized", description: "Please enter the title below and search.", variant: "default" });
       }

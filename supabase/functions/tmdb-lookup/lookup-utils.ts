@@ -15,13 +15,17 @@ const ORDINAL_WORDS: Record<string, number> = {
   seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
 };
 
-const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
-const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b[:\s-]*/i;
+const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
+const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b[:\s-]*/i;
+const STUDIO_ANYWHERE_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b/gi;
+const TRAILING_GENRE_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music)\b\.?$/i;
+const GENRE_CHAIN_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music|science\s*fiction|sci\s*-?fi)\b(?:[\s/&,-]+\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music|science\s*fiction|sci\s*-?fi)\b){1,}$/i;
+const TRAILING_METADATA_PATTERN = /\b(?:feature|directed\s+by|starring|presented\s+by)\b.*$/i;
 // Keep this intentionally narrow. Broad single-word genre stripping caused
 // real titles like "Avengers: Infinity War" and "The Family" to be mangled
 // before fuzzy matching.
 const GENRE_SUFFIX_PATTERN = /\b(?:sci\s*-?fi|science\s*fiction)\b\.?$/i;
-const EDITION_SUFFIX_PATTERN = /\b(?:collector'?s?\s*edition|collector\s*s\s*edition|special\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?)\b$/i;
+const EDITION_SUFFIX_PATTERN = /\b(?:collector'?s?\s*edition|collector\s*s\s*edition|special\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|signature\s*collection|diamond\s*edition|masterpiece\s*edition|extended\s*edition|platinum\s*edition)\b$/i;
 
 function restoreTrailingArticleTitle(value: string): string {
   const match = value.match(/^(.+),\s*(the|a|an)$/i);
@@ -79,11 +83,15 @@ export function cleanProductTitle(raw: string): string {
     .replace(/^[\w\s&.']+?\s*-\s*/i, "")
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\((?!19\d{2}\)|20\d{2}\))[^)]*\)/g, " ")
-    .replace(/\b(?:blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|std|ws|dc|bd|bd\s*\+\s*dc|blu\s*ray\s*\+\s*digital\s*copy|unrated|special\s*edition|collector'?s?\s*edition|collector\s*s\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|includes?\s*digital(?:\s*copy)?)\b/gi, " ")
+    .replace(/\b(?:blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|std|ws|dc|bd|bd\s*\+\s*dc|blu\s*ray\s*\+\s*digital\s*copy|unrated|special\s*edition|collector'?s?\s*edition|collector\s*s\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|includes?\s*digital(?:\s*copy)?|signature\s*collection|diamond\s*edition|masterpiece\s*edition|extended\s*edition|platinum\s*edition)\b/gi, " ")
+    .replace(/\b(?:\d+\s*disc(?:s)?|one\s*disc|two\s*disc|three\s*disc|four\s*disc|five\s*disc|six\s*disc|seven\s*disc|eight\s*disc|nine\s*disc|ten\s*disc)\b/gi, " ")
     .replace(/\b(?:season\s*\d+\s*blu\s*ray|season\s*\d+\s*dvd)\b/gi, " ")
+    .replace(TRAILING_METADATA_PATTERN, " ")
     .replace(/\s*[,+]\s*$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  cleaned = cleaned.replace(GENRE_CHAIN_PATTERN, " ").replace(/\s+/g, " ").trim();
 
   cleaned = restoreTrailingArticleTitle(cleaned);
   cleaned = stripTrailingNoise(cleaned);
@@ -111,9 +119,23 @@ export function generateTitleCandidates(rawTitle: string, cleanedTitle = cleanPr
   addCandidate(rawTitle);
 
   for (const base of Array.from(candidates)) {
+    const deStudio = base.replace(STUDIO_ANYWHERE_PATTERN, " ").replace(/\s+/g, " ").trim();
+    const withoutLeadingNew = base.replace(/^new\s+/i, "").trim();
+    const words = base.split(/\s+/).filter(Boolean);
+    const withoutTrailingGenre = words.length > 2
+      ? base.replace(TRAILING_GENRE_PATTERN, "").replace(/\s+/g, " ").trim()
+      : base;
+    const withoutTrailingMetadata = base.replace(TRAILING_METADATA_PATTERN, "").replace(/\s+/g, " ").trim();
+    const withoutGenreChain = base.replace(GENRE_CHAIN_PATTERN, "").replace(/\s+/g, " ").trim();
+
     const colonBase = base.split(/\s*[:|]\s*/)[0]?.trim();
     const dashBase = base.split(/\s[-–]\s/)[0]?.trim();
 
+    if (deStudio && deStudio !== base) addCandidate(deStudio);
+    if (withoutLeadingNew && withoutLeadingNew !== base) addCandidate(withoutLeadingNew);
+    if (withoutTrailingGenre && withoutTrailingGenre !== base) addCandidate(withoutTrailingGenre);
+    if (withoutTrailingMetadata && withoutTrailingMetadata !== base) addCandidate(withoutTrailingMetadata);
+    if (withoutGenreChain && withoutGenreChain !== base) addCandidate(withoutGenreChain);
     if (colonBase && colonBase !== base) addCandidate(colonBase);
     if (dashBase && dashBase !== base) addCandidate(dashBase);
   }

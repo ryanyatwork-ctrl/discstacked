@@ -501,6 +501,31 @@ async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, apiKe
   return bestMatch;
 }
 
+async function searchBestMovieResults(query: string, apiKey: string, year?: number | null) {
+  const candidates = generateTitleCandidates(query, cleanProductTitle(query));
+  const ranked = new Map<number, { movie: any; score: number }>();
+
+  for (const candidate of candidates) {
+    const [yearMatches, generalMatches] = await Promise.all([
+      year ? searchTmdbMovie(candidate, apiKey, year) : Promise.resolve([]),
+      searchTmdbMovie(candidate, apiKey),
+    ]);
+
+    for (const movie of [...yearMatches, ...generalMatches]) {
+      const score = scoreMovieResult(candidate, movie, year);
+      const existing = ranked.get(movie.id);
+      if (!existing || score > existing.score) {
+        ranked.set(movie.id, { movie, score });
+      }
+    }
+  }
+
+  return Array.from(ranked.values())
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.movie)
+    .slice(0, 10);
+}
+
 function pickCollectionParts(parts: any[], requestedTitles: string[]) {
   if (requestedTitles.length === 0) return parts.map(mapMovieSummary);
 
@@ -995,7 +1020,7 @@ serve(async (req) => {
     const results: any[] = [];
 
     if (searchType !== "tv") {
-      const movieResults = await searchTmdbMovie(query, tmdbApiKey, year || null);
+      const movieResults = await searchBestMovieResults(query, tmdbApiKey, year || null);
       for (const movie of movieResults.slice(0, 10)) {
         results.push({
           tmdb_id: movie.id,

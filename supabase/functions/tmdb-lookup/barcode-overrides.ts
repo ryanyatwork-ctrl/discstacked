@@ -36,6 +36,41 @@ export type BarcodeOverride =
     };
 
 export const BARCODE_OVERRIDES: Record<string, BarcodeOverride> = {
+  "043396544093": {
+    kind: "movie",
+    tmdbId: 9800,
+    title: "Philadelphia",
+    year: 1993,
+    packageTitle: "Philadelphia (25th Anniversary Edition) (4K Ultra HD + Blu-ray + Digital)",
+    editionLabel: "25th Anniversary Edition",
+    formats: ["4K", "Blu-ray", "Digital"],
+    discCount: 2,
+    digitalCodeExpected: true,
+    slipcoverExpected: null,
+  },
+  "012236203445": {
+    kind: "movie",
+    tmdbId: 11967,
+    title: "Young Guns",
+    year: 1988,
+    packageTitle: "Young Guns (Blu-ray)",
+    editionLabel: "Blu-ray",
+    formats: ["Blu-ray"],
+    discCount: 1,
+    digitalCodeExpected: false,
+    slipcoverExpected: null,
+  },
+  "683904630162": {
+    kind: "multi_movie",
+    productTitle: "Spaghetti Western Double Feature: The Last Gun / 4 Dollars of Revenge (Blu-ray)",
+    collectionName: "Spaghetti Western Double Feature",
+    editionLabel: "Double Feature",
+    movieTmdbIds: [67212, 67213],
+    formats: ["Blu-ray"],
+    discCount: 1,
+    digitalCodeExpected: false,
+    slipcoverExpected: null,
+  },
   "683904632197": {
     kind: "movie",
     tmdbId: 849,
