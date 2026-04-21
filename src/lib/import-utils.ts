@@ -90,11 +90,13 @@ export function detectFormats(value: string): string[] {
     found.push("DVD");
   }
   if (
-    v.includes("digital") ||
-    v.includes("streaming") ||
-    v.includes("movies anywhere") ||
     v.includes("digital copy") ||
-    v.includes("digital code")
+    v.includes("digital code") ||
+    v.includes("digital hd") ||
+    v.includes("movies anywhere") ||
+    v.includes("ultraviolet") ||
+    /\b(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b[^\n]{0,24}(?:\+|\/|&)\s*digital\b/.test(v) ||
+    /\bdigital\b[^\n]{0,24}(?:\+|\/|&)\s*(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b/.test(v)
   ) {
     found.push("Digital");
   }

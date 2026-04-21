@@ -11,6 +11,12 @@ describe("import-utils", () => {
     ]);
   });
 
+  it("does not mistake Dolby Digital audio for an included digital copy", () => {
+    expect(detectFormats("Dolby Digital 5.1 [English]; Dolby Digital Stereo [French]")).toEqual([]);
+    expect(detectFormats("1 Disc DVD")).toEqual(["DVD"]);
+    expect(detectFormats("Blu-ray + Digital Code")).toEqual(["Blu-ray", "Digital"]);
+  });
+
   it("parses tab-delimited text exports", () => {
     const rows = parseCsv([
       "Title\tFormat\tUPC/EAN\tReleased",
