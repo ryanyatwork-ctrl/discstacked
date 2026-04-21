@@ -961,7 +961,11 @@ function buildLookupQueries(item: MediaItem): string[] {
 }
 
 async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<MediaLookupResult[]> {
-  if (item.barcode && (mediaType === "movies" || mediaType === "music-films")) {
+  const metadata = (item.metadata as Record<string, any>) || {};
+  const itemArtist = (item.artist || metadata.artist) as string | undefined;
+  const itemCatalogNumber = (metadata.catalog_number || metadata.catalog_no || metadata.catno) as string | undefined;
+
+  if (item.barcode && (mediaType === "movies" || mediaType === "music-films" || mediaType === "cds")) {
     try {
       const barcodeResult = await lookupBarcode(mediaType, item.barcode);
       const barcodeMatches = mapBarcodeLookupToDetailMatches(barcodeResult);
@@ -972,11 +976,18 @@ async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<
   }
 
   for (const query of buildLookupQueries(item)) {
-    const exactResults = await searchMedia(mediaType, query, { year: item.year ?? undefined });
+    const exactResults = await searchMedia(mediaType, query, {
+      year: item.year ?? undefined,
+      artist: mediaType === "cds" ? itemArtist : undefined,
+      catalogNumber: mediaType === "cds" ? itemCatalogNumber : undefined,
+    });
     if (exactResults.length > 0) return exactResults;
 
     if (item.year) {
-      const yearlessResults = await searchMedia(mediaType, query);
+      const yearlessResults = await searchMedia(mediaType, query, {
+        artist: mediaType === "cds" ? itemArtist : undefined,
+        catalogNumber: mediaType === "cds" ? itemCatalogNumber : undefined,
+      });
       if (yearlessResults.length > 0) return yearlessResults;
     }
   }
@@ -1160,7 +1171,7 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       // This prevents stale cast/crew/overview/genre from surviving
       const currentMeta = (item as any).metadata || {};
       // Only preserve non-content keys (tags, edition, source, physical details)
-      const preserveKeys = ["tags", "edition", "source", "artist", "label", "tracklist", "content_type", "tmdb_series_id", "season_number", "series_title", "show_name", "episode_count", "included_titles", "artwork_source", "artwork_match_type", "artwork_locked"];
+      const preserveKeys = ["tags", "edition", "source", "artist", "label", "catalog_number", "country", "tracklist", "content_type", "tmdb_series_id", "season_number", "series_title", "show_name", "episode_count", "included_titles", "artwork_source", "artwork_match_type", "artwork_locked"];
       const newMeta: Record<string, any> = {};
       for (const key of preserveKeys) {
         if (currentMeta[key] !== undefined) newMeta[key] = currentMeta[key];
@@ -1184,9 +1195,11 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
       if ((best as any).show_name) newMeta.show_name = (best as any).show_name;
       if ((best as any).episode_count != null) newMeta.episode_count = (best as any).episode_count;
       if (best.included_titles?.length) newMeta.included_titles = best.included_titles;
-      // Overwrite artist/label/tracklist if result provides them
+      // Overwrite artist/label/catalog/tracklist if result provides them
       if (best.artist) newMeta.artist = best.artist;
       if (best.label) newMeta.label = best.label;
+      if (best.catalog_number) newMeta.catalog_number = best.catalog_number;
+      if (best.country) newMeta.country = best.country;
       if (best.tracklist?.length) newMeta.tracklist = best.tracklist;
 
       // Atomic update: write ALL content fields, using null to clear stale values
@@ -1324,6 +1337,8 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   // Music-specific
   const artist = meta.artist as string | undefined;
   const label = meta.label as string | undefined;
+  const catalogNumber = meta.catalog_number as string | undefined;
+  const country = meta.country as string | undefined;
   const tracklist = meta.tracklist as { position: string; title: string; duration?: string }[] | undefined;
 
   // Book-specific
@@ -1337,7 +1352,7 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
   const developer = meta.developer as string | undefined;
 
   const hasAny = genre || runtime || tagline || cast?.length || crew || overview
-    || artist || label || tracklist?.length || author || pageCount || publisher
+    || artist || label || catalogNumber || country || tracklist?.length || author || pageCount || publisher
     || platforms?.length || developer || includedTitles?.length || seasonNumber || contentType || seriesTitle || episodeCount;
 
   if (!hasAny) {
@@ -1423,6 +1438,8 @@ function TmdbMetadata({ item }: { item: MediaItem }) {
         {pageCount && <span>{pageCount} pages</span>}
         {publisher && <span>Published by {publisher}</span>}
         {label && <span>Label: {label}</span>}
+        {catalogNumber && <span className="font-mono text-xs">Cat#: {catalogNumber}</span>}
+        {country && <span>{country}</span>}
         {developer && <span>Developer: {developer}</span>}
         {isbn && <span className="font-mono text-xs">ISBN: {isbn}</span>}
       </div>

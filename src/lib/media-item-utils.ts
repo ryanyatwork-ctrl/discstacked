@@ -28,6 +28,8 @@ export function buildLookupMetadata(result: Partial<MediaLookupResult>): Record<
   if (result.publisher) metadata.publisher = result.publisher;
   if (result.isbn) metadata.isbn = result.isbn;
   if (result.label) metadata.label = result.label;
+  if (result.catalog_number) metadata.catalog_number = result.catalog_number;
+  if (result.country) metadata.country = result.country;
   if (result.tracklist?.length) metadata.tracklist = result.tracklist;
   if (result.platforms?.length) metadata.platforms = result.platforms;
   if (result.developer) metadata.developer = result.developer;
@@ -59,6 +61,10 @@ export function buildCollectionSearchText(item: { title: string; metadata?: Meta
 
   return [
     item.title,
+    metadata.artist,
+    metadata.label,
+    metadata.catalog_number,
+    metadata.country,
     metadata.series_title,
     metadata.show_name,
     edition.barcode_title,

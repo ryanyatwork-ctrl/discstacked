@@ -95,6 +95,81 @@ describe("import-utils", () => {
     expect(keys).toContain("game::the 7th guest::pc::1993");
   });
 
+  it("builds music import identity from barcode and catalog number", () => {
+    const withBarcode = buildImportIdentityKeys({
+      title: "Decade of Decadence",
+      year: 1991,
+      barcode: "075992650925",
+      metadata: {
+        artist: "Motley Crue",
+        catalog_number: "9 26509-2",
+        label: "Elektra",
+        track_count: "14",
+        total_length: "1:06:00",
+      },
+    }, "cds");
+
+    const withoutBarcode = buildImportIdentityKeys({
+      title: "Decade of Decadence",
+      year: 1991,
+      format: "CD",
+      metadata: {
+        artist: "Motley Crue",
+        catalog_number: "9 26509-2",
+        label: "Elektra",
+        track_count: "14",
+        total_length: "1:06:00",
+      },
+    }, "cds");
+
+    expect(withBarcode).toContain("barcode::075992650925");
+    expect(withoutBarcode).toContain("cd-cat::9265092");
+    expect(withoutBarcode.some((key) => key.startsWith("cd::motley crue::decade of decadence"))).toBe(true);
+  });
+
+  it("maps CLZ music collector fields into metadata", () => {
+    const mapped = mapClzRow({
+      Artist: "Motley Crue",
+      Title: "Motley Crue",
+      "Release Year": "1994",
+      Format: "CD",
+      Tracks: "12",
+      Length: "58:03",
+      Genre: "Hard Rock",
+      Label: "Elektra",
+      "Cat. Number": "61745-2",
+      Discs: "1",
+      Subtitle: "Red logo variant",
+      Country: "US",
+      "UPC (Barcode)": "075596174520",
+      Packaging: "Jewel Case",
+      "Package/Sleeve Condition": "Good",
+      "Cover Front": "https://example.com/front.jpg",
+      "Clz AlbumID": "12345",
+      "Clz DiscID": "67890",
+    }, "cds");
+
+    expect(mapped).toMatchObject({
+      title: "Motley Crue",
+      year: 1994,
+      format: "CD",
+      barcode: "075596174520",
+      poster_url: "https://example.com/front.jpg",
+      metadata: expect.objectContaining({
+        artist: "Motley Crue",
+        label: "Elektra",
+        catalog_number: "61745-2",
+        disc_count: "1",
+        subtitle: "Red logo variant",
+        country: "US",
+        packaging: "Jewel Case",
+        package_condition: "Good",
+        clz_album_id: "12345",
+        clz_disc_id: "67890",
+      }),
+    });
+  });
+
   it("merges duplicate CLZ game rows but keeps different platforms separate", () => {
     const rows = [
       mapClzRow({

@@ -197,22 +197,27 @@ export function useImportItems() {
         const rowsToInsert: Partial<TablesInsert<"media_items">>[] = [];
         const updatesToApply: { id: string; data: TablesUpdate<"media_items"> }[] = [];
 
-        for (const row of rows) {
-          const keys = buildImportIdentityKeys(row as Record<string, any>, mediaType);
-          const existing = keys.map((key) => existingByIdentity.get(key)).find(Boolean);
+        if (mediaType === "cds") {
+          rowsToInsert.push(...rows);
+          rowsForCatalog.push(...rows);
+        } else {
+          for (const row of rows) {
+            const keys = buildImportIdentityKeys(row as Record<string, any>, mediaType);
+            const existing = keys.map((key) => existingByIdentity.get(key)).find(Boolean);
 
-          if (existing) {
-            const merged = mergeImportedRowIntoExisting(existing, row, mediaType);
-            updatesToApply.push({ id: existing.id, data: merged });
-            rowsForCatalog.push({
-              ...existing,
-              ...merged,
-              media_type: mediaType,
-              user_id: user.id,
-            });
-          } else {
-            rowsToInsert.push(row);
-            rowsForCatalog.push(row);
+            if (existing) {
+              const merged = mergeImportedRowIntoExisting(existing, row, mediaType);
+              updatesToApply.push({ id: existing.id, data: merged });
+              rowsForCatalog.push({
+                ...existing,
+                ...merged,
+                media_type: mediaType,
+                user_id: user.id,
+              });
+            } else {
+              rowsToInsert.push(row);
+              rowsForCatalog.push(row);
+            }
           }
         }
 

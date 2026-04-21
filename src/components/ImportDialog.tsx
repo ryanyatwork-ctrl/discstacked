@@ -15,7 +15,7 @@ interface ImportDialogProps {
 }
 
 export function ImportDialog({ activeTab }: ImportDialogProps) {
-  const defaultReplaceExisting = activeTab === "games" ? false : true;
+  const defaultReplaceExisting = activeTab === "games" || activeTab === "cds" ? false : true;
   const [open, setOpen] = useState(false);
   const [previewItems, setPreviewItems] = useState<Record<string, any>[] | null>(null);
   const [rawRowCount, setRawRowCount] = useState(0);
@@ -66,7 +66,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       }
     }
 
-    const merged = mergeDuplicates(items, activeTab);
+    const merged = activeTab === "cds" ? items : mergeDuplicates(items, activeTab);
     const expanded = (activeTab === "cds" || activeTab === "games") ? merged : expandBoxSets(merged);
 
     return expanded.map((item, index) => {
@@ -180,6 +180,9 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     return [
       item.title,
       item.barcode,
+      item.metadata?.artist,
+      item.metadata?.catalog_number,
+      item.metadata?.label,
       item.metadata?.edition,
       item.metadata?.edition?.package_title,
     ]
@@ -207,7 +210,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             </p>
             <p className="text-xs text-muted-foreground">
               {isCds ? (
-                <>Supports <code className="text-accent">CLZ Music Collector</code> exports (Artist, Title, Release Year, Format, Tracks, Length, Genre, Label) and standard files.</>
+                <>Supports <code className="text-accent">CLZ Music Collector</code> exports and standard files. Catalog number, label, country, packaging, sleeve condition, and other edition fields are preserved for collector-grade imports.</>
               ) : activeTab === "games" ? (
                 <>Supports <code className="text-accent">CLZ Game Collector</code> exports and standard files. When <code>Replace existing</code> is off, DiscStacked now merges CLZ games into matching VideoGameGeek items instead of blindly duplicating them.</>
               ) : (
@@ -220,6 +223,14 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                 <p>Use <strong>Export to &gt; Text...</strong> in CLZ Game Collector with <strong>UTF8</strong>, <strong>Include Field Names on First Row</strong>, <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>Replace Line Breaks by Space</strong>.</p>
                 <p><strong>Best fields:</strong> <code>Title</code>, <code>Platform</code>, <code>Genre</code>, <code>Release Year</code>, <code>Publisher</code>, <code>Developer</code>, plus <code>Barcode</code>, <code>Condition</code>, <code>Completed</code>, <code>Release Date</code>, <code>Language</code>, <code>Sound/Music</code>, <code>Multiplayer Support</code>, and <code>Links</code> when available.</p>
                 <p>Imports match existing games by <code>barcode</code> first, then by <code>title + platform + year</code>, so CLZ can safely enrich your VGG imports when you leave <code>Replace existing</code> off.</p>
+              </div>
+            )}
+            {isCds && (
+              <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Recommended CLZ Music export settings</p>
+                <p>Use <strong>Export to &gt; Text...</strong> in CLZ Music Collector with <strong>UTF8</strong>, <strong>Include Field Names on First Row</strong>, <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>Replace Line Breaks by Space</strong>.</p>
+                <p><strong>Best fields:</strong> <code>Artist</code>, <code>Title</code>, <code>Release Year</code>, <code>Format</code>, <code>Tracks</code>, <code>Length</code>, <code>Genre</code>, <code>Label</code>, <code>Cat. Number</code>, <code>UPC (Barcode)</code>, <code>Discs</code>, <code>Subtitle</code>, <code>Country</code>, <code>Notes</code>, <code>Packaging</code>, <code>Package/Sleeve Condition</code>, and any cover/image references you keep in CLZ.</p>
+                <p>Music imports do <strong>not</strong> silently merge duplicate-looking rows now. If CLZ has multiple copies or multiple variants, DiscStacked keeps them as separate owned items.</p>
               </div>
             )}
             {isMovies && (

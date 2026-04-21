@@ -208,6 +208,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           {/* Metadata (all media types) */}
           {(item.genre || meta.runtime || meta.tagline || meta.cast?.length || meta.crew
             || meta.artist || meta.author || meta.tracklist?.length || meta.page_count
+            || meta.catalog_number || meta.country
             || meta.publisher || meta.label || meta.developer || meta.platforms?.length || meta.overview) && (
             <div className="space-y-3">
               {/* Artist / Author */}
@@ -237,6 +238,8 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                 {meta.page_count && <span>{meta.page_count as number} pages</span>}
                 {meta.publisher && <span>Published by {meta.publisher as string}</span>}
                 {meta.label && <span>Label: {meta.label as string}</span>}
+                {meta.catalog_number && <span className="font-mono text-xs">Cat#: {meta.catalog_number as string}</span>}
+                {meta.country && <span>{meta.country as string}</span>}
                 {meta.developer && <span>Developer: {meta.developer as string}</span>}
                 {meta.isbn && <span className="font-mono text-xs">ISBN: {meta.isbn as string}</span>}
               </div>

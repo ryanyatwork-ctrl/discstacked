@@ -42,6 +42,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [genre, setGenre] = useState("");
   const [notes, setNotes] = useState("");
   const [artist, setArtist] = useState(""); // music / books author
+  const [catalogNumber, setCatalogNumber] = useState("");
   const [inPlex, setInPlex] = useState(false);
   const [digitalCopy, setDigitalCopy] = useState(false);
   const [wishlist, setWishlist] = useState(false);
@@ -73,7 +74,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
-    setGenre(""); setNotes(""); setArtist("");
+    setGenre(""); setNotes(""); setArtist(""); setCatalogNumber("");
     setInPlex(false); setDigitalCopy(false); setWishlist(false); setWantToWatch(false);
     setSearchResults([]); setSelectedPoster(null); setExtraMeta({});
     setMultiSelect([]); setMultiSelectMode(false); setOwnershipWarning(null);
@@ -235,7 +236,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       // Detect TV season patterns and search as TV
       const tvSeasonPattern = /\b(season|s\d|series|complete\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\b/i;
       const searchType = tvSeasonPattern.test(title) ? "tv" as const : undefined;
-      const results = await searchMedia(activeTab, title, { year: yearNum, searchType });
+      const results = await searchMedia(activeTab, title, {
+        year: yearNum,
+        searchType,
+        artist: isMusicTab ? artist.trim() || undefined : undefined,
+        catalogNumber: isMusicTab ? catalogNumber.trim() || undefined : undefined,
+      });
       setSearchResults(results);
       if (results.length === 0) {
         toast({ title: "No results", description: "Try a different title." });
@@ -253,6 +259,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setGenre(r.genre || "");
     setSelectedPoster(r.cover_url || null);
     setArtist(r.artist || r.author || "");
+    setCatalogNumber(r.catalog_number || "");
     // Auto-apply detected formats from barcode lookup
     if (r.detected_formats && r.detected_formats.length > 0) {
       setFormats(r.detected_formats);
@@ -288,6 +295,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           ...buildLookupMetadata(r),
           ...(r.artist ? { artist: r.artist } : {}),
           ...(r.author ? { author: r.author } : {}),
+          ...(r.catalog_number ? { catalog_number: r.catalog_number } : {}),
         };
 
         const externalId = getLookupExternalId({
@@ -430,6 +438,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       if (artist && isMusicTab) {
         metaPayload["artist"] = artist;
       }
+      if (catalogNumber && isMusicTab) {
+        metaPayload["catalog_number"] = catalogNumber;
+      }
 
       const externalId = getLookupExternalId({
         tmdb_id: extraMeta.tmdb_id || null,
@@ -559,15 +570,25 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           </div>
 
-          {/* Artist field for music */}
+          {/* Artist + catalog number for music */}
           {isMusicTab && (
-            <div className="space-y-2">
-              <Label className="text-foreground">Artist</Label>
-              <Input
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                placeholder="Artist / band name…"
-              />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-foreground">Artist</Label>
+                <Input
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                  placeholder="Artist / band name…"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-foreground">Catalog Number</Label>
+                <Input
+                  value={catalogNumber}
+                  onChange={(e) => setCatalogNumber(e.target.value)}
+                  placeholder="Cat. no. / matrix…"
+                />
+              </div>
             </div>
           )}
 

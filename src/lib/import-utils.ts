@@ -57,6 +57,22 @@ const COLUMN_MAP: Record<string, string> = {
   label: "_label",
   tracks: "_tracks",
   length: "_length",
+  "cat. number": "_catalog_number",
+  "cat number": "_catalog_number",
+  "catalog number": "_catalog_number",
+  "catalog no": "_catalog_number",
+  subtitle: "_subtitle",
+  live: "_live",
+  rare: "_rare",
+  "vinyl color": "_vinyl_color",
+  packaging: "_packaging",
+  "package/sleeve condition": "_package_condition",
+  "image files": "_image_files",
+  "cover front": "_cover_front",
+  "cover back": "_cover_back",
+  "clz albumid": "_clz_album_id",
+  "clz discid": "_clz_disc_id",
+  "upc (barcode)": "_barcode",
   // CLZ Games columns
   platform: "_platform",
   platforms: "_platform",
@@ -140,6 +156,17 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
+function normalizeIdentityPart(value: unknown) {
+  return normalizeTitle(String(value || ""));
+}
+
+function normalizeCatalogNumber(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
 function collectStringValues(values: unknown[]): string[] {
   return [...new Set(values
     .flatMap((value) => Array.isArray(value) ? value : [value])
@@ -182,8 +209,40 @@ export function buildImportIdentityKeys(item: Record<string, any>, mediaType?: s
   }
 
   if (mediaType === "cds") {
-    const artistKey = normalizeTitle(String(item.artist || item._artist || item.metadata?.artist || "?"));
-    keys.push(`cd::${normalizedTitle}::${artistKey || "?"}::${yearKey}`);
+    const metadata = item.metadata || {};
+    const artistKey = normalizeIdentityPart(item.artist || item._artist || metadata.artist || "?");
+    const catalogNumber = normalizeCatalogNumber(
+      metadata.catalog_number ||
+      metadata.catalog_no ||
+      metadata.catno ||
+      metadata.cat_number
+    );
+    const formatKeys = collectStringValues([
+      item.formats,
+      item.format,
+      metadata.format,
+      metadata.formats,
+    ]).map(normalizeIdentityPart).filter(Boolean);
+    const labelKey = normalizeIdentityPart(metadata.label || "?");
+    const trackCountKey = normalizeIdentityPart(metadata.track_count || metadata.tracks || "?");
+    const totalLengthKey = normalizeIdentityPart(metadata.total_length || metadata.length || "?");
+    const subtitleKey = normalizeIdentityPart(metadata.subtitle || "?");
+    const countryKey = normalizeIdentityPart(metadata.country || "?");
+
+    if (catalogNumber) {
+      keys.push(`cd-cat::${catalogNumber}`);
+    }
+
+    if (formatKeys.length === 0) {
+      keys.push(`cd::${artistKey || "?"}::${normalizedTitle}::${yearKey}::?::${labelKey || "?"}::${trackCountKey || "?"}::${totalLengthKey || "?"}::${subtitleKey || "?"}::${countryKey || "?"}`);
+    } else {
+      keys.push(
+        ...formatKeys.map((formatKey) =>
+          `cd::${artistKey || "?"}::${normalizedTitle}::${yearKey}::${formatKey}::${labelKey || "?"}::${trackCountKey || "?"}::${totalLengthKey || "?"}::${subtitleKey || "?"}::${countryKey || "?"}`
+        ),
+      );
+    }
+
     return [...new Set(keys)];
   }
 
@@ -208,6 +267,12 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       metadata[metaKey] = cleanString(value);
       if (metaKey === "barcode") {
         mapped.barcode = cleanString(value);
+      }
+      if (metaKey === "cover_front") {
+        const coverValue = cleanString(value);
+        if (/^https?:\/\//i.test(coverValue)) {
+          mapped.poster_url = coverValue;
+        }
       }
       if (metaKey === "audio_tracks") {
         detectedFormats.push(...detectFormats(value));
@@ -307,6 +372,17 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
  * Merge duplicate titles: combine formats into a formats[] array.
  */
 export function mergeDuplicates(items: Record<string, any>[], mediaType?: MediaTab): Record<string, any>[] {
+  if (mediaType === "cds") {
+    return items.map(({ _rowFormats, _quantity, ...item }) => {
+      const formats = collectStringValues(_rowFormats || [item.format || "CD"]);
+      return {
+        ...item,
+        format: formats[0] || item.format || "CD",
+        formats,
+      };
+    });
+  }
+
   const map = new Map<string, Record<string, any>>();
 
   for (const item of items) {

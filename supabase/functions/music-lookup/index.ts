@@ -6,19 +6,59 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Discogs search (if key available)
-async function discogsSearch(query: string, barcode?: string) {
-  const key = Deno.env.get("DISCOGS_API_KEY");
-  const secret = Deno.env.get("DISCOGS_API_SECRET");
-  if (!key) return null;
+type MusicSearchInput = {
+  query?: string;
+  barcode?: string;
+  artist?: string;
+  catalogNumber?: string;
+};
 
-  const params = new URLSearchParams({ per_page: "8" });
+function sanitizeText(value: string | null | undefined) {
+  return String(value || "").trim();
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return [...new Set(values.map((value) => sanitizeText(value)).filter(Boolean))];
+}
+
+function formatDuration(ms: number | null | undefined) {
+  if (!ms || Number.isNaN(ms)) return null;
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function detectFormats(value: string | null | undefined) {
+  const normalized = sanitizeText(value).toLowerCase();
+  const formats: string[] = [];
+  if (!normalized) return formats;
+  if (normalized.includes("cd")) formats.push("CD");
+  if (normalized.includes("vinyl") || normalized.includes("lp") || normalized.includes('12"') || normalized.includes('7"')) formats.push("Vinyl");
+  if (normalized.includes("cassette") || normalized.includes("tape")) formats.push("Cassette");
+  if (normalized.includes("digital")) formats.push("Digital");
+  return [...new Set(formats)];
+}
+
+function buildDiscogsParams(input: MusicSearchInput, key: string, secret: string | null) {
+  const params = new URLSearchParams({ per_page: "8", type: "release" });
+  const barcode = sanitizeText(input.barcode);
+  const artist = sanitizeText(input.artist);
+  const catalogNumber = sanitizeText(input.catalogNumber);
+  const query = sanitizeText(input.query);
+
   if (barcode) {
     params.set("barcode", barcode);
+  } else if (catalogNumber) {
+    params.set("catno", catalogNumber);
+    if (artist) params.set("artist", artist);
+    if (query) params.set("release_title", query);
   } else {
-    params.set("q", query);
-    params.set("type", "release");
+    if (artist) params.set("artist", artist);
+    if (query) params.set("release_title", query);
+    if (!artist && !query) params.set("q", query);
   }
+
   if (secret) {
     params.set("key", key);
     params.set("secret", secret);
@@ -26,124 +66,158 @@ async function discogsSearch(query: string, barcode?: string) {
     params.set("token", key);
   }
 
+  return params;
+}
+
+async function fetchDiscogsReleaseDetail(id: number, key: string, secret: string | null) {
+  const params = new URLSearchParams();
+  if (secret) {
+    params.set("key", key);
+    params.set("secret", secret);
+  } else {
+    params.set("token", key);
+  }
+
+  const res = await fetch(`https://api.discogs.com/releases/${id}?${params}`, {
+    headers: { "User-Agent": "DiscStacked/1.0" },
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+async function discogsSearch(input: MusicSearchInput) {
+  const key = Deno.env.get("DISCOGS_API_KEY");
+  const secret = Deno.env.get("DISCOGS_API_SECRET");
+  if (!key) return null;
+
+  const params = buildDiscogsParams(input, key, secret);
   const res = await fetch(`https://api.discogs.com/database/search?${params}`, {
     headers: { "User-Agent": "DiscStacked/1.0" },
   });
   if (!res.ok) return null;
   const data = await res.json();
 
-  // If we have results, fetch details for richer data
   const results = await Promise.all(
-    (data.results || []).slice(0, 8).map(async (r: any) => {
-      let tracklist: any[] = [];
-      let label = r.label?.[0] || null;
-      let year = r.year ? parseInt(r.year) : null;
-      let genres = r.genre || [];
-      let styles = r.style || [];
-
-      // Fetch release details for tracklist
-      if (r.id && r.type === "release") {
+    (data.results || []).slice(0, 8).map(async (result: any) => {
+      let detail: any = null;
+      if (result.id && result.type === "release") {
         try {
-          const detailParams = new URLSearchParams();
-          if (secret) {
-            detailParams.set("key", key);
-            detailParams.set("secret", secret);
-          } else {
-            detailParams.set("token", key);
-          }
-          const detailRes = await fetch(
-            `https://api.discogs.com/releases/${r.id}?${detailParams}`,
-            { headers: { "User-Agent": "DiscStacked/1.0" } }
-          );
-          if (detailRes.ok) {
-            const detail = await detailRes.json();
-            tracklist = (detail.tracklist || []).map((t: any) => ({
-              position: t.position,
-              title: t.title,
-              duration: t.duration,
-            }));
-            if (detail.labels?.[0]?.name) label = detail.labels[0].name;
-            if (detail.year) year = detail.year;
-            if (detail.genres) genres = detail.genres;
-            if (detail.styles) styles = detail.styles;
-          }
-        } catch {}
+          detail = await fetchDiscogsReleaseDetail(result.id, key, secret);
+        } catch {
+          detail = null;
+        }
       }
 
-      // Parse artist from title (Discogs format: "Artist - Title")
-      const titleParts = (r.title || "").split(" - ");
-      const artist = titleParts.length > 1 ? titleParts[0].trim() : null;
-      const albumTitle = titleParts.length > 1 ? titleParts.slice(1).join(" - ").trim() : r.title;
+      const titleParts = sanitizeText(result.title).split(" - ");
+      const artist = titleParts.length > 1
+        ? titleParts[0].trim()
+        : sanitizeText(detail?.artists?.map((entry: any) => entry.name).join(", "));
+      const albumTitle = titleParts.length > 1 ? titleParts.slice(1).join(" - ").trim() : sanitizeText(result.title);
+      const labels = detail?.labels || [];
+      const catalogNumber = sanitizeText(labels.find((label: any) => sanitizeText(label.catno))?.catno || result.catno);
+      const formatStrings = (detail?.formats || result.format || []).flatMap((format: any) => {
+        if (typeof format === "string") return [format];
+        return [format.name, ...(format.descriptions || [])].filter(Boolean);
+      });
+      const detectedFormats = formatStrings.flatMap((value: string) => detectFormats(value));
+      const tracklist = (detail?.tracklist || []).map((track: any) => ({
+        position: track.position,
+        title: track.title,
+        duration: track.duration,
+      }));
+      const discCount = (detail?.formats || [])
+        .map((format: any) => parseInt(String(format.qty || "1"), 10))
+        .filter((count: number) => !Number.isNaN(count))
+        .reduce((sum: number, count: number) => sum + count, 0) || null;
+      const country = sanitizeText(detail?.country || result.country);
 
       return {
-        id: String(r.id),
+        id: String(result.id),
         title: albumTitle,
         artist: artist || "Unknown Artist",
-        year,
-        cover_url: r.cover_image || r.thumb || null,
-        genre: [...genres, ...styles].join(", ") || null,
-        label,
-        format: r.format?.join(", ") || null,
+        year: detail?.year ? Number(detail.year) : (result.year ? Number(result.year) : null),
+        cover_url: result.cover_image || result.thumb || null,
+        genre: uniqueStrings([...(detail?.genres || result.genre || []), ...(detail?.styles || result.style || [])]).join(", ") || null,
+        label: sanitizeText(labels[0]?.name || result.label?.[0]) || null,
+        catalog_number: catalogNumber || null,
+        format: uniqueStrings(formatStrings).join(", ") || null,
+        detected_formats: uniqueStrings(detectedFormats),
+        disc_count: discCount,
         tracklist,
-        barcode: r.barcode?.[0] || null,
-        country: r.country || null,
+        barcode: sanitizeText((detail?.identifiers || []).find((identifier: any) => identifier.type === "Barcode")?.value || result.barcode?.[0]) || null,
+        country: country || null,
         source: "discogs",
       };
-    })
+    }),
   );
 
   return results;
 }
 
-// MusicBrainz search (always free, no key)
-async function musicBrainzSearch(query: string, barcode?: string) {
+function buildMusicBrainzQuery(input: MusicSearchInput) {
+  const barcode = sanitizeText(input.barcode);
+  const artist = sanitizeText(input.artist);
+  const title = sanitizeText(input.query);
+  const catalogNumber = sanitizeText(input.catalogNumber);
+
+  if (barcode) return `barcode:${barcode}`;
+
+  const parts: string[] = [];
+  if (catalogNumber) parts.push(`catno:${catalogNumber}`);
+  if (artist) parts.push(`artist:${artist}`);
+  if (title) parts.push(`release:${title}`);
+
+  return parts.length > 0 ? parts.join(" AND ") : title;
+}
+
+async function musicBrainzSearch(input: MusicSearchInput) {
   const headers = {
     "User-Agent": "DiscStacked/1.0 (https://discstacked.app)",
     Accept: "application/json",
   };
 
-  if (barcode) {
-    const res = await fetch(
-      `https://musicbrainz.org/ws/2/release/?query=barcode:${encodeURIComponent(barcode)}&fmt=json&limit=5`,
-      { headers }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.releases || []).map(mapMBRelease);
-  }
+  const query = buildMusicBrainzQuery(input);
+  if (!query) return [];
 
   const res = await fetch(
     `https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(query)}&fmt=json&limit=8`,
-    { headers }
+    { headers },
   );
   if (!res.ok) return [];
   const data = await res.json();
   return (data.releases || []).map(mapMBRelease);
 }
 
-function mapMBRelease(r: any) {
-  const artist = r["artist-credit"]?.map((a: any) => a.name).join(", ") || "Unknown Artist";
-  const year = r.date ? parseInt(r.date) : null;
-  const coverId = r["cover-art-archive"]?.front ? r.id : null;
+function mapMBRelease(release: any) {
+  const artist = release["artist-credit"]?.map((entry: any) => entry.name).join(", ") || "Unknown Artist";
+  const catalogNumber = sanitizeText(release["label-info"]?.find((entry: any) => sanitizeText(entry["catalog-number"]))?.["catalog-number"]);
+  const media = release.media || [];
+  const tracklist = media.flatMap((medium: any) =>
+    (medium.tracks || []).map((track: any) => ({
+      position: track.position,
+      title: track.title,
+      duration: formatDuration(track.length),
+    })),
+  );
+  const formatStrings = media.map((medium: any) => sanitizeText(medium.format)).filter(Boolean);
 
   return {
-    id: r.id,
-    title: r.title,
+    id: release.id,
+    title: release.title,
     artist,
-    year,
-    cover_url: coverId
-      ? `https://coverartarchive.org/release/${r.id}/front-250`
+    year: release.date ? parseInt(release.date, 10) : null,
+    cover_url: release["cover-art-archive"]?.front
+      ? `https://coverartarchive.org/release/${release.id}/front-250`
       : null,
     genre: null,
-    label: r["label-info"]?.[0]?.label?.name || null,
-    format: r.media?.map((m: any) => m.format).filter(Boolean).join(", ") || null,
-    tracklist: r.media?.[0]?.tracks?.map((t: any) => ({
-      position: t.position,
-      title: t.title,
-      duration: t.length ? `${Math.floor(t.length / 60000)}:${String(Math.floor((t.length % 60000) / 1000)).padStart(2, "0")}` : null,
-    })) || [],
-    barcode: r.barcode || null,
-    country: r.country || null,
+    label: sanitizeText(release["label-info"]?.[0]?.label?.name) || null,
+    catalog_number: catalogNumber || null,
+    format: uniqueStrings(formatStrings).join(", ") || null,
+    detected_formats: uniqueStrings(formatStrings.flatMap((value) => detectFormats(value))),
+    disc_count: media.length || null,
+    tracklist,
+    barcode: sanitizeText(release.barcode) || null,
+    country: sanitizeText(release.country) || null,
     source: "musicbrainz",
   };
 }
@@ -154,27 +228,34 @@ serve(async (req) => {
   }
 
   try {
-    const { query, barcode } = await req.json();
+    const payload = (await req.json()) as MusicSearchInput;
+    const input: MusicSearchInput = {
+      query: sanitizeText(payload.query),
+      barcode: sanitizeText(payload.barcode),
+      artist: sanitizeText(payload.artist),
+      catalogNumber: sanitizeText(payload.catalogNumber),
+    };
 
-    // Try Discogs first, fallback to MusicBrainz
-    let results = await discogsSearch(query || "", barcode);
+    let results = await discogsSearch(input);
     if (!results || results.length === 0) {
-      results = await musicBrainzSearch(query || "", barcode);
+      results = await musicBrainzSearch(input);
     }
 
-    // If barcode lookup returned a single result, return it directly
-    if (barcode && results && results.length === 1) {
-      const r = results[0];
+    if (input.barcode && results && results.length === 1) {
+      const release = results[0];
       return new Response(JSON.stringify({
-        title: r.title,
-        artist: r.artist,
-        year: r.year,
-        poster_url: r.cover_url,
-        genre: r.genre,
-        label: r.label,
-        tracklist: r.tracklist,
-        barcode: r.barcode,
-        source: r.source,
+        title: release.title,
+        artist: release.artist,
+        year: release.year,
+        poster_url: release.cover_url,
+        genre: release.genre,
+        label: release.label,
+        catalog_number: release.catalog_number,
+        country: release.country,
+        tracklist: release.tracklist,
+        barcode: release.barcode,
+        detected_formats: release.detected_formats,
+        source: release.source,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

@@ -25,6 +25,8 @@ export interface MediaLookupResult {
   // Music
   artist?: string | null;
   label?: string | null;
+  catalog_number?: string | null;
+  country?: string | null;
   tracklist?: { position: string; title: string; duration?: string }[];
   // Games
   platforms?: string[];
@@ -149,10 +151,10 @@ export function isHighConfidenceFallbackResult(
 export async function searchMedia(
   activeTab: MediaTab,
   query: string,
-  opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv" }
+  opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv"; artist?: string; catalogNumber?: string }
 ): Promise<MediaLookupResult[]> {
   if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(query, opts);
-  if (activeTab === "cds") return searchMusic(query, opts?.barcode);
+  if (activeTab === "cds") return searchMusic(query, { barcode: opts?.barcode, artist: opts?.artist, catalogNumber: opts?.catalogNumber });
   if (activeTab === "games") return searchGames(query);
   return [];
 }
@@ -279,8 +281,11 @@ export async function lookupBarcode(
           genre: data.genre || null,
           artist: data.artist,
           label: data.label,
+          catalog_number: data.catalog_number || null,
+          country: data.country || null,
           tracklist: data.tracklist,
           barcode: data.barcode,
+          detected_formats: data.detected_formats || [],
         },
       };
     }
@@ -446,9 +451,17 @@ async function searchBooks(query: string, isbn?: string): Promise<MediaLookupRes
   }));
 }
 
-async function searchMusic(query: string, barcode?: string): Promise<MediaLookupResult[]> {
+async function searchMusic(
+  query: string,
+  opts?: { barcode?: string; artist?: string; catalogNumber?: string },
+): Promise<MediaLookupResult[]> {
   const { data, error } = await supabase.functions.invoke("music-lookup", {
-    body: { query, barcode },
+    body: {
+      query,
+      barcode: opts?.barcode,
+      artist: opts?.artist,
+      catalogNumber: opts?.catalogNumber,
+    },
   });
   if (error) throw new Error(error.message);
   return (data.results || []).map((r: any) => ({
@@ -459,8 +472,11 @@ async function searchMusic(query: string, barcode?: string): Promise<MediaLookup
     genre: r.genre || null,
     artist: r.artist,
     label: r.label,
+    catalog_number: r.catalog_number || null,
+    country: r.country || null,
     tracklist: r.tracklist,
     barcode: r.barcode,
+    detected_formats: r.detected_formats || [],
     source: r.source,
   }));
 }
