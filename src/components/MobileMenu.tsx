@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Settings, User, Users, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail, Shield } from "lucide-react";
+import { Menu, Settings, User, Download, Upload, Shuffle, ImageIcon, LogOut, Share2, Mail, Shield, CircleHelp } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
   const { profile } = useProfile();
   const { isAdmin } = useAdmin();
   const [exportOpen, setExportOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleShare = () => {
@@ -78,8 +79,15 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
             {isLoggedIn && (
               <MenuLink icon={User} label="Profile" onClick={() => { setSheetOpen(false); navigate("/profile"); }} />
             )}
-            <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
-            <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
+            {isLoggedIn && (
+              <MenuLink icon={Download} label="Export Collection" onClick={() => { setSheetOpen(false); setExportOpen(true); }} />
+            )}
+            {isLoggedIn && (
+              <MenuLink icon={Settings} label="Settings" onClick={() => { setSheetOpen(false); navigate("/settings"); }} />
+            )}
+            {!isLoggedIn && (
+              <MenuLink icon={CircleHelp} label="FAQ / How It Works" onClick={() => { setSheetOpen(false); setFaqOpen(true); }} />
+            )}
             <MenuLink icon={Mail} label="Contact Support" onClick={() => { setSheetOpen(false); window.location.href = "mailto:support@discstacked.app"; }} />
             {isAdmin && (
               <MenuLink icon={Shield} label="Admin Dashboard" onClick={() => { setSheetOpen(false); navigate("/admin"); }} />
@@ -112,6 +120,43 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
               <Download className="h-4 w-4" />
               Download as JSON
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={faqOpen} onOpenChange={setFaqOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>DiscStacked FAQ</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2 text-sm">
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">What does DiscStacked do?</p>
+              <p className="text-muted-foreground">
+                DiscStacked helps collectors catalog movies, music media, CDs, and games with edition details,
+                formats, artwork, and collector notes.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">Can I scan barcodes?</p>
+              <p className="text-muted-foreground">
+                Yes. Signed-in users can scan or add manually, then refine package details like disc count,
+                slipcover status, and digital code status.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">Can I share my collection?</p>
+              <p className="text-muted-foreground">
+                Yes. Collections can be shared as read-only links so friends can browse what you own.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">Do I need an account?</p>
+              <p className="text-muted-foreground">
+                You can preview DiscStacked without signing in, but saving edits, artwork, and collection data
+                requires an account.
+              </p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
