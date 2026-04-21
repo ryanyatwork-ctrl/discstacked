@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { MediaTab } from "@/lib/types";
+import { lookupEditionCatalogByBarcode } from "@/lib/edition-catalog";
 
 export interface MediaLookupResult {
   id: string;
@@ -132,6 +133,9 @@ export async function lookupBarcode(
   barcode: string
 ): Promise<BarcodeLookupResult> {
   if (activeTab === "movies" || activeTab === "music-films") {
+    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode);
+    if (localCatalogResult) return localCatalogResult;
+
     const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
       body: { barcode },
     });
@@ -261,6 +265,102 @@ export async function lookupBarcode(
 }
 
 // --- Internal search helpers ---
+
+async function lookupBarcodeFromEditionCatalog(barcode: string): Promise<BarcodeLookupResult | null> {
+  const catalogEntry = await lookupEditionCatalogByBarcode(barcode);
+  if (!catalogEntry) return null;
+
+  const catalogMetadata = (catalogEntry.metadata || {}) as Record<string, any>;
+  if (catalogMetadata.is_multi_movie && Array.isArray(catalogMetadata.included_titles)) {
+    return {
+      multiMovie: {
+        is_multi_movie: true,
+        product_title: catalogEntry.product_title || catalogEntry.title,
+        barcode_title: catalogEntry.product_title || catalogEntry.title,
+        detected_formats: catalogEntry.formats || [],
+        cover_art_url: catalogEntry.package_image_url || null,
+        disc_count: catalogEntry.disc_count || null,
+        edition_label: catalogEntry.edition || null,
+        digital_code_expected: null,
+        slipcover_expected: null,
+        collection_name: catalogEntry.title,
+        movies: catalogMetadata.included_titles.map((movie: any) => ({
+          tmdb_id: movie.tmdb_id || null,
+          title: movie.title,
+          year: movie.year ?? null,
+          poster_url: null,
+          overview: null,
+        })),
+      },
+    };
+  }
+
+  if (catalogMetadata.is_multi_season && Array.isArray(catalogMetadata.included_titles)) {
+    return {
+      multiSeason: {
+        is_multi_season: true,
+        product_title: catalogEntry.product_title || catalogEntry.title,
+        barcode_title: catalogEntry.product_title || catalogEntry.title,
+        detected_formats: catalogEntry.formats || [],
+        cover_art_url: catalogEntry.package_image_url || null,
+        disc_count: catalogEntry.disc_count || null,
+        edition_label: catalogEntry.edition || null,
+        digital_code_expected: null,
+        slipcover_expected: null,
+        show_name: catalogEntry.title,
+        tmdb_series_id: catalogEntry.external_id ? Number(catalogEntry.external_id) : 0,
+        seasons: catalogMetadata.included_titles.map((season: any) => ({
+          tmdb_series_id: catalogEntry.external_id ? Number(catalogEntry.external_id) : 0,
+          season_number: season.season_number,
+          title: season.title,
+          year: season.year ?? null,
+          poster_url: null,
+          overview: null,
+          episode_count: null,
+        })),
+      },
+    };
+  }
+
+  const query = catalogEntry.title;
+  const year = catalogEntry.year ?? undefined;
+  let results: MediaLookupResult[] = [];
+  try {
+    results = await searchTmdb(query, { year });
+  } catch {
+    results = [];
+  }
+
+  const decorate = (result: MediaLookupResult): MediaLookupResult => ({
+    ...result,
+    detected_formats: catalogEntry.formats || result.detected_formats,
+    cover_url: catalogEntry.package_image_url || result.cover_url,
+    edition: {
+      label: catalogEntry.edition || undefined,
+      barcode_title: catalogEntry.product_title || catalogEntry.title,
+      package_title: catalogEntry.product_title || catalogEntry.title,
+      package_year: catalogEntry.year,
+      formats: catalogEntry.formats || [],
+      cover_art_url: catalogEntry.package_image_url,
+      tmdb_poster_url: result.cover_url,
+      disc_count: catalogEntry.disc_count,
+    },
+    source: "edition_catalog",
+  });
+
+  if (results.length === 1) {
+    return { direct: decorate(results[0]) };
+  }
+
+  if (results.length > 1) {
+    return { results: results.map(decorate) };
+  }
+
+  return {
+    partialTitle: catalogEntry.title,
+    partialFormats: catalogEntry.formats || [],
+  };
+}
 
 function mapTmdbResult(r: any): MediaLookupResult {
   return {

@@ -14,6 +14,7 @@ import { lookupBarcode as unifiedLookupBarcode, searchMedia, MediaLookupResult, 
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
+import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 
 interface ScanQueueItem {
   barcode: string;
@@ -537,6 +538,24 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           if (error) throw error;
 
           if (inserted) {
+            const editionSeeds = inserted.map((savedRow, j) =>
+              buildEditionCatalogSeedFromItem({
+                barcode: savedRow.barcode,
+                title: savedRow.title,
+                year: savedRow.year,
+                format: savedRow.format,
+                formats: savedRow.formats,
+                media_type: savedRow.media_type,
+                external_id: savedRow.external_id,
+                metadata: rows[i + j].metadata as Record<string, any>,
+                poster_url: savedRow.poster_url,
+              }),
+            ).filter(Boolean);
+
+            if (editionSeeds.length > 0) {
+              await upsertEditionCatalogSeeds(editionSeeds);
+            }
+
             for (let j = 0; j < inserted.length; j++) {
               const item = singleItems[i + j];
               try {
@@ -593,6 +612,26 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               overview: m.overview || null,
             }))
           );
+          await upsertEditionCatalogSeeds([{
+            barcode: item.barcode,
+            media_type: activeTab,
+            title: mm.collection_name || mm.product_title,
+            product_title: mm.collection_name || mm.product_title,
+            formats: mm.detected_formats,
+            disc_count: mm.disc_count || mm.movies.length,
+            package_image_url: mm.cover_art_url || null,
+            edition: mm.edition_label || null,
+            source: "discstacked_confirmed",
+            source_confidence: 100,
+            metadata: {
+              is_multi_movie: true,
+              included_titles: mm.movies.map((movie) => ({
+                title: movie.title,
+                year: movie.year,
+                tmdb_id: movie.tmdb_id,
+              })),
+            },
+          }]);
         } catch (mmErr: any) {
           console.warn("Multi-movie creation failed:", mmErr);
         }
@@ -638,6 +677,28 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               episode_count: season.episode_count || null,
             })),
           );
+          await upsertEditionCatalogSeeds([{
+            barcode: item.barcode,
+            media_type: activeTab,
+            title: seasonBox.show_name,
+            product_title: seasonBox.product_title,
+            formats: seasonBox.detected_formats,
+            disc_count: seasonBox.disc_count || seasonBox.seasons.length,
+            package_image_url: seasonBox.cover_art_url || null,
+            edition: seasonBox.edition_label || null,
+            external_id: String(seasonBox.tmdb_series_id),
+            source: "discstacked_confirmed",
+            source_confidence: 100,
+            metadata: {
+              is_multi_season: true,
+              tmdb_series_id: seasonBox.tmdb_series_id,
+              included_titles: seasonBox.seasons.map((season) => ({
+                title: season.title,
+                year: season.year,
+                season_number: season.season_number,
+              })),
+            },
+          }]);
         } catch (seasonErr: any) {
           console.warn("Multi-season creation failed:", seasonErr);
         }

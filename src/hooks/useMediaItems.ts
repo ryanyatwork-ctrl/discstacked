@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab } from "@/lib/types";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 
 export type DbMediaItem = Tables<"media_items">;
 
@@ -82,6 +83,26 @@ export function useImportItems() {
         const { error } = await supabase.from("media_items").insert(chunk);
         if (error) throw error;
       }
+
+      await upsertEditionCatalogSeeds(
+        rows
+          .filter((row) => Boolean(row.barcode))
+          .map((row) => ({
+            barcode: String(row.barcode),
+            media_type: mediaType,
+            title: row.title || "Untitled",
+            year: row.year ?? null,
+            external_id: row.external_id ?? null,
+            product_title: (row.metadata as any)?.edition?.package_title || row.title || "Untitled",
+            edition: (row.metadata as any)?.edition?.label || (row.metadata as any)?.edition || null,
+            formats: row.formats || (row.format ? [row.format] : []),
+            disc_count: (row.metadata as any)?.edition?.disc_count ?? (row.metadata as any)?.disc_count ?? null,
+            package_image_url: (row.metadata as any)?.edition?.cover_art_url || row.poster_url || null,
+            source: "import",
+            source_confidence: 85,
+            metadata: row.metadata as Record<string, any> | null,
+          })),
+      );
 
       return rows.length;
     },

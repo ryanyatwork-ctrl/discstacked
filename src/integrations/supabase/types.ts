@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      edition_catalog: {
+        Row: {
+          barcode: string
+          created_at: string
+          disc_count: number | null
+          edition: string | null
+          external_id: string | null
+          formats: string[]
+          id: string
+          last_confirmed_at: string
+          media_type: string
+          metadata: Json
+          package_image_url: string | null
+          product_title: string | null
+          source: string
+          source_confidence: number
+          title: string
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          barcode: string
+          created_at?: string
+          disc_count?: number | null
+          edition?: string | null
+          external_id?: string | null
+          formats?: string[]
+          id?: string
+          last_confirmed_at?: string
+          media_type?: string
+          metadata?: Json
+          package_image_url?: string | null
+          product_title?: string | null
+          source?: string
+          source_confidence?: number
+          title: string
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          barcode?: string
+          created_at?: string
+          disc_count?: number | null
+          edition?: string | null
+          external_id?: string | null
+          formats?: string[]
+          id?: string
+          last_confirmed_at?: string
+          media_type?: string
+          metadata?: Json
+          package_image_url?: string | null
+          product_title?: string | null
+          source?: string
+          source_confidence?: number
+          title?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
       media_copies: {
         Row: {
           created_at: string

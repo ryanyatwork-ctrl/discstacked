@@ -18,6 +18,7 @@ import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult, MultiS
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
+import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -471,6 +472,21 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         });
       } catch (ppErr) {
         console.warn("Physical product creation failed (non-critical):", ppErr);
+      }
+
+      const editionSeed = buildEditionCatalogSeedFromItem({
+        barcode: newItem.barcode,
+        title: newItem.title,
+        year: newItem.year,
+        format: newItem.format,
+        formats: newItem.formats,
+        media_type: newItem.media_type,
+        external_id: newItem.external_id,
+        metadata: metaPayload,
+        poster_url: newItem.poster_url,
+      });
+      if (editionSeed) {
+        await upsertEditionCatalogSeeds([editionSeed]);
       }
 
       toast({ title: "Added!", description: `${title} added to your collection.` });

@@ -146,6 +146,9 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     } else if (dbCol.startsWith("_")) {
       const metaKey = dbCol.slice(1);
       metadata[metaKey] = cleanString(value);
+      if (metaKey === "barcode") {
+        mapped.barcode = cleanString(value);
+      }
       if (metaKey === "audio_tracks") {
         detectedFormats.push(...detectFormats(value));
       }
@@ -250,7 +253,8 @@ export function mergeDuplicates(items: Record<string, any>[]): Record<string, an
     if (!normTitle) continue;
 
     const yearKey = item.year ? String(item.year) : "?";
-    const key = `${normTitle}::${yearKey}`;
+    const barcodeKey = item.barcode ? `barcode::${String(item.barcode).trim()}` : null;
+    const key = barcodeKey || `${normTitle}::${yearKey}`;
 
     const rowFormats: string[] = item._rowFormats || [item.format || "DVD"];
     const rowQty = item._quantity || 1;
