@@ -17,6 +17,12 @@ describe("import-utils", () => {
     expect(detectFormats("Blu-ray + Digital Code")).toEqual(["Blu-ray", "Digital"]);
   });
 
+  it("detects mixed-format collector music releases", () => {
+    expect(detectFormats("CD + DVD Deluxe Edition")).toEqual(["DVD", "CD"]);
+    expect(detectFormats("Enhanced CD")).toEqual(["CD", "Enhanced CD"]);
+    expect(detectFormats("DualDisc")).toEqual(["CD", "DVD", "DualDisc"]);
+  });
+
   it("parses tab-delimited text exports", () => {
     const rows = parseCsv([
       "Title\tFormat\tUPC/EAN\tReleased",

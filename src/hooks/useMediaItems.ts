@@ -5,6 +5,7 @@ import { MediaTab } from "@/lib/types";
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 import { buildImportIdentityKeys } from "@/lib/import-utils";
+import { buildMusicMediaMirrorRow } from "@/lib/music-media-mirror";
 
 export type DbMediaItem = Tables<"media_items">;
 
@@ -120,6 +121,45 @@ function mergeImportedRowIntoExisting(
   };
 }
 
+async function insertMediaItemsWithMirrors(
+  userId: string,
+  rows: Partial<TablesInsert<"media_items">>[],
+  mediaType: MediaTab,
+) {
+  const insertedRows: DbMediaItem[] = [];
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { data, error } = await supabase.from("media_items").insert(chunk).select("*");
+    if (error) throw error;
+    insertedRows.push(...((data || []) as DbMediaItem[]));
+  }
+
+  if (mediaType === "cds") {
+    const mirrorRows = insertedRows
+      .map((row) => buildMusicMediaMirrorRow(userId, {
+        sourceItemId: row.id,
+        title: row.title,
+        year: row.year,
+        genre: row.genre,
+        notes: row.notes,
+        poster_url: row.poster_url,
+        barcode: row.barcode,
+        formats: row.formats,
+        metadata: asRecord(row.metadata),
+      }))
+      .filter(Boolean) as TablesInsert<"media_items">[];
+
+    for (let i = 0; i < mirrorRows.length; i += 500) {
+      const chunk = mirrorRows.slice(i, i + 500);
+      const { error } = await supabase.from("media_items").insert(chunk);
+      if (error) throw error;
+    }
+  }
+
+  return insertedRows;
+}
+
 export function useMediaItems(activeTab: MediaTab) {
   const { user } = useAuth();
 
@@ -156,6 +196,16 @@ export function useImportItems() {
           .eq("user_id", user.id)
           .eq("media_type", mediaType);
         if (delError) throw delError;
+
+        if (mediaType === "cds") {
+          const { error: mirrorDeleteError } = await supabase
+            .from("media_items")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("media_type", "music-films")
+            .contains("metadata", { mirror_source_type: "cds" });
+          if (mirrorDeleteError) throw mirrorDeleteError;
+        }
       }
 
       const rows = items.map((item) => ({
@@ -169,12 +219,8 @@ export function useImportItems() {
       const rowsForCatalog: Partial<TablesInsert<"media_items">>[] = [];
 
       if (replace) {
-        for (let i = 0; i < rows.length; i += 500) {
-          const chunk = rows.slice(i, i + 500);
-          const { error } = await supabase.from("media_items").insert(chunk);
-          if (error) throw error;
-          rowsForCatalog.push(...chunk);
-        }
+        const insertedRows = await insertMediaItemsWithMirrors(user.id, rows, mediaType);
+        rowsForCatalog.push(...insertedRows);
       } else {
         const existingItems = await fetchAllItems(user.id, mediaType);
         const existingByIdentity = new Map<string, DbMediaItem>();
@@ -199,7 +245,6 @@ export function useImportItems() {
 
         if (mediaType === "cds") {
           rowsToInsert.push(...rows);
-          rowsForCatalog.push(...rows);
         } else {
           for (const row of rows) {
             const keys = buildImportIdentityKeys(row as Record<string, any>, mediaType);
@@ -229,11 +274,8 @@ export function useImportItems() {
           }));
         }
 
-        for (let i = 0; i < rowsToInsert.length; i += 500) {
-          const chunk = rowsToInsert.slice(i, i + 500);
-          const { error } = await supabase.from("media_items").insert(chunk);
-          if (error) throw error;
-        }
+        const insertedRows = await insertMediaItemsWithMirrors(user.id, rowsToInsert, mediaType);
+        rowsForCatalog.push(...insertedRows);
       }
 
       await upsertEditionCatalogSeeds(

@@ -19,6 +19,7 @@ import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeaso
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
 import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
+import { buildMusicMediaMirrorRow } from "@/lib/music-media-mirror";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -500,6 +501,27 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       });
       if (editionSeed) {
         await upsertEditionCatalogSeeds([editionSeed]);
+      }
+
+      if (activeTab === "cds") {
+        const mirrorRow = buildMusicMediaMirrorRow(user.id, {
+          sourceItemId: newItem.id,
+          title: newItem.title,
+          year: newItem.year,
+          genre: newItem.genre,
+          notes: newItem.notes,
+          poster_url: newItem.poster_url,
+          barcode: newItem.barcode,
+          formats: newItem.formats,
+          metadata: metaPayload,
+        });
+
+        if (mirrorRow) {
+          const { error: mirrorError } = await supabase.from("media_items").insert(mirrorRow as any);
+          if (mirrorError) {
+            console.warn("Music media mirror creation failed (non-critical):", mirrorError);
+          }
+        }
       }
 
       toast({ title: "Added!", description: `${title} added to your collection.` });

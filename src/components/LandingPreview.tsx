@@ -8,7 +8,7 @@ import { searchMedia } from "@/lib/media-lookup";
 import { MobileMenu } from "@/components/MobileMenu";
 import heroLogo from "@/assets/DiscStacked_16x9.png";
 
-type LandingSeed = Pick<MediaItem, "title" | "year" | "format" | "genre" | "mediaType" | "artist" | "platform">;
+type LandingSeed = Pick<MediaItem, "title" | "year" | "format" | "genre" | "mediaType" | "artist" | "platform" | "posterUrl">;
 
 const LANDING_EXAMPLES: Record<MediaTab, LandingSeed[]> = {
   movies: [
@@ -20,16 +20,16 @@ const LANDING_EXAMPLES: Record<MediaTab, LandingSeed[]> = {
     { title: "Blade Runner 2049", year: 2017, format: "4K", genre: "Science Fiction", mediaType: "movies" },
   ],
   "music-films": [
-    { title: "Taylor Swift: The Eras Tour", artist: "Taylor Swift", year: 2023, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
-    { title: "Stop Making Sense", artist: "Talking Heads", year: 1984, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
-    { title: "Woodstock", artist: "Various Artists", year: 1970, format: "DVD", genre: "Music", mediaType: "music-films" },
-    { title: "Metallica: Some Kind of Monster", artist: "Metallica", year: 2004, format: "Blu-ray", genre: "Documentary", mediaType: "music-films" },
+    { title: "Taylor Swift: The Eras Tour", artist: "Taylor Swift", year: 2023, format: "Blu-ray", genre: "Music", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/jf3YO8hOqGHCupsREf5qymYq1n.jpg" },
+    { title: "Stop Making Sense", artist: "Talking Heads", year: 1984, format: "Blu-ray", genre: "Music", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/utNpurUe1MMjEaHqvpkfxgfpSnV.jpg" },
+    { title: "Woodstock", artist: "Various Artists", year: 1970, format: "DVD", genre: "Music", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/cnfhelfQucSb4Y54yFgtnSNhsAT.jpg" },
+    { title: "Metallica: Some Kind of Monster", artist: "Metallica", year: 2004, format: "Blu-ray", genre: "Documentary", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/pnsRHqjrYbVUJXsPIDNsKV7gRmc.jpg" },
   ],
   cds: [
-    { title: "Abbey Road", artist: "The Beatles", year: 1969, format: "CD", genre: "Rock", mediaType: "cds" },
-    { title: "Rumours", artist: "Fleetwood Mac", year: 1977, format: "Vinyl", genre: "Rock", mediaType: "cds" },
-    { title: "Thriller", artist: "Michael Jackson", year: 1982, format: "CD", genre: "Pop", mediaType: "cds" },
-    { title: "Nevermind", artist: "Nirvana", year: 1991, format: "CD", genre: "Rock", mediaType: "cds" },
+    { title: "Abbey Road", artist: "The Beatles", year: 1969, format: "CD", genre: "Rock", mediaType: "cds", posterUrl: "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/df/db/61/dfdb615d-47f8-06e9-9533-b96daccc029f/18UMGIM31076.rgb.jpg/600x600bb.jpg" },
+    { title: "Rumours", artist: "Fleetwood Mac", year: 1977, format: "Vinyl", genre: "Rock", mediaType: "cds", posterUrl: "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/4d/13/ba/4d13bac3-d3d5-7581-2c74-034219eadf2b/081227970949.jpg/600x600bb.jpg" },
+    { title: "Thriller", artist: "Michael Jackson", year: 1982, format: "CD", genre: "Pop", mediaType: "cds", posterUrl: "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/32/4f/fd/324ffda2-9e51-8f6a-0c2d-c6fd2b41ac55/074643811224.jpg/600x600bb.jpg" },
+    { title: "Nevermind", artist: "Nirvana", year: 1991, format: "CD", genre: "Rock", mediaType: "cds", posterUrl: "https://upload.wikimedia.org/wikipedia/en/b/b7/NirvanaNevermindalbumcover.jpg" },
   ],
   games: [
     { title: "The Legend of Zelda: Breath of the Wild", platform: "Nintendo Switch", year: 2017, format: "Switch", genre: "Adventure", mediaType: "games" },
@@ -50,6 +50,7 @@ function seedToItem(seed: LandingSeed, index: number): MediaItem {
     mediaType: seed.mediaType,
     artist: seed.artist,
     platform: seed.platform,
+    posterUrl: seed.posterUrl,
   };
 }
 

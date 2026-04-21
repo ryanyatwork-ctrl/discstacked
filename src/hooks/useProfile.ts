@@ -13,6 +13,25 @@ export interface Profile {
   updated_at: string;
 }
 
+function readCachedJson<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) as T : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedJson(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore local cache failures.
+  }
+}
+
 export function useProfile() {
   const { user } = useAuth();
 
@@ -70,13 +89,21 @@ export function usePublicProfile(shareToken: string | undefined) {
     queryKey: ["public-profile", shareToken],
     queryFn: async () => {
       if (!shareToken) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("share_token", shareToken)
-        .single();
-      if (error) throw error;
-      return data as Profile;
+      const cacheKey = `discstacked:public-profile:${shareToken}`;
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("share_token", shareToken)
+          .single();
+        if (error) throw error;
+        writeCachedJson(cacheKey, data);
+        return data as Profile;
+      } catch (error) {
+        const cached = readCachedJson<Profile>(cacheKey);
+        if (cached) return cached;
+        throw error;
+      }
     },
     enabled: !!shareToken,
   });
@@ -87,29 +114,37 @@ export function usePublicCollection(userId: string | undefined, mediaType?: stri
     queryKey: ["public-collection", userId, mediaType],
     queryFn: async () => {
       if (!userId) return null;
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let from = 0;
+      const cacheKey = `discstacked:public-collection:${userId}:${mediaType || "all"}`;
+      try {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let from = 0;
 
-      while (true) {
-        let query = supabase
-          .from("media_items")
-          .select("*")
-          .eq("user_id", userId)
-          .order("title")
-          .range(from, from + PAGE_SIZE - 1);
-        if (mediaType) {
-          query = query.eq("media_type", mediaType);
+        while (true) {
+          let query = supabase
+            .from("media_items")
+            .select("*")
+            .eq("user_id", userId)
+            .order("title")
+            .range(from, from + PAGE_SIZE - 1);
+          if (mediaType) {
+            query = query.eq("media_type", mediaType);
+          }
+          const { data, error } = await query;
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allData = allData.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
         }
-        const { data, error } = await query;
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
 
-      return allData;
+        writeCachedJson(cacheKey, allData);
+        return allData;
+      } catch (error) {
+        const cached = readCachedJson<any[]>(cacheKey);
+        if (cached) return cached;
+        throw error;
+      }
     },
     enabled: !!userId,
   });

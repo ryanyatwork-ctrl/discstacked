@@ -96,6 +96,12 @@ const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors ed
 export function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
   const found: string[] = [];
+  if (v.includes("enhanced cd")) {
+    found.push("CD", "Enhanced CD");
+  }
+  if (v.includes("dualdisc") || v.includes("dual disc")) {
+    found.push("CD", "DVD", "DualDisc");
+  }
   if (v.includes("4k") || v.includes("ultra hd") || v.includes("uhd") || v.includes("atmos")) {
     found.push("4K");
   }
@@ -139,7 +145,7 @@ export function detectFormats(value: string): string[] {
   if (v.includes("promo")) {
     if (!found.includes("CD")) found.push("CD");
   }
-  return found;
+  return [...new Set(found)];
 }
 
 /** Strip escaped characters like \' from strings */

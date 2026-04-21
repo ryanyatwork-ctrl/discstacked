@@ -33,7 +33,13 @@ function detectFormats(value: string | null | undefined) {
   const normalized = sanitizeText(value).toLowerCase();
   const formats: string[] = [];
   if (!normalized) return formats;
+  if (normalized.includes("enhanced cd")) formats.push("CD", "Enhanced CD");
+  if (normalized.includes("dualdisc") || normalized.includes("dual disc")) formats.push("CD", "DVD", "DualDisc");
   if (normalized.includes("cd")) formats.push("CD");
+  if (normalized.includes("blu-ray") || normalized.includes("blu ray") || normalized.includes("bluray")) formats.push("Blu-ray");
+  if (normalized.includes("dvd")) formats.push("DVD");
+  if (normalized.includes("4k") || normalized.includes("ultra hd") || normalized.includes("uhd")) formats.push("4K");
+  if (normalized.includes("3d")) formats.push("3D");
   if (normalized.includes("vinyl") || normalized.includes("lp") || normalized.includes('12"') || normalized.includes('7"')) formats.push("Vinyl");
   if (normalized.includes("cassette") || normalized.includes("tape")) formats.push("Cassette");
   if (normalized.includes("digital")) formats.push("Digital");

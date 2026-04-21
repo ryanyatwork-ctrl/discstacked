@@ -20,10 +20,10 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/~oauth/],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/picsum\.photos\/.*/i,
+            urlPattern: /^https:\/\/(picsum\.photos|image\.tmdb\.org|i\.discogs\.com|img\.discogs\.com|coverartarchive\.org|images\.igdb\.com|media\.rawg\.io)\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "poster-images",
+              cacheName: "collector-artwork",
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
