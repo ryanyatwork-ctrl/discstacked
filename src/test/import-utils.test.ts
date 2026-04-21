@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectFormats, mapClzRow, parseCsv } from "@/lib/import-utils";
+import { buildImportIdentityKeys, detectFormats, mapClzRow, mergeDuplicates, parseCsv } from "@/lib/import-utils";
 
 describe("import-utils", () => {
   it("detects collector formats from Blu-ray.com style strings", () => {
@@ -80,5 +80,53 @@ describe("import-utils", () => {
         studio: "Sony Pictures",
       }),
     });
+  });
+
+  it("builds game import identity from title, platform, and year", () => {
+    const keys = buildImportIdentityKeys({
+      title: "The 7th Guest",
+      year: 1993,
+      format: "PC",
+      metadata: {
+        platforms: ["PC"],
+      },
+    }, "games");
+
+    expect(keys).toContain("game::the 7th guest::pc::1993");
+  });
+
+  it("merges duplicate CLZ game rows but keeps different platforms separate", () => {
+    const rows = [
+      mapClzRow({
+        Title: "The 7th Guest",
+        Platform: "PC",
+        Genre: "Adventure; Puzzle",
+        "Release Year": "1993",
+        Publisher: "Virgin Interactive Entertainment",
+        Developer: "Trilobyte",
+      }, "games"),
+      mapClzRow({
+        Title: "The 7th Guest",
+        Platform: "PC",
+        Genre: "Adventure; Puzzle",
+        "Release Year": "1993",
+        Publisher: "Virgin Interactive Entertainment",
+        Developer: "Trilobyte",
+      }, "games"),
+      mapClzRow({
+        Title: "The 7th Guest",
+        Platform: "PlayStation 1",
+        Genre: "Adventure",
+        "Release Year": "1995",
+        Publisher: "Virgin Interactive Entertainment",
+        Developer: "Trilobyte",
+      }, "games"),
+    ];
+
+    const merged = mergeDuplicates(rows, "games");
+
+    expect(merged).toHaveLength(2);
+    expect(merged.find((item) => item.format === "PC")).toBeTruthy();
+    expect(merged.find((item) => item.format === "PlayStation 1")).toBeTruthy();
   });
 });

@@ -15,11 +15,12 @@ interface ImportDialogProps {
 }
 
 export function ImportDialog({ activeTab }: ImportDialogProps) {
+  const defaultReplaceExisting = activeTab === "games" ? false : true;
   const [open, setOpen] = useState(false);
   const [previewItems, setPreviewItems] = useState<Record<string, any>[] | null>(null);
   const [rawRowCount, setRawRowCount] = useState(0);
   const [importFileName, setImportFileName] = useState("");
-  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [replaceExisting, setReplaceExisting] = useState(defaultReplaceExisting);
   const [previewSearch, setPreviewSearch] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const importMutation = useImportItems();
@@ -29,7 +30,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     setRawRowCount(0);
     setImportFileName("");
     setPreviewSearch("");
-    setReplaceExisting(true);
+    setReplaceExisting(defaultReplaceExisting);
   };
 
   const prepareImportItems = (rawItems: Record<string, string>[]) => {
@@ -65,7 +66,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       }
     }
 
-    const merged = activeTab === "games" ? items : mergeDuplicates(items);
+    const merged = mergeDuplicates(items, activeTab);
     const expanded = (activeTab === "cds" || activeTab === "games") ? merged : expandBoxSets(merged);
 
     return expanded.map((item, index) => {
@@ -208,11 +209,19 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               {isCds ? (
                 <>Supports <code className="text-accent">CLZ Music Collector</code> exports (Artist, Title, Release Year, Format, Tracks, Length, Genre, Label) and standard files.</>
               ) : activeTab === "games" ? (
-                <>Supports <code className="text-accent">CLZ Game Collector</code> exports (Title, Platform, Genre, Developer, Publisher) and standard files. You can also import from VideoGameGeek in Settings.</>
+                <>Supports <code className="text-accent">CLZ Game Collector</code> exports and standard files. When <code>Replace existing</code> is off, DiscStacked now merges CLZ games into matching VideoGameGeek items instead of blindly duplicating them.</>
               ) : (
                 <>Supports <code className="text-accent">CLZ</code> and <code className="text-accent">Blu-ray.com</code> exports. Box sets and multi-movie titles are detected before import so you can review them.</>
               )}
             </p>
+            {activeTab === "games" && (
+              <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Recommended CLZ Game export settings</p>
+                <p>Use <strong>Export to &gt; Text...</strong> in CLZ Game Collector with <strong>UTF8</strong>, <strong>Include Field Names on First Row</strong>, <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>Replace Line Breaks by Space</strong>.</p>
+                <p><strong>Best fields:</strong> <code>Title</code>, <code>Platform</code>, <code>Genre</code>, <code>Release Year</code>, <code>Publisher</code>, <code>Developer</code>, plus <code>Barcode</code>, <code>Condition</code>, <code>Completed</code>, <code>Release Date</code>, <code>Language</code>, <code>Sound/Music</code>, <code>Multiplayer Support</code>, and <code>Links</code> when available.</p>
+                <p>Imports match existing games by <code>barcode</code> first, then by <code>title + platform + year</code>, so CLZ can safely enrich your VGG imports when you leave <code>Replace existing</code> off.</p>
+              </div>
+            )}
             {isMovies && (
               <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Recommended CLZ export settings</p>

@@ -62,6 +62,13 @@ const COLUMN_MAP: Record<string, string> = {
   platforms: "_platform",
   developer: "_developer",
   publisher: "_publisher",
+  condition: "_condition",
+  completed: "_completed",
+  "sound/music": "_sound_music",
+  "multiplayer support": "_multiplayer_support",
+  "release date": "_release_date",
+  language: "_language",
+  links: "_links",
 };
 
 const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
@@ -133,6 +140,57 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
+function collectStringValues(values: unknown[]): string[] {
+  return [...new Set(values
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+}
+
+export function buildImportIdentityKeys(item: Record<string, any>, mediaType?: string): string[] {
+  const barcode = String(item.barcode || item.metadata?.barcode || "").trim();
+  const normalizedTitle = normalizeTitle(item.title || "");
+  const yearKey = item.year ? String(item.year) : "?";
+  const keys: string[] = [];
+
+  if (barcode) {
+    keys.push(`barcode::${barcode}`);
+  }
+
+  if (!normalizedTitle) {
+    return keys;
+  }
+
+  if (mediaType === "games") {
+    const platformKeys = collectStringValues([
+      item.platform,
+      item.format,
+      item.formats,
+      item.metadata?.platform,
+      item.metadata?.platforms,
+    ])
+      .map((value) => normalizeTitle(value))
+      .filter(Boolean);
+
+    if (platformKeys.length === 0) {
+      keys.push(`game::${normalizedTitle}::?::${yearKey}`);
+    } else {
+      keys.push(...platformKeys.map((platform) => `game::${normalizedTitle}::${platform}::${yearKey}`));
+    }
+
+    return [...new Set(keys)];
+  }
+
+  if (mediaType === "cds") {
+    const artistKey = normalizeTitle(String(item.artist || item._artist || item.metadata?.artist || "?"));
+    keys.push(`cd::${normalizedTitle}::${artistKey || "?"}::${yearKey}`);
+    return [...new Set(keys)];
+  }
+
+  keys.push(`title::${normalizedTitle}::${yearKey}`);
+  return [...new Set(keys)];
+}
+
 export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   const mapped: Record<string, any> = {};
   const metadata: Record<string, string> = {};
@@ -166,6 +224,7 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       if (metaKey === "platform" && mediaType === "games") {
         const platform = cleanString(value);
         mapped._gamePlatform = platform;
+        mapped.platform = platform;
       }
     } else if (dbCol === "edition") {
       metadata["edition"] = cleanString(value);
@@ -247,36 +306,47 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
 /**
  * Merge duplicate titles: combine formats into a formats[] array.
  */
-export function mergeDuplicates(items: Record<string, any>[]): Record<string, any>[] {
+export function mergeDuplicates(items: Record<string, any>[], mediaType?: MediaTab): Record<string, any>[] {
   const map = new Map<string, Record<string, any>>();
 
   for (const item of items) {
-    const normTitle = normalizeTitle(item.title || "");
-    if (!normTitle) continue;
-
-    const yearKey = item.year ? String(item.year) : "?";
-    const barcodeKey = item.barcode ? `barcode::${String(item.barcode).trim()}` : null;
-    const key = barcodeKey || `${normTitle}::${yearKey}`;
+    const identityKeys = buildImportIdentityKeys(item, mediaType);
+    const key = identityKeys[0];
+    if (!key) continue;
 
     const rowFormats: string[] = item._rowFormats || [item.format || "DVD"];
     const rowQty = item._quantity || 1;
 
     if (map.has(key)) {
       const existing = map.get(key)!;
+      const combinedFormats = collectStringValues([
+        existing.formats || existing._rowFormats || [existing.format].filter(Boolean),
+        rowFormats,
+      ]);
+
       for (const fmt of rowFormats) {
         if (!existing.formats.includes(fmt)) {
           existing.formats.push(fmt);
         }
       }
+      existing.formats = combinedFormats;
+      existing.format = combinedFormats[0] || existing.format;
       existing._totalQty = (existing._totalQty || 1) + rowQty;
       if (!existing.rating && item.rating) existing.rating = item.rating;
       if (!existing.genre && item.genre) existing.genre = item.genre;
+      if (!existing.barcode && item.barcode) existing.barcode = item.barcode;
+      if (!existing.notes && item.notes) existing.notes = item.notes;
+      if (!existing.platform && item.platform) existing.platform = item.platform;
+      existing.metadata = {
+        ...(existing.metadata || {}),
+        ...(item.metadata || {}),
+      };
       if ((item.title || "").length > (existing.title || "").length) {
         existing.title = item.title;
       }
     } else {
       const { _rowFormats, ...rest } = item;
-      map.set(key, { ...rest, formats: [...new Set(rowFormats)], _totalQty: rowQty });
+      map.set(key, { ...rest, formats: collectStringValues(rowFormats), _totalQty: rowQty });
     }
   }
 

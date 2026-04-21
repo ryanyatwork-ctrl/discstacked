@@ -2,8 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MediaTab } from "@/lib/types";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
+import { buildImportIdentityKeys } from "@/lib/import-utils";
 
 export type DbMediaItem = Tables<"media_items">;
 
@@ -29,6 +30,94 @@ async function fetchAllItems(userId: string, mediaType: MediaTab): Promise<DbMed
   }
 
   return allData;
+}
+
+function uniqueStrings(values: unknown[]): string[] {
+  return [...new Set(values
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+}
+
+function asRecord(value: Json | null | undefined): Record<string, any> {
+  if (!value || Array.isArray(value) || typeof value !== "object") return {};
+  return value as Record<string, any>;
+}
+
+function mergeImportedMetadata(
+  existing: Record<string, any>,
+  incoming: Record<string, any>,
+  mediaType: MediaTab,
+  mergedFormats: string[],
+) {
+  const next = {
+    ...existing,
+    ...incoming,
+  };
+
+  if (mediaType === "games") {
+    const mergedPlatforms = uniqueStrings([
+      existing.platform,
+      existing.platforms,
+      incoming.platform,
+      incoming.platforms,
+      mergedFormats,
+    ]);
+
+    if (mergedPlatforms.length > 0) {
+      next.platforms = mergedPlatforms;
+      if (!next.platform) next.platform = mergedPlatforms[0];
+    }
+
+    const mergedSources = uniqueStrings([
+      existing.sources,
+      existing.source,
+      incoming.sources,
+      incoming.source,
+    ]);
+
+    if (mergedSources.length > 1) {
+      next.sources = mergedSources;
+    }
+
+    next.source = incoming.source || existing.source || "import";
+  }
+
+  if (mediaType === "cds") {
+    next.artist = incoming.artist || existing.artist;
+    next.label = incoming.label || existing.label;
+  }
+
+  return next;
+}
+
+function mergeImportedRowIntoExisting(
+  existing: DbMediaItem,
+  incoming: Partial<TablesInsert<"media_items">>,
+  mediaType: MediaTab,
+): TablesUpdate<"media_items"> {
+  const existingFormats = uniqueStrings([existing.formats || [], existing.format || ""]);
+  const incomingFormats = uniqueStrings([incoming.formats || [], incoming.format || ""]);
+  const mergedFormats = uniqueStrings([existingFormats, incomingFormats]);
+  const mergedMetadata = mergeImportedMetadata(
+    asRecord(existing.metadata),
+    asRecord((incoming.metadata as Json | null) || null),
+    mediaType,
+    mergedFormats,
+  );
+
+  return {
+    title: incoming.title || existing.title,
+    year: incoming.year ?? existing.year,
+    genre: incoming.genre || existing.genre,
+    rating: incoming.rating ?? existing.rating,
+    notes: incoming.notes || existing.notes,
+    barcode: incoming.barcode || existing.barcode,
+    format: mergedFormats[0] || incoming.format || existing.format,
+    formats: mergedFormats,
+    poster_url: existing.poster_url || incoming.poster_url || null,
+    metadata: mergedMetadata as Json,
+  };
 }
 
 export function useMediaItems(activeTab: MediaTab) {
@@ -77,15 +166,73 @@ export function useImportItems() {
         formats: item.formats || (item.format ? [item.format] : []),
       }));
 
-      // Batch in chunks of 500
-      for (let i = 0; i < rows.length; i += 500) {
-        const chunk = rows.slice(i, i + 500);
-        const { error } = await supabase.from("media_items").insert(chunk);
-        if (error) throw error;
+      const rowsForCatalog: Partial<TablesInsert<"media_items">>[] = [];
+
+      if (replace) {
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          const { error } = await supabase.from("media_items").insert(chunk);
+          if (error) throw error;
+          rowsForCatalog.push(...chunk);
+        }
+      } else {
+        const existingItems = await fetchAllItems(user.id, mediaType);
+        const existingByIdentity = new Map<string, DbMediaItem>();
+
+        for (const existing of existingItems) {
+          for (const key of buildImportIdentityKeys({
+            title: existing.title,
+            year: existing.year,
+            barcode: existing.barcode,
+            format: existing.format,
+            formats: existing.formats || [],
+            metadata: asRecord(existing.metadata),
+          }, mediaType)) {
+            if (!existingByIdentity.has(key)) {
+              existingByIdentity.set(key, existing);
+            }
+          }
+        }
+
+        const rowsToInsert: Partial<TablesInsert<"media_items">>[] = [];
+        const updatesToApply: { id: string; data: TablesUpdate<"media_items"> }[] = [];
+
+        for (const row of rows) {
+          const keys = buildImportIdentityKeys(row as Record<string, any>, mediaType);
+          const existing = keys.map((key) => existingByIdentity.get(key)).find(Boolean);
+
+          if (existing) {
+            const merged = mergeImportedRowIntoExisting(existing, row, mediaType);
+            updatesToApply.push({ id: existing.id, data: merged });
+            rowsForCatalog.push({
+              ...existing,
+              ...merged,
+              media_type: mediaType,
+              user_id: user.id,
+            });
+          } else {
+            rowsToInsert.push(row);
+            rowsForCatalog.push(row);
+          }
+        }
+
+        for (let i = 0; i < updatesToApply.length; i += 100) {
+          const chunk = updatesToApply.slice(i, i + 100);
+          await Promise.all(chunk.map(async ({ id, data }) => {
+            const { error } = await supabase.from("media_items").update(data).eq("id", id);
+            if (error) throw error;
+          }));
+        }
+
+        for (let i = 0; i < rowsToInsert.length; i += 500) {
+          const chunk = rowsToInsert.slice(i, i + 500);
+          const { error } = await supabase.from("media_items").insert(chunk);
+          if (error) throw error;
+        }
       }
 
       await upsertEditionCatalogSeeds(
-        rows
+        rowsForCatalog
           .filter((row) => Boolean(row.barcode))
           .map((row) => ({
             barcode: String(row.barcode),
