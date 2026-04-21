@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Monitor, Download, Heart, Eye, ExternalLink, ImageIcon, Pencil, Check, X, Package, Copy, CalendarCheck, ArrowDownAZ, Trash2, Layers, Barcode, Clock, Tag, Camera, Loader2, ChevronLeft, ChevronRight, ArrowLeft, Search, RefreshCw, Plus } from "lucide-react";
-import { searchMedia, MediaLookupResult } from "@/lib/media-lookup";
+import { searchMedia, MediaLookupResult, lookupBarcode, BarcodeLookupResult } from "@/lib/media-lookup";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CoverSearchDialog } from "@/components/CoverSearchDialog";
 import { FormatEditor } from "@/components/FormatEditor";
@@ -961,6 +961,16 @@ function buildLookupQueries(item: MediaItem): string[] {
 }
 
 async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<MediaLookupResult[]> {
+  if (item.barcode && (mediaType === "movies" || mediaType === "music-films")) {
+    try {
+      const barcodeResult = await lookupBarcode(mediaType, item.barcode);
+      const barcodeMatches = mapBarcodeLookupToDetailMatches(barcodeResult);
+      if (barcodeMatches.length > 0) return barcodeMatches;
+    } catch {
+      // Fall through to title-based recovery if barcode enrichment fails.
+    }
+  }
+
   for (const query of buildLookupQueries(item)) {
     const exactResults = await searchMedia(mediaType, query, { year: item.year ?? undefined });
     if (exactResults.length > 0) return exactResults;
@@ -971,6 +981,80 @@ async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<
     }
   }
 
+  return [];
+}
+
+function mapBarcodeLookupToDetailMatches(result: BarcodeLookupResult): MediaLookupResult[] {
+  if (result.multiMovie) {
+    const years = result.multiMovie.movies
+      .map((movie) => movie.year)
+      .filter((year): year is number => typeof year === "number");
+
+    return [
+      {
+        id: `barcode-multi-${result.multiMovie.collection_name || result.multiMovie.product_title}`,
+        title: result.multiMovie.collection_name || result.multiMovie.product_title,
+        year: years.length > 0 ? Math.min(...years) : null,
+        cover_url: result.multiMovie.cover_art_url || null,
+        genre: null,
+        overview: null,
+        media_type: "box_set",
+        included_titles: result.multiMovie.movies.map((movie) => ({
+          title: movie.title,
+          year: movie.year,
+          tmdb_id: movie.tmdb_id,
+        })),
+        detected_formats: result.multiMovie.detected_formats,
+        source: "barcode",
+        edition: {
+          label: result.multiMovie.edition_label || undefined,
+          barcode_title: result.multiMovie.barcode_title,
+          package_title: result.multiMovie.product_title,
+          formats: result.multiMovie.detected_formats,
+          cover_art_url: result.multiMovie.cover_art_url || null,
+          disc_count: result.multiMovie.disc_count || null,
+          digital_code_expected: result.multiMovie.digital_code_expected ?? null,
+          slipcover_expected: result.multiMovie.slipcover_expected ?? null,
+        },
+      },
+    ];
+  }
+
+  if (result.multiSeason) {
+    return [
+      {
+        id: `barcode-season-${result.multiSeason.show_name}-${result.multiSeason.seasons.map((season) => season.season_number).join("-")}`,
+        title: result.multiSeason.show_name,
+        year: null,
+        cover_url: result.multiSeason.cover_art_url || null,
+        genre: null,
+        overview: null,
+        media_type: "tv_box_set",
+        tmdb_series_id: result.multiSeason.tmdb_series_id,
+        show_name: result.multiSeason.show_name,
+        included_titles: result.multiSeason.seasons.map((season) => ({
+          title: season.title,
+          year: season.year,
+          tmdb_id: null,
+        })),
+        detected_formats: result.multiSeason.detected_formats,
+        source: "barcode",
+        edition: {
+          label: result.multiSeason.edition_label || undefined,
+          barcode_title: result.multiSeason.barcode_title,
+          package_title: result.multiSeason.product_title,
+          formats: result.multiSeason.detected_formats,
+          cover_art_url: result.multiSeason.cover_art_url || null,
+          disc_count: result.multiSeason.disc_count || null,
+          digital_code_expected: result.multiSeason.digital_code_expected ?? null,
+          slipcover_expected: result.multiSeason.slipcover_expected ?? null,
+        },
+      },
+    ];
+  }
+
+  if (result.direct) return [result.direct];
+  if (result.results?.length) return result.results;
   return [];
 }
 
@@ -1187,6 +1271,14 @@ function FetchDetailsButton({ item }: { item: MediaItem }) {
                 <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
                   {selected.overview || (selected as any).description}
                 </p>
+              )}
+              {selected.included_titles && selected.included_titles.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">Includes:</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {selected.included_titles.map((entry) => entry.year ? `${entry.title} (${entry.year})` : entry.title).join(", ")}
+                  </p>
+                </div>
               )}
               {selected.cast && selected.cast.length > 0 && (
                 <p className="text-xs text-muted-foreground">
