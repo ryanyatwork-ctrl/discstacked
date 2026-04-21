@@ -1,8 +1,7 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { generateMockData, hydrateMockDataPosters } from "@/lib/mock-data";
 import { getCollectorGroupLetter, getCollectorSortKey } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
@@ -13,7 +12,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { MobileMenu } from "@/components/MobileMenu";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { ImportDialog } from "@/components/ImportDialog";
-import { WelcomeSection } from "@/components/WelcomeSection";
+import { LandingPreview } from "@/components/LandingPreview";
 import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
@@ -74,7 +73,6 @@ export default function Index() { // force rebuild
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStored("ds-default-view", DEFAULT_COLLECTION_VIEW)));
   const [sortMode, setSortMode] = useState<SortMode>(() => getStored("ds-default-sort", "title"));
-  const [demoItems, setDemoItems] = useState<MediaItem[]>(() => generateMockData(DEFAULT_MEDIA_TAB));
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -83,31 +81,19 @@ export default function Index() { // force rebuild
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
 
-  useEffect(() => {
-    if (user) return;
-
-    const baseItems = generateMockData(activeTab);
-    setDemoItems(baseItems);
-
-    let cancelled = false;
-    hydrateMockDataPosters(baseItems, activeTab).then((hydratedItems) => {
-      if (!cancelled) setDemoItems(hydratedItems);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, user]);
+  if (!user) {
+    return <LandingPreview onSignIn={() => navigate("/auth")} />;
+  }
 
   const allItems = useMemo(() => {
-    if (user && dbItems && dbItems.length > 0) {
+    if (dbItems && dbItems.length > 0) {
       return dbItems.map(dbToMediaItem);
     }
-    if (user && dbItems && dbItems.length === 0) {
+    if (dbItems && dbItems.length === 0) {
       return [];
     }
-    return demoItems;
-  }, [user, dbItems, demoItems]);
+    return [];
+  }, [dbItems]);
 
   // Derive live selectedItem from latest data so edits are reflected immediately
   const selectedItem = useMemo(() => {
@@ -336,9 +322,7 @@ export default function Index() { // force rebuild
       {/* Scrollable content area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-16 md:pb-0">
       {/* Collapsible Stats Ribbon */}
-      {!user ? (
-        <WelcomeSection />
-      ) : (
+      {
         <div
           className={`transition-all duration-300 ease-in-out ${
             headerPinned
@@ -359,14 +343,13 @@ export default function Index() { // force rebuild
             </button>
           </div>
         </div>
-      )}
+      }
 
       {/* Item count + view toggle */}
       <div className="px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Loading..." : `${filteredItems.length} items`}
           {(activeFormats.length > 0 || activeTags.length > 0) && ` · Filtered`}
-          {!user && " · Demo mode"}
         </p>
         <div className="flex items-center gap-2">
           <Select value={sortMode} onValueChange={(value: SortMode) => handleSortChange(value)}>
@@ -446,17 +429,8 @@ export default function Index() { // force rebuild
         ))}
         {!isLoading && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-            {user ? (
-              <>
-                <p className="text-sm">Your collection is empty</p>
-                <p className="text-xs mt-1">Use the upload button to import your collection</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm">No items found</p>
-                <p className="text-xs mt-1">Try adjusting your search or filters</p>
-              </>
-            )}
+            <p className="text-sm">Your collection is empty</p>
+            <p className="text-xs mt-1">Use the upload button to import your collection</p>
           </div>
         )}
       </main>

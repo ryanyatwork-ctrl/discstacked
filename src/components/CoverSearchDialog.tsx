@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { Search, Upload, Loader2, ArrowLeft } from "lucide-react";
 import { MediaItem } from "@/lib/types";
 import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GameResult {
   id: string;
@@ -139,6 +140,7 @@ interface CoverSearchDialogProps {
 }
 
 export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProps) {
+  const { user } = useAuth();
   const isGame = item.mediaType === "games";
   const [query, setQuery] = useState(item.title);
   const [results, setResults] = useState<(TmdbResult | GameResult)[]>([]);
@@ -195,6 +197,10 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
 
   /** Artwork-only update — does NOT overwrite title/genre/rating/year/cast */
   const handlePickPoster = async (posterUrl: string) => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to update cover art." });
+      return;
+    }
     try {
       const currentMeta = (item.metadata as Record<string, any>) || {};
       await updateItem.mutateAsync({
@@ -215,6 +221,10 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
 
   const handlePickGameCover = async (result: GameResult) => {
     if (!result.cover_url) return;
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to update cover art." });
+      return;
+    }
     try {
       const currentMeta = (item.metadata as Record<string, any>) || {};
       await updateItem.mutateAsync({
@@ -236,6 +246,11 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to upload a custom cover." });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
 
     setUploading(true);
     try {
@@ -377,6 +392,10 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                   genre={item.genre}
                   mediaType={item.mediaType}
                   onGenerated={(url) => {
+                    if (!user) {
+                      toast({ title: "Sign in required", description: "Sign in to apply generated cover art." });
+                      return;
+                    }
                     const currentMeta = (item.metadata as Record<string, any>) || {};
                     updateItem.mutate({
                       id: item.id,
