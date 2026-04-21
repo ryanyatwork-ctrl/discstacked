@@ -1,6 +1,7 @@
 import type { MediaLookupResult } from "@/lib/media-lookup";
 
 export type SlipcoverStatus = "unknown" | "included" | "missing" | "damaged" | "not_included";
+export type ObiStatus = "unknown" | "included" | "missing" | "damaged" | "not_included";
 export type DigitalCodeStatus =
   | "Unknown"
   | "Included (Unused)"
@@ -38,6 +39,14 @@ export const DIGITAL_CODE_STATUSES: DigitalCodeStatus[] = [
 ];
 export const RIP_STATUSES = ["Not Ripped", "Ripped", "Unrippable"];
 export const DISC_CONDITIONS: DiscCondition[] = ["Unknown", "Good", "Scratched", "Damaged", "Missing"];
+export const PACKAGE_COMPONENT_CONDITIONS = ["Unknown", "Mint", "Near Mint", "Good", "Fair", "Poor", "Missing"] as const;
+export const OBI_STATUSES: { value: ObiStatus; label: string }[] = [
+  { value: "unknown", label: "Unknown" },
+  { value: "included", label: "Included" },
+  { value: "missing", label: "Missing" },
+  { value: "damaged", label: "Damaged" },
+  { value: "not_included", label: "Not Included" },
+];
 
 export function normalizePhysicalFormats(formats: string[] | undefined | null) {
   return (formats || []).filter((format) => format !== "Digital" && format !== "UltraViolet");
@@ -116,7 +125,11 @@ export function hasCopyIssue(metadata: Record<string, any> | null | undefined) {
   }
 
   if (metadata.slipcover_status === "missing" || metadata.slipcover_status === "damaged") return true;
+  if (metadata.obi_status === "missing" || metadata.obi_status === "damaged") return true;
   if (metadata.digital_code_status === "Missing" || metadata.digital_code_status === "Expired") return true;
+  if (metadata.case_condition === "Poor" || metadata.case_condition === "Missing") return true;
+  if (metadata.booklet_condition === "Poor" || metadata.booklet_condition === "Missing") return true;
+  if (metadata.traycard_condition === "Poor" || metadata.traycard_condition === "Missing") return true;
   if (metadata.upgrade_target) return true;
 
   return false;

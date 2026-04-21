@@ -126,7 +126,8 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           </div>
 
           {/* Edition & Case */}
-          {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers) && (
+          {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers
+            || meta.condition || meta.obi_status || meta.case_condition || meta.booklet_condition || meta.traycard_condition) && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               {meta.edition && (
                 <div>
@@ -152,6 +153,30 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                   <p className="text-sm text-foreground flex items-center gap-1">
                     <ConditionBadge condition={meta.condition} />
                   </p>
+                </div>
+              )}
+              {meta.obi_status && meta.obi_status !== "unknown" && (
+                <div>
+                  <span className="text-xs text-muted-foreground">OBI</span>
+                  <p className="text-sm text-foreground">{toCollectorStatusLabel(meta.obi_status as string)}</p>
+                </div>
+              )}
+              {meta.case_condition && meta.case_condition !== "Unknown" && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Case Condition</span>
+                  <p className="text-sm text-foreground">{meta.case_condition as string}</p>
+                </div>
+              )}
+              {meta.booklet_condition && meta.booklet_condition !== "Unknown" && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Booklet Condition</span>
+                  <p className="text-sm text-foreground">{meta.booklet_condition as string}</p>
+                </div>
+              )}
+              {meta.traycard_condition && meta.traycard_condition !== "Unknown" && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Traycard Condition</span>
+                  <p className="text-sm text-foreground">{meta.traycard_condition as string}</p>
                 </div>
               )}
               {meta.distributor && (
@@ -407,4 +432,16 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
       </SheetContent>
     </Sheet>
   );
+}
+
+function toCollectorStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    included: "Included",
+    missing: "Missing",
+    damaged: "Damaged",
+    not_included: "Not Included",
+    unknown: "Unknown",
+  };
+
+  return labels[value] || value;
 }

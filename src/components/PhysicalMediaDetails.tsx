@@ -16,6 +16,8 @@ import {
   CASE_TYPES,
   CONDITIONS,
   DIGITAL_CODE_STATUSES,
+  OBI_STATUSES,
+  PACKAGE_COMPONENT_CONDITIONS,
   RIP_STATUSES,
   SLIPCOVER_STATUSES,
   digitalCodeStatusProvidesAccess,
@@ -33,6 +35,7 @@ type MetadataFields = {
   condition?: string;
   slipcover?: string;
   slipcover_status?: string;
+  obi_status?: string;
   digital_code_status?: string;
   digital_code_platform?: string;
   rip_status?: string;
@@ -43,6 +46,9 @@ type MetadataFields = {
   disc_layers?: string;
   former_rental?: boolean;
   upgrade_target?: boolean;
+  case_condition?: string;
+  booklet_condition?: string;
+  traycard_condition?: string;
 };
 
 function getMetadataFields(input: unknown): MetadataFields {
@@ -66,6 +72,7 @@ function normalizeMetadataForDisplay(metadata: MetadataFields) {
     expectedFormats: Array.isArray(editionObject.formats) ? editionObject.formats : [],
     expectedDiscCount: editionObject.disc_count ?? null,
     slipcoverStatus,
+    obiStatus: metadata.obi_status || "unknown",
   };
 }
 
@@ -178,7 +185,11 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     meta.former_rental ||
     meta.upgrade_target ||
     (meta.expectedFormats && meta.expectedFormats.length > 0) ||
-    meta.expectedDiscCount;
+    meta.expectedDiscCount ||
+    meta.obi_status ||
+    meta.case_condition ||
+    meta.booklet_condition ||
+    meta.traycard_condition;
 
   if (!editing && !hasAnyData) {
     return (
@@ -213,11 +224,15 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           {meta.upgrade_target ? <DetailRow label="Upgrade Target" value="Yes" /> : null}
           {meta.case_type && <DetailRow label="Case" value={meta.case_type} />}
           {meta.slipcoverStatus && <DetailRow label="Slipcover" value={toSlipcoverLabel(meta.slipcoverStatus)} />}
+          {meta.obiStatus && meta.obiStatus !== "unknown" && <DetailRow label="OBI" value={toObiLabel(meta.obiStatus)} />}
           {meta.condition && (
             <DetailRow label="Condition" value={meta.condition}>
               <ConditionBadge condition={meta.condition} />
             </DetailRow>
           )}
+          {meta.case_condition && meta.case_condition !== "Unknown" && <DetailRow label="Case Condition" value={meta.case_condition} />}
+          {meta.booklet_condition && meta.booklet_condition !== "Unknown" && <DetailRow label="Booklet Condition" value={meta.booklet_condition} />}
+          {meta.traycard_condition && meta.traycard_condition !== "Unknown" && <DetailRow label="Traycard Condition" value={meta.traycard_condition} />}
           {meta.discs && meta.discs.length > 0 && (
             <div className="col-span-2">
               <DiscEditor discs={meta.discs} onChange={() => {}} readOnly />
@@ -340,6 +355,19 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Select>
         </Field>
 
+        <Field label="OBI">
+          <Select value={draft.obi_status || "unknown"} onValueChange={(value) => updateField("obi_status", value)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              {OBI_STATUSES.map((status) => (
+                <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
         <Field label="Condition">
           <Select value={draft.condition || "none"} onValueChange={(value) => updateField("condition", value === "none" ? "" : value)}>
             <SelectTrigger className="h-8 text-sm">
@@ -353,6 +381,47 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             </SelectContent>
           </Select>
         </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Field label="Case Condition">
+            <Select value={draft.case_condition || "Unknown"} onValueChange={(value) => updateField("case_condition", value)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PACKAGE_COMPONENT_CONDITIONS.map((condition) => (
+                  <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Booklet Condition">
+            <Select value={draft.booklet_condition || "Unknown"} onValueChange={(value) => updateField("booklet_condition", value)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PACKAGE_COMPONENT_CONDITIONS.map((condition) => (
+                  <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Traycard Condition">
+            <Select value={draft.traycard_condition || "Unknown"} onValueChange={(value) => updateField("traycard_condition", value)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PACKAGE_COMPONENT_CONDITIONS.map((condition) => (
+                  <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
 
         <DiscEditor
           discs={draft.discs || []}
@@ -452,6 +521,10 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
 
 function toSlipcoverLabel(value: string) {
   return SLIPCOVER_STATUSES.find((status) => status.value === value)?.label || value;
+}
+
+function toObiLabel(value: string) {
+  return OBI_STATUSES.find((status) => status.value === value)?.label || value;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
