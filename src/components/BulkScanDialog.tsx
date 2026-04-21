@@ -54,6 +54,24 @@ const TAB_LABELS: Record<MediaTab, string> = {
   games: "Bulk Scan — Games",
 };
 
+function humanizeSource(source?: string | null) {
+  const normalized = String(source || "").trim();
+  if (!normalized) return null;
+
+  const labels: Record<string, string> = {
+    tmdb: "TMDB",
+    discogs: "Discogs",
+    musicbrainz: "MusicBrainz",
+    igdb: "IGDB",
+    rawg: "RAWG",
+    edition_catalog: "DiscStacked Catalog",
+    barcode: "Barcode Match",
+    manual_barcode_entry: "Manual Entry",
+  };
+
+  return labels[normalized] || normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<ScanQueueItem[]>([]);
@@ -976,21 +994,33 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                                 — this is a different edition
                               </p>
                             )}
+                           {(item.extraMeta?.source || item.extraMeta?.source_confidence || item.extraMeta?.edition?.package_title) && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                {humanizeSource(item.extraMeta?.source) ? `Matched by ${humanizeSource(item.extraMeta?.source)}` : "Matched"}
+                                {typeof item.extraMeta?.source_confidence === "number" ? ` · ${item.extraMeta.source_confidence}%` : ""}
+                                {item.extraMeta?.edition?.package_title ? ` · ${item.extraMeta.edition.package_title}` : ""}
+                              </p>
+                            )}
                         </>
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <p className="text-sm text-destructive truncate">
-                            {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm text-destructive truncate">
+                              {item.status === "not_found" ? `No match: ${item.barcode}` : `Error: ${item.barcode}`}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => startEditTitle(item.barcode, item.title || "")}
+                              title="Search by title"
+                            >
+                              <Pencil className="w-3 h-3 text-muted-foreground" />
+                            </Button>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Edit the title to search again, or keep a manual title and add it anyway.
                           </p>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0"
-                            onClick={() => startEditTitle(item.barcode, item.title || "")}
-                            title="Search by title"
-                          >
-                            <Pencil className="w-3 h-3 text-muted-foreground" />
-                          </Button>
                         </div>
                       )}
                     </div>

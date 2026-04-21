@@ -33,6 +33,24 @@ const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; w
   games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },
 };
 
+function humanizeSource(source?: string | null) {
+  const normalized = String(source || "").trim();
+  if (!normalized) return null;
+
+  const labels: Record<string, string> = {
+    tmdb: "TMDB",
+    discogs: "Discogs",
+    musicbrainz: "MusicBrainz",
+    igdb: "IGDB",
+    rawg: "RAWG",
+    edition_catalog: "DiscStacked Catalog",
+    barcode: "Barcode Match",
+    manual_barcode_entry: "Manual Entry",
+  };
+
+  return labels[normalized] || normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -812,6 +830,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           )}
           {extraMeta.platforms && extraMeta.platforms.length > 0 && (
             <p className="text-xs text-muted-foreground">Platforms: {extraMeta.platforms.join(", ")}</p>
+          )}
+          {(extraMeta.source || extraMeta.source_confidence || extraMeta.edition?.package_title) && (
+            <p className="text-xs text-muted-foreground">
+              {humanizeSource(extraMeta.source) ? `Matched by ${humanizeSource(extraMeta.source)}` : "Matched"}
+              {typeof extraMeta.source_confidence === "number" ? ` · ${extraMeta.source_confidence}%` : ""}
+              {extraMeta.edition?.package_title ? ` · ${extraMeta.edition.package_title}` : ""}
+            </p>
           )}
           {extraMeta.tracklist && extraMeta.tracklist.length > 0 && (
             <div className="space-y-1">

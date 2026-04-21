@@ -77,20 +77,7 @@ export function buildDiscEntries(formats: string[] | undefined | null, discCount
 export function deriveEditionLabel(result: Partial<MediaLookupResult>) {
   const edition = result.edition;
   if (edition?.label) return edition.label;
-
-  const packageTitle = edition?.package_title || edition?.barcode_title || result.title || "";
-  const title = result.title || "";
-
-  if (title && packageTitle.toLowerCase().startsWith(title.toLowerCase())) {
-    const suffix = packageTitle.slice(title.length).replace(/^[\s:,-]+/, "").trim();
-    if (suffix) return suffix;
-  }
-
-  const bits: string[] = [];
-  if (edition?.formats?.length) bits.push(edition.formats.join(" + "));
-  if (edition?.disc_count && edition.disc_count > 1) bits.push(`${edition.disc_count} discs`);
-
-  return bits.length > 0 ? bits.join(" · ") : undefined;
+  return undefined;
 }
 
 export function buildCollectorFields(result: Partial<MediaLookupResult>) {
@@ -111,7 +98,7 @@ export function buildCollectorFields(result: Partial<MediaLookupResult>) {
         }
       : undefined,
     discs: buildDiscEntries(expectedFormats, expectedDiscCount),
-    slipcover_status: edition?.slipcover_expected === false ? "not_included" : "unknown",
+    slipcover_status: edition?.slipcover_expected === false ? "not_included" : undefined,
     digital_code_status: digitalCodeExpected ? "Unknown" : "Not Included",
   };
 }

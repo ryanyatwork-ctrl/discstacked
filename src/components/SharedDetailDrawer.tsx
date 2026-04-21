@@ -54,6 +54,9 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
 
   const formats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
   const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, any>;
+  const editionLabel = getEditionLabel(item.metadata);
+  const slipcoverStatus = typeof meta.slipcover_status === "string" ? meta.slipcover_status : undefined;
+  const showSlipcover = slipcoverStatus && slipcoverStatus !== "unknown" && slipcoverStatus !== "not_included";
   const tags = (meta.tags as string[]) || [];
   const discs = (meta.discs as DiscEntry[]) || [];
   const fallbackPoster = getFallbackPosterUrl(item);
@@ -126,13 +129,13 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
           </div>
 
           {/* Edition & Case */}
-          {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers
+          {(editionLabel || meta.case_type || meta.distributor || meta.region || meta.disc_layers
             || meta.condition || meta.sleeved || meta.obi_status || meta.case_condition || meta.booklet_condition || meta.traycard_condition) && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-              {meta.edition && (
+              {editionLabel && (
                 <div>
                   <span className="text-xs text-muted-foreground">Edition</span>
-                  <p className="text-sm text-foreground">{getEditionLabel(item.metadata) || String(meta.edition)}</p>
+                  <p className="text-sm text-foreground">{editionLabel}</p>
                 </div>
               )}
               {meta.case_type && (
@@ -141,10 +144,10 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                   <p className="text-sm text-foreground">{meta.case_type}</p>
                 </div>
               )}
-              {meta.slipcover && (
+              {showSlipcover && (
                 <div>
                   <span className="text-xs text-muted-foreground">Slipcover</span>
-                  <p className="text-sm text-foreground">{meta.slipcover === "yes" ? "Yes" : "No"}</p>
+                  <p className="text-sm text-foreground">{toCollectorStatusLabel(slipcoverStatus)}</p>
                 </div>
               )}
               {meta.condition && (

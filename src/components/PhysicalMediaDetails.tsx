@@ -65,6 +65,9 @@ function normalizeMetadataForDisplay(metadata: MetadataFields) {
     : getEditionLabel(metadata as Record<string, any>) || undefined;
   const slipcoverStatus = metadata.slipcover_status
     || (metadata.slipcover === "yes" ? "included" : metadata.slipcover === "no" ? "missing" : "unknown");
+  const meaningfulSlipcoverStatus = slipcoverStatus && slipcoverStatus !== "unknown" && slipcoverStatus !== "not_included"
+    ? slipcoverStatus
+    : undefined;
 
   return {
     ...metadata,
@@ -73,7 +76,7 @@ function normalizeMetadataForDisplay(metadata: MetadataFields) {
     packageTitle: editionObject.package_title || editionObject.barcode_title || undefined,
     expectedFormats: Array.isArray(editionObject.formats) ? editionObject.formats : [],
     expectedDiscCount: editionObject.disc_count ?? null,
-    slipcoverStatus,
+    slipcoverStatus: meaningfulSlipcoverStatus,
     obiStatus: metadata.obi_status || "unknown",
   };
 }
@@ -217,7 +220,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     (meta.expectedFormats && meta.expectedFormats.length > 0) ||
     meta.expectedDiscCount ||
     meta.sleeved ||
-    meta.obi_status ||
+    (meta.obiStatus && meta.obiStatus !== "unknown" && meta.obiStatus !== "not_included") ||
     meta.case_condition ||
     meta.booklet_condition ||
     meta.traycard_condition;
@@ -382,7 +385,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
         />
 
         <Field label="Slipcover / Sleeve">
-          <Select value={draft.slipcover_status || "unknown"} onValueChange={(value) => updateField("slipcover_status", value)}>
+          <Select value={draft.slipcover_status || "not_included"} onValueChange={(value) => updateField("slipcover_status", value)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Select…" />
             </SelectTrigger>
