@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
+import { searchMedia, lookupBarcode, MediaLookupResult, MultiMovieResult, MultiSeasonResult, isHighConfidenceFallbackResult } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
@@ -203,15 +203,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           autoResults = await searchMedia(activeTab, result.partialTitle);
         } catch {}
 
-        if (autoResults.length === 1) {
+        if (autoResults.length === 1 && isHighConfidenceFallbackResult(result.partialTitle, autoResults[0])) {
           applyResult(autoResults[0]);
           await checkOwnership(autoResults[0].title, upc.trim());
           toast({ title: "Found it!", description: autoResults[0].title });
-        } else if (autoResults.length > 1) {
+        } else if (autoResults.length > 0) {
           setTitle(result.partialTitle);
           if (result.partialFormats?.length) setFormats(result.partialFormats);
           setSearchResults(autoResults);
-          toast({ title: "Possible matches found", description: "Please select the correct title below." });
+          toast({ title: "Possible matches found", description: "Please confirm the correct title below." });
         } else {
           // Barcode found a product name but no TMDB match — pre-populate for the user
           setTitle(result.partialTitle);

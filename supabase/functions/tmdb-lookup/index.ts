@@ -735,23 +735,6 @@ serve(async (req) => {
             return { ...detail, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: bestMovieMatch.score };
           }
 
-          const tvResults = await searchTmdbTv(cleanTitle, tmdbApiKey, barcodeYear);
-          if (tvResults.length > 0) {
-            const show = tvResults[0];
-            return {
-              tmdb_id: show.id,
-              title: show.name,
-              year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
-              poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
-              rating: show.vote_average || null,
-              overview: show.overview || null,
-              media_type: "tv",
-              barcode_title: rawTitle,
-              detected_formats: detectedFormats,
-              _matchScore: 110,
-            };
-          }
-
           return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: 10 };
         }
 

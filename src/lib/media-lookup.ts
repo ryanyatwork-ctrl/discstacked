@@ -117,6 +117,35 @@ export type BarcodeLookupResult = {
   partialFormats?: string[];
 };
 
+function normalizeLooseTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isHighConfidenceFallbackResult(
+  query: string,
+  result: Pick<MediaLookupResult, "title" | "year">,
+  expectedYear?: number | null,
+) {
+  const normalizedQuery = normalizeLooseTitle(query);
+  const normalizedTitle = normalizeLooseTitle(result.title || "");
+  if (!normalizedQuery || !normalizedTitle) return false;
+  if (normalizedQuery !== normalizedTitle) return false;
+
+  const wordCount = normalizedQuery.split(" ").filter(Boolean).length;
+  if (wordCount <= 1) return false;
+
+  if (expectedYear && result.year && Math.abs(expectedYear - result.year) > 1) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function searchMedia(
   activeTab: MediaTab,
   query: string,

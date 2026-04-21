@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { lookupBarcode as unifiedLookupBarcode, searchMedia, MediaLookupResult, MultiMovieResult, MultiSeasonResult } from "@/lib/media-lookup";
+import { lookupBarcode as unifiedLookupBarcode, searchMedia, MediaLookupResult, MultiMovieResult, MultiSeasonResult, isHighConfidenceFallbackResult } from "@/lib/media-lookup";
 import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
@@ -119,6 +119,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         return {
           status: "multi_movie",
           title: result.multiMovie.collection_name || result.multiMovie.product_title,
+          posterUrl: result.multiMovie.cover_art_url || null,
           multiMovie: result.multiMovie,
           formats: result.multiMovie.detected_formats,
           format: result.multiMovie.detected_formats[0] || "",
@@ -130,6 +131,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         return {
           status: "multi_season",
           title: result.multiSeason.show_name || result.multiSeason.product_title,
+          posterUrl: result.multiSeason.cover_art_url || null,
           multiSeason: result.multiSeason,
           formats: result.multiSeason.detected_formats,
           format: result.multiSeason.detected_formats[0] || "",
@@ -150,7 +152,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
       if (result.partialTitle) {
         try {
           const searchResults = await searchMedia(activeTab, result.partialTitle);
-          if (searchResults.length === 1) {
+          if (searchResults.length === 1 && isHighConfidenceFallbackResult(result.partialTitle, searchResults[0])) {
             return buildFoundQueueItem(searchResults[0]);
           }
           if (searchResults.length > 1) {
@@ -158,6 +160,15 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               status: "ambiguous",
               title: result.partialTitle,
               candidates: searchResults.slice(0, 5),
+              format: result.partialFormats?.[0] || "",
+              formats: result.partialFormats || [],
+            };
+          }
+          if (searchResults.length === 1) {
+            return {
+              status: "ambiguous",
+              title: result.partialTitle,
+              candidates: searchResults,
               format: result.partialFormats?.[0] || "",
               formats: result.partialFormats || [],
             };
@@ -314,6 +325,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
   };
 
   const startEditTitle = (barcode: string, currentTitle: string) => {
+    setBtMode(false);
     setEditingBarcode(barcode);
     setEditTitle(currentTitle || "");
   };
@@ -797,7 +809,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                 }}
                 onBlur={() => {
                   // Re-focus after a short delay to keep input ready for BT scanner
-                  if (btMode) setTimeout(() => manualInputRef.current?.focus(), 200);
+                  if (btMode && !editingBarcode) setTimeout(() => manualInputRef.current?.focus(), 200);
                 }}
               />
             </div>

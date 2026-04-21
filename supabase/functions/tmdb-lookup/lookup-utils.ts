@@ -80,7 +80,7 @@ export function cleanProductTitle(raw: string): string {
 
   let cleaned = withoutParentheticalYear
     .replace(STUDIO_PREFIX_PATTERN, " ")
-    .replace(/^[\w\s&.']+?\s*-\s*/i, "")
+    .replace(/^[\w\s&.']+?\s+-\s+/i, "")
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\((?!19\d{2}\)|20\d{2}\))[^)]*\)/g, " ")
     .replace(/\b(?:blu-?ray|dvd|4k|uhd|ultra\s*hd|digital|hd|widescreen|fullscreen|std|ws|dc|bd|bd\s*\+\s*dc|blu\s*ray\s*\+\s*digital\s*copy|unrated|special\s*edition|collector'?s?\s*edition|collector\s*s\s*edition|limited\s*edition|anniversary\s*edition|ultimate\s*edition|steelbook|combo\s*pack|with\s*digital(?:\s*copy)?|includes?\s*digital(?:\s*copy)?|signature\s*collection|diamond\s*edition|masterpiece\s*edition|extended\s*edition|platinum\s*edition)\b/gi, " ")
