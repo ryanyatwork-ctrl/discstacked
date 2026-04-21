@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Disc3, Film, Gamepad2, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MediaItem, MediaTab } from "@/lib/types";
+import { MediaItem, MediaTab, TABS } from "@/lib/types";
 import { PosterCard } from "@/components/PosterCard";
 import { SharedDetailDrawer } from "@/components/SharedDetailDrawer";
 import { searchMedia } from "@/lib/media-lookup";
+import { MobileMenu } from "@/components/MobileMenu";
 import heroLogo from "@/assets/DiscStacked_16x9.png";
 
-type LandingSeed = Pick<MediaItem, "title" | "year" | "format" | "genre" | "mediaType">;
+type LandingSeed = Pick<MediaItem, "title" | "year" | "format" | "genre" | "mediaType" | "artist" | "platform">;
 
 const LANDING_EXAMPLES: Record<MediaTab, LandingSeed[]> = {
   movies: [
@@ -19,22 +21,22 @@ const LANDING_EXAMPLES: Record<MediaTab, LandingSeed[]> = {
     { title: "Blade Runner 2049", year: 2017, format: "4K", genre: "Science Fiction", mediaType: "movies" },
   ],
   "music-films": [
-    { title: "Taylor Swift: The Eras Tour", year: 2023, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
-    { title: "Stop Making Sense", year: 1984, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
-    { title: "Woodstock", year: 1970, format: "DVD", genre: "Music", mediaType: "music-films" },
-    { title: "Metallica: Some Kind of Monster", year: 2004, format: "Blu-ray", genre: "Documentary", mediaType: "music-films" },
+    { title: "Taylor Swift: The Eras Tour", artist: "Taylor Swift", year: 2023, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
+    { title: "Stop Making Sense", artist: "Talking Heads", year: 1984, format: "Blu-ray", genre: "Music", mediaType: "music-films" },
+    { title: "Woodstock", artist: "Various Artists", year: 1970, format: "DVD", genre: "Music", mediaType: "music-films" },
+    { title: "Metallica: Some Kind of Monster", artist: "Metallica", year: 2004, format: "Blu-ray", genre: "Documentary", mediaType: "music-films" },
   ],
   cds: [
-    { title: "Abbey Road", year: 1969, format: "CD", genre: "Rock", mediaType: "cds" },
-    { title: "Rumours", year: 1977, format: "Vinyl", genre: "Rock", mediaType: "cds" },
-    { title: "Thriller", year: 1982, format: "CD", genre: "Pop", mediaType: "cds" },
-    { title: "Nevermind", year: 1991, format: "CD", genre: "Rock", mediaType: "cds" },
+    { title: "Abbey Road", artist: "The Beatles", year: 1969, format: "CD", genre: "Rock", mediaType: "cds" },
+    { title: "Rumours", artist: "Fleetwood Mac", year: 1977, format: "Vinyl", genre: "Rock", mediaType: "cds" },
+    { title: "Thriller", artist: "Michael Jackson", year: 1982, format: "CD", genre: "Pop", mediaType: "cds" },
+    { title: "Nevermind", artist: "Nirvana", year: 1991, format: "CD", genre: "Rock", mediaType: "cds" },
   ],
   games: [
-    { title: "The Legend of Zelda: Breath of the Wild", year: 2017, format: "Switch", genre: "Adventure", mediaType: "games" },
-    { title: "God of War Ragnarök", year: 2022, format: "PS5", genre: "Action", mediaType: "games" },
-    { title: "Halo Infinite", year: 2021, format: "Xbox Series X", genre: "Shooter", mediaType: "games" },
-    { title: "Marvel's Spider-Man 2", year: 2023, format: "PS5", genre: "Action", mediaType: "games" },
+    { title: "The Legend of Zelda: Breath of the Wild", platform: "Nintendo Switch", year: 2017, format: "Switch", genre: "Adventure", mediaType: "games" },
+    { title: "God of War Ragnarök", platform: "PlayStation 5", year: 2022, format: "PS5", genre: "Action", mediaType: "games" },
+    { title: "Halo Infinite", platform: "Xbox Series X", year: 2021, format: "Xbox Series X", genre: "Shooter", mediaType: "games" },
+    { title: "Marvel's Spider-Man 2", platform: "PlayStation 5", year: 2023, format: "PS5", genre: "Action", mediaType: "games" },
   ],
 };
 
@@ -47,15 +49,17 @@ function seedToItem(seed: LandingSeed, index: number): MediaItem {
     formats: seed.format ? [seed.format] : undefined,
     genre: seed.genre,
     mediaType: seed.mediaType,
+    artist: seed.artist,
+    platform: seed.platform,
   };
 }
 
-function toTabLabel(tab: MediaTab) {
-  if (tab === "movies") return "Movies";
-  if (tab === "music-films") return "Music Media";
-  if (tab === "cds") return "CDs";
-  return "Games";
-}
+const LANDING_TAB_ICONS = {
+  movies: Film,
+  "music-films": Music2,
+  cds: Disc3,
+  games: Gamepad2,
+} satisfies Record<MediaTab, typeof Film>;
 
 export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
@@ -75,7 +79,13 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
     Promise.all(
       baseItems.map(async (item) => {
         try {
-          const results = await searchMedia(item.mediaType || activeTab, item.title, { year: item.year });
+          const mediaType = item.mediaType || activeTab;
+          const isMusicRelease = mediaType === "cds";
+          const primaryQuery = isMusicRelease && item.artist ? `${item.artist} ${item.title}` : item.title;
+          let results = await searchMedia(mediaType, primaryQuery, isMusicRelease ? undefined : { year: item.year });
+          if ((!results || results.length === 0) && isMusicRelease && item.artist) {
+            results = await searchMedia(mediaType, item.title);
+          }
           const best = results.find((result) => !!result.cover_url) || results[0];
           if (!best) return item;
           return {
@@ -109,7 +119,10 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <img src={heroLogo} alt="DiscStacked" className="h-10 w-auto rounded object-contain" />
+          <div className="flex items-center gap-3">
+            <MobileMenu isLoggedIn={false} showLabel />
+            <img src={heroLogo} alt="DiscStacked" className="h-10 w-auto rounded object-contain" />
+          </div>
           <Button variant="ghost" className="text-primary hover:text-primary" onClick={onSignIn}>
             Sign In
           </Button>
@@ -147,16 +160,21 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {(["movies", "music-films", "cds", "games"] as MediaTab[]).map((tab) => (
-              <Button
-                key={tab}
-                variant={activeTab === tab ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveTab(tab)}
-              >
-                {toTabLabel(tab)}
-              </Button>
-            ))}
+            {TABS.map((tab) => {
+              const Icon = LANDING_TAB_ICONS[tab.id];
+              return (
+                <Button
+                  key={tab.id}
+                  variant={activeTab === tab.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActiveTab(tab.id)}
+                  className="gap-2"
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </Button>
+              );
+            })}
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -17,9 +17,18 @@ interface MobileMenuProps {
   onSignOut?: () => void;
   isLoggedIn?: boolean;
   allItems?: DbMediaItem[];
+  showLabel?: boolean;
 }
 
-export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, isLoggedIn, allItems }: MobileMenuProps) {
+export function MobileMenu({
+  onImport,
+  onRandomize,
+  onFetchArtwork,
+  onSignOut,
+  isLoggedIn,
+  allItems,
+  showLabel = false,
+}: MobileMenuProps) {
   const navigate = useNavigate();
   const { profile } = useProfile();
   const { isAdmin } = useAdmin();
@@ -52,8 +61,13 @@ export function MobileMenu({ onImport, onRandomize, onFetchArtwork, onSignOut, i
     <>
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size={showLabel ? "sm" : "icon"}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
             <Menu className="h-5 w-5" />
+            {showLabel ? <span>Menu</span> : null}
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-72 bg-card border-border">
