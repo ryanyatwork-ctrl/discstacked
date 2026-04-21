@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-test("homepage loads in signed-out demo mode", async ({ page }) => {
+test("homepage loads in signed-out preview mode", async ({ page }) => {
   await page.goto("/");
 
   await expect(page).toHaveTitle(/DiscStacked/i);
-  await expect(page.getByText("Welcome to DiscStacked™")).toBeVisible();
-  await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
-  await expect(page.getByText(/demo mode/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome to DiscStacked/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Try It Out/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Sign In$/i }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Interactive Preview/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Movies/i })).toBeVisible();
 });
 
 test("auth page renders email/password sign in", async ({ page }) => {
