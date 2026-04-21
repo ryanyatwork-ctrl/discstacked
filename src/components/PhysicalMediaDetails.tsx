@@ -33,6 +33,7 @@ type MetadataFields = {
   case_type?: string;
   discs?: DiscEntry[];
   condition?: string;
+  country?: string;
   sleeved?: boolean;
   slipcover?: string;
   slipcover_status?: string;
@@ -76,6 +77,33 @@ function normalizeMetadataForDisplay(metadata: MetadataFields) {
     obiStatus: metadata.obi_status || "unknown",
   };
 }
+
+const COMMON_COUNTRIES = [
+  "United States",
+  "USA",
+  "Japan",
+  "Germany",
+  "Italy",
+  "Netherlands",
+  "United Kingdom",
+  "UK",
+  "France",
+  "Canada",
+  "Australia",
+  "Sweden",
+  "Finland",
+  "Norway",
+  "Denmark",
+  "Spain",
+  "Mexico",
+  "Brazil",
+  "South Korea",
+  "Czech Republic",
+  "Austria",
+  "Belgium",
+  "Poland",
+  "Switzerland",
+] as const;
 
 export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
   const [editing, setEditing] = useState(false);
@@ -179,6 +207,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     meta.case_type ||
     (meta.discs && meta.discs.length > 0) ||
     meta.condition ||
+    meta.country ||
     meta.rip_status ||
     meta.distributor ||
     meta.region ||
@@ -233,6 +262,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
               <ConditionBadge condition={meta.condition} />
             </DetailRow>
           )}
+          {meta.country && <DetailRow label="Country" value={meta.country} />}
           {meta.case_condition && meta.case_condition !== "Unknown" && <DetailRow label="Case Condition" value={meta.case_condition} />}
           {meta.booklet_condition && meta.booklet_condition !== "Unknown" && <DetailRow label="Booklet Condition" value={meta.booklet_condition} />}
           {meta.traycard_condition && meta.traycard_condition !== "Unknown" && <DetailRow label="Traycard Condition" value={meta.traycard_condition} />}
@@ -494,6 +524,21 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             placeholder="e.g. Universal, Warner Bros., Paramount"
             className="h-8 text-sm"
           />
+        </Field>
+
+        <Field label="Country">
+          <Input
+            value={draft.country || ""}
+            onChange={(e) => updateField("country", e.target.value)}
+            placeholder="e.g. Japan, Germany, Italy, USA"
+            className="h-8 text-sm"
+            list="collector-country-options"
+          />
+          <datalist id="collector-country-options">
+            {COMMON_COUNTRIES.map((country) => (
+              <option key={country} value={country} />
+            ))}
+          </datalist>
         </Field>
 
         <Field label="Region">
