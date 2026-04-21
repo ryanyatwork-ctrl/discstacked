@@ -37,6 +37,9 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   const [yearDraft, setYearDraft] = useState("");
   const [editingSortTitle, setEditingSortTitle] = useState(false);
   const [sortTitleDraft, setSortTitleDraft] = useState("");
+  const [editingSeriesSort, setEditingSeriesSort] = useState(false);
+  const [seriesSortNameDraft, setSeriesSortNameDraft] = useState("");
+  const [seriesSortOrderDraft, setSeriesSortOrderDraft] = useState("");
   const [editingTags, setEditingTags] = useState(false);
   const [tagsDraft, setTagsDraft] = useState("");
   const [localFlags, setLocalFlags] = useState<Record<string, boolean>>({});
@@ -136,6 +139,42 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
       toast({ title: "Update failed", variant: "destructive" });
     }
     setEditingSortTitle(false);
+  };
+
+  const handleSaveSeriesSort = async () => {
+    const currentMeta = ((item.metadata as Record<string, any>) || {});
+    const nextSeriesName = seriesSortNameDraft.trim();
+    const nextSeriesOrderRaw = seriesSortOrderDraft.trim();
+    const nextSeriesOrder = nextSeriesOrderRaw ? Number(nextSeriesOrderRaw) : null;
+
+    if (nextSeriesOrderRaw && (!Number.isFinite(nextSeriesOrder) || nextSeriesOrder! < 0)) {
+      toast({ title: "Enter a valid series order", variant: "destructive" });
+      return;
+    }
+
+    const existingSeriesName = typeof currentMeta.series_sort_name === "string" ? currentMeta.series_sort_name : "";
+    const existingSeriesOrder = currentMeta.series_sort_order ?? null;
+
+    if (nextSeriesName === existingSeriesName && (nextSeriesOrder ?? null) === existingSeriesOrder) {
+      setEditingSeriesSort(false);
+      return;
+    }
+
+    const nextMetadata = { ...currentMeta } as Record<string, any>;
+    if (nextSeriesName) nextMetadata.series_sort_name = nextSeriesName;
+    else delete nextMetadata.series_sort_name;
+
+    if (nextSeriesOrder != null) nextMetadata.series_sort_order = nextSeriesOrder;
+    else delete nextMetadata.series_sort_order;
+
+    try {
+      await updateItem.mutateAsync({ id: item.id, metadata: nextMetadata } as any);
+      toast({ title: nextSeriesName ? "Series sort updated!" : "Series sort removed" });
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+
+    setEditingSeriesSort(false);
   };
 
   const handleToggle = async (field: "in_plex" | "digital_copy" | "wishlist" | "want_to_watch", value: boolean) => {
@@ -392,6 +431,83 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
                     size="icon"
                     className="opacity-0 group-hover/sort:opacity-100 transition-opacity h-6 w-6"
                     onClick={() => { setSortTitleDraft(item.sortTitle || ""); setEditingSortTitle(true); }}
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Series Sort
+              </p>
+              {editingSeriesSort ? (
+                <div className="space-y-2">
+                  <Input
+                    value={seriesSortNameDraft}
+                    onChange={(e) => setSeriesSortNameDraft(e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder="Series / franchise name"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={seriesSortOrderDraft}
+                      onChange={(e) => setSeriesSortOrderDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveSeriesSort();
+                        if (e.key === "Escape") setEditingSeriesSort(false);
+                      }}
+                      className="h-8 w-28 text-sm"
+                      placeholder="Order"
+                      inputMode="numeric"
+                    />
+                    <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={handleSaveSeriesSort}>
+                      <Check className="w-4 h-4 text-success" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-7 w-7"
+                      onClick={() => setEditingSeriesSort(false)}
+                    >
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Example: series `Harry Potter`, order `1`
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 group/series">
+                  <span
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => {
+                      const metadata = (item.metadata as Record<string, any>) || {};
+                      setSeriesSortNameDraft((metadata.series_sort_name as string) || "");
+                      setSeriesSortOrderDraft(metadata.series_sort_order != null ? String(metadata.series_sort_order) : "");
+                      setEditingSeriesSort(true);
+                    }}
+                  >
+                    {(() => {
+                      const metadata = (item.metadata as Record<string, any>) || {};
+                      const name = metadata.series_sort_name as string | undefined;
+                      const order = metadata.series_sort_order as number | string | undefined;
+                      if (!name && order == null) return "No series order";
+                      return `${name || "Series"}${order != null ? ` · #${order}` : ""}`;
+                    })()}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover/series:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => {
+                      const metadata = (item.metadata as Record<string, any>) || {};
+                      setSeriesSortNameDraft((metadata.series_sort_name as string) || "");
+                      setSeriesSortOrderDraft(metadata.series_sort_order != null ? String(metadata.series_sort_order) : "");
+                      setEditingSeriesSort(true);
+                    }}
                   >
                     <Pencil className="w-3 h-3 text-muted-foreground" />
                   </Button>

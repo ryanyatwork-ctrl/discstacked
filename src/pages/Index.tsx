@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
-import { sortTitle, groupLetter } from "@/lib/utils";
+import { getCollectorGroupLetter, getCollectorSortKey } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -18,8 +18,7 @@ import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { BulkScanDialog } from "@/components/BulkScanDialog";
-import { FetchArtworkButton } from "@/components/FetchArtworkButton";
-import { Users, LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers } from "lucide-react";
+import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers } from "lucide-react";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -112,7 +111,7 @@ export default function Index() { // force rebuild
       if (recentDiff !== 0) return recentDiff;
     }
 
-    return sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle));
+    return getCollectorSortKey(a).localeCompare(getCollectorSortKey(b));
   }, [sortMode, user, dbItems]);
 
   const availableTags = useMemo(() => {
@@ -166,7 +165,7 @@ export default function Index() { // force rebuild
     if (sortMode !== "title") return new Set<string>();
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      letters.add(groupLetter(item.title, item.sortTitle));
+      letters.add(getCollectorGroupLetter(item));
     });
     return letters;
   }, [filteredItems, sortMode]);
@@ -174,7 +173,7 @@ export default function Index() { // force rebuild
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = sortMode === "title" ? groupLetter(item.title, item.sortTitle) : "All";
+      const key = sortMode === "title" ? getCollectorGroupLetter(item) : "All";
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
@@ -255,17 +254,8 @@ export default function Index() { // force rebuild
               <>
                 <AddMovieDialog activeTab={activeTab} />
                 <BulkScanDialog activeTab={activeTab} />
-                <FetchArtworkButton items={dbItems ?? []} />
                 <RandomizerDialog items={filteredItems} />
                 <ImportDialog activeTab={activeTab} />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
-                  onClick={() => toast({ title: "Coming soon", description: "Friends features are not yet available." })}
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
                 <Button
                   variant="ghost"
                   size="icon"

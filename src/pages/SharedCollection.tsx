@@ -6,7 +6,7 @@ import { PosterCard } from "@/components/PosterCard";
 import { ListRow } from "@/components/ListRow";
 import { MediaItem, MediaTab, FORMATS, TABS } from "@/lib/types";
 import { AlphabetRail } from "@/components/AlphabetRail";
-import { groupLetter, sortTitle, cn } from "@/lib/utils";
+import { getCollectorGroupLetter, getCollectorSortKey, cn } from "@/lib/utils";
 import { Search, X, LayoutGrid, List, Heart, Eye, ExternalLink, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SharedDetailDrawer } from "@/components/SharedDetailDrawer";
@@ -77,13 +77,13 @@ export default function SharedCollection() {
     } else if (statusFilter === "wantToWatch") {
       result = result.filter((i) => i.wantToWatch);
     }
-    return result.sort((a, b) => sortTitle(a.title, a.sortTitle).localeCompare(sortTitle(b.title, b.sortTitle)));
+    return result.sort((a, b) => getCollectorSortKey(a).localeCompare(getCollectorSortKey(b)));
   }, [mediaItems, activeFormats, searchQuery, statusFilter]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = groupLetter(item.title, item.sortTitle);
+      const key = getCollectorGroupLetter(item);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
@@ -92,7 +92,7 @@ export default function SharedCollection() {
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
-    filteredItems.forEach((item) => letters.add(groupLetter(item.title, item.sortTitle)));
+    filteredItems.forEach((item) => letters.add(getCollectorGroupLetter(item)));
     return letters;
   }, [filteredItems]);
 

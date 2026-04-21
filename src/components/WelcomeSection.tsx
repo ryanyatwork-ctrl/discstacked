@@ -26,8 +26,8 @@ const features = [
   },
   {
     icon: Users,
-    title: "Connect with Friends",
-    description: "Add friends and browse their collections to discover new titles and share recommendations.",
+    title: "Share Collections",
+    description: "Share a read-only collection link with friends so they can browse what you own.",
   },
   {
     icon: ShoppingCart,
@@ -67,7 +67,7 @@ export function WelcomeSection() {
             Welcome to <span className="text-primary">DiscStacked™</span>
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground max-w-lg leading-relaxed">
-            Build and browse your own media collection. Connect with friends, explore their shelves, and let the randomizer pick your next watch.
+            Build and browse your own media collection, share a read-only link when you want to show it off, and let the randomizer pick your next watch.
           </p>
         </div>
       </motion.div>
