@@ -170,6 +170,21 @@ describe("import-utils", () => {
     });
   });
 
+  it("extracts OBI and sleeved collector details from CLZ music text", () => {
+    const mapped = mapClzRow({
+      Artist: "Sonata Arctica",
+      Title: "Reckoning Night",
+      Format: "CD",
+      Notes: "Includes OBI Strip. Sleeved - removed from jewel case.",
+    }, "cds");
+
+    expect(mapped.metadata).toMatchObject({
+      artist: "Sonata Arctica",
+      obi_status: "included",
+      sleeved: true,
+    });
+  });
+
   it("merges duplicate CLZ game rows but keeps different platforms separate", () => {
     const rows = [
       mapClzRow({

@@ -33,6 +33,7 @@ type MetadataFields = {
   case_type?: string;
   discs?: DiscEntry[];
   condition?: string;
+  sleeved?: boolean;
   slipcover?: string;
   slipcover_status?: string;
   obi_status?: string;
@@ -186,6 +187,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
     meta.upgrade_target ||
     (meta.expectedFormats && meta.expectedFormats.length > 0) ||
     meta.expectedDiscCount ||
+    meta.sleeved ||
     meta.obi_status ||
     meta.case_condition ||
     meta.booklet_condition ||
@@ -222,6 +224,7 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           {meta.expectedDiscCount && <DetailRow label="Expected Disc Count" value={String(meta.expectedDiscCount)} />}
           {meta.former_rental ? <DetailRow label="Former Rental" value="Yes" /> : null}
           {meta.upgrade_target ? <DetailRow label="Upgrade Target" value="Yes" /> : null}
+          {meta.sleeved ? <DetailRow label="Sleeved" value="Yes" /> : null}
           {meta.case_type && <DetailRow label="Case" value={meta.case_type} />}
           {meta.slipcoverStatus && <DetailRow label="Slipcover" value={toSlipcoverLabel(meta.slipcoverStatus)} />}
           {meta.obiStatus && meta.obiStatus !== "unknown" && <DetailRow label="OBI" value={toObiLabel(meta.obiStatus)} />}
@@ -341,6 +344,12 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
             onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, upgrade_target: checked }))}
           />
         </div>
+
+        <ToggleField
+          label="Sleeved / Removed From Jewel Case"
+          checked={!!draft.sleeved}
+          onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, sleeved: checked }))}
+        />
 
         <Field label="Slipcover / Sleeve">
           <Select value={draft.slipcover_status || "unknown"} onValueChange={(value) => updateField("slipcover_status", value)}>

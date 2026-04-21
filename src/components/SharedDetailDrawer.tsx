@@ -127,7 +127,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
 
           {/* Edition & Case */}
           {(meta.edition || meta.case_type || meta.distributor || meta.region || meta.disc_layers
-            || meta.condition || meta.obi_status || meta.case_condition || meta.booklet_condition || meta.traycard_condition) && (
+            || meta.condition || meta.sleeved || meta.obi_status || meta.case_condition || meta.booklet_condition || meta.traycard_condition) && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               {meta.edition && (
                 <div>
@@ -153,6 +153,12 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
                   <p className="text-sm text-foreground flex items-center gap-1">
                     <ConditionBadge condition={meta.condition} />
                   </p>
+                </div>
+              )}
+              {meta.sleeved && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Sleeved</span>
+                  <p className="text-sm text-foreground">Yes</p>
                 </div>
               )}
               {meta.obi_status && meta.obi_status !== "unknown" && (

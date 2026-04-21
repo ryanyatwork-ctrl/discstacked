@@ -69,8 +69,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const isMovieTab = activeTab === "movies" || activeTab === "music-films";
   const isMusicTab = activeTab === "cds";
+  const isMusicFilmTab = activeTab === "music-films";
   const isGameTab = activeTab === "games";
-  const hasBarcode = isMovieTab || isMusicTab;
+  const hasBarcode = isMovieTab || isMusicTab || isGameTab;
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
@@ -239,8 +240,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       const results = await searchMedia(activeTab, title, {
         year: yearNum,
         searchType,
-        artist: isMusicTab ? artist.trim() || undefined : undefined,
+        artist: (isMusicTab || isMusicFilmTab) ? artist.trim() || undefined : undefined,
         catalogNumber: isMusicTab ? catalogNumber.trim() || undefined : undefined,
+        platform: isGameTab ? (formats[0] || format || undefined) : undefined,
       });
       setSearchResults(results);
       if (results.length === 0) {
@@ -258,7 +260,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setYear(r.year ? String(r.year) : "");
     setGenre(r.genre || "");
     setSelectedPoster(r.cover_url || null);
-    setArtist(r.artist || r.author || "");
+    setArtist(r.artist || r.author || (isMusicFilmTab ? artist : ""));
     setCatalogNumber(r.catalog_number || "");
     // Auto-apply detected formats from barcode lookup
     if (r.detected_formats && r.detected_formats.length > 0) {
@@ -435,7 +437,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setSaving(true);
     try {
       const metaPayload: Record<string, any> = { ...extraMeta };
-      if (artist && isMusicTab) {
+      if (artist && (isMusicTab || isMusicFilmTab)) {
         metaPayload["artist"] = artist;
       }
       if (catalogNumber && isMusicTab) {
@@ -570,15 +572,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
             </div>
           </div>
 
-          {/* Artist + catalog number for music */}
-          {isMusicTab && (
+          {/* Artist + catalog number for music / music films */}
+          {(isMusicTab || isMusicFilmTab) && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-foreground">Artist</Label>
+                <Label className="text-foreground">{isMusicFilmTab ? "Artist / Performer" : "Artist"}</Label>
                 <Input
                   value={artist}
                   onChange={(e) => setArtist(e.target.value)}
-                  placeholder="Artist / band name…"
+                  placeholder={isMusicFilmTab ? "Artist / performer…" : "Artist / band name…"}
                 />
               </div>
               <div className="space-y-2">
@@ -586,7 +588,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                 <Input
                   value={catalogNumber}
                   onChange={(e) => setCatalogNumber(e.target.value)}
-                  placeholder="Cat. no. / matrix…"
+                  placeholder={isMusicFilmTab ? "Optional catalog / release no.…" : "Cat. no. / matrix…"}
                 />
               </div>
             </div>

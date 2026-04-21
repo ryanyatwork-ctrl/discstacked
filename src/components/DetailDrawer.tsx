@@ -964,8 +964,9 @@ async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<
   const metadata = (item.metadata as Record<string, any>) || {};
   const itemArtist = (item.artist || metadata.artist) as string | undefined;
   const itemCatalogNumber = (metadata.catalog_number || metadata.catalog_no || metadata.catno) as string | undefined;
+  const itemPlatform = (item.platform || metadata.platform || metadata.platforms?.[0]) as string | undefined;
 
-  if (item.barcode && (mediaType === "movies" || mediaType === "music-films" || mediaType === "cds")) {
+  if (item.barcode && (mediaType === "movies" || mediaType === "music-films" || mediaType === "cds" || mediaType === "games")) {
     try {
       const barcodeResult = await lookupBarcode(mediaType, item.barcode);
       const barcodeMatches = mapBarcodeLookupToDetailMatches(barcodeResult);
@@ -978,15 +979,17 @@ async function findDetailMatches(item: MediaItem, mediaType: MediaTab): Promise<
   for (const query of buildLookupQueries(item)) {
     const exactResults = await searchMedia(mediaType, query, {
       year: item.year ?? undefined,
-      artist: mediaType === "cds" ? itemArtist : undefined,
+      artist: mediaType === "cds" || mediaType === "music-films" ? itemArtist : undefined,
       catalogNumber: mediaType === "cds" ? itemCatalogNumber : undefined,
+      platform: mediaType === "games" ? itemPlatform : undefined,
     });
     if (exactResults.length > 0) return exactResults;
 
     if (item.year) {
       const yearlessResults = await searchMedia(mediaType, query, {
-        artist: mediaType === "cds" ? itemArtist : undefined,
+        artist: mediaType === "cds" || mediaType === "music-films" ? itemArtist : undefined,
         catalogNumber: mediaType === "cds" ? itemCatalogNumber : undefined,
+        platform: mediaType === "games" ? itemPlatform : undefined,
       });
       if (yearlessResults.length > 0) return yearlessResults;
     }

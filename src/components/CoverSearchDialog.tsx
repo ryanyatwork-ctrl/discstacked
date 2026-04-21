@@ -20,9 +20,9 @@ interface GameResult {
   rating: number | null;
 }
 
-async function searchGames(query: string): Promise<GameResult[]> {
+async function searchGames(query: string, platform?: string): Promise<GameResult[]> {
   const { data, error } = await supabase.functions.invoke("game-lookup", {
-    body: { query },
+    body: { query, platform },
   });
   if (error) throw new Error(error.message);
   return (data.results || []).map((r: any) => ({
@@ -161,7 +161,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
     setSearchSource("");
     try {
       if (isGame) {
-        const res = await searchGames(query);
+        const res = await searchGames(query, item.platform);
         setResults(res);
         setSearchSource("game lookup");
         if (res.length === 0) {

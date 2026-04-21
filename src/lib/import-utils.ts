@@ -341,6 +341,26 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   }
 
   if (Object.keys(metadata).length > 0) {
+    if (mediaType === "cds") {
+      const collectorText = [
+        mapped.notes,
+        metadata.notes,
+        metadata.packaging,
+        metadata.package_condition,
+        metadata.subtitle,
+      ]
+        .filter(Boolean)
+        .join(" \n ")
+        .toLowerCase();
+
+      if (collectorText.includes("includes obi strip") || collectorText.includes("includes obi")) {
+        (metadata as any).obi_status = "included";
+      }
+      if (collectorText.includes("sleeved") || collectorText.includes("removed from jewel case")) {
+        (metadata as any).sleeved = true;
+      }
+    }
+
     if (metadata.running_time) {
       const parsedRuntime = parseInt(metadata.running_time, 10);
       if (!isNaN(parsedRuntime)) {

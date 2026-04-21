@@ -31,6 +31,8 @@ export interface MediaLookupResult {
   // Games
   platforms?: string[];
   developer?: string | null;
+  publisher?: string | null;
+  description?: string | null;
   rating?: number | null;
   // Common
   barcode?: string | null;
@@ -151,11 +153,11 @@ export function isHighConfidenceFallbackResult(
 export async function searchMedia(
   activeTab: MediaTab,
   query: string,
-  opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv"; artist?: string; catalogNumber?: string }
+  opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv"; artist?: string; catalogNumber?: string; platform?: string }
 ): Promise<MediaLookupResult[]> {
-  if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(query, opts);
+  if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(activeTab === "music-films" && opts?.artist ? `${opts.artist} ${query}` : query, opts);
   if (activeTab === "cds") return searchMusic(query, { barcode: opts?.barcode, artist: opts?.artist, catalogNumber: opts?.catalogNumber });
-  if (activeTab === "games") return searchGames(query);
+  if (activeTab === "games") return searchGames(query, { platform: opts?.platform });
   return [];
 }
 
@@ -164,7 +166,7 @@ export async function lookupBarcode(
   barcode: string
 ): Promise<BarcodeLookupResult> {
   if (activeTab === "movies" || activeTab === "music-films") {
-    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode);
+    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode, activeTab);
     if (localCatalogResult) return localCatalogResult;
 
     const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
@@ -267,6 +269,9 @@ export async function lookupBarcode(
   }
 
   if (activeTab === "cds") {
+    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode, activeTab);
+    if (localCatalogResult) return localCatalogResult;
+
     const { data, error } = await supabase.functions.invoke("music-lookup", {
       body: { barcode },
     });
@@ -295,12 +300,18 @@ export async function lookupBarcode(
     return {};
   }
 
+  if (activeTab === "games") {
+    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode, activeTab);
+    if (localCatalogResult) return localCatalogResult;
+    return {};
+  }
+
   return {};
 }
 
 // --- Internal search helpers ---
 
-async function lookupBarcodeFromEditionCatalog(barcode: string): Promise<BarcodeLookupResult | null> {
+async function lookupBarcodeFromEditionCatalog(barcode: string, activeTab: MediaTab): Promise<BarcodeLookupResult | null> {
   const catalogEntry = await lookupEditionCatalogByBarcode(barcode);
   if (!catalogEntry) return null;
 
@@ -356,6 +367,42 @@ async function lookupBarcodeFromEditionCatalog(barcode: string): Promise<Barcode
     };
   }
 
+  const metadata = catalogMetadata || {};
+  const baseDirect: MediaLookupResult = {
+    id: catalogEntry.external_id || `catalog-${catalogEntry.barcode}`,
+    title: catalogEntry.title,
+    year: catalogEntry.year ?? null,
+    cover_url: catalogEntry.package_image_url || null,
+    genre: (metadata.genre as string) || null,
+    barcode: catalogEntry.barcode,
+    detected_formats: catalogEntry.formats || [],
+    source: "edition_catalog",
+    artist: (metadata.artist as string) || null,
+    label: (metadata.label as string) || null,
+    catalog_number: (metadata.catalog_number as string) || null,
+    country: (metadata.country as string) || null,
+    tracklist: Array.isArray(metadata.tracklist) ? metadata.tracklist : undefined,
+    platforms: Array.isArray(metadata.platforms) ? metadata.platforms : undefined,
+    developer: (metadata.developer as string) || null,
+    publisher: (metadata.publisher as string) || null,
+    description: (metadata.description as string) || (metadata.overview as string) || null,
+    rating: typeof metadata.rating === "number" ? metadata.rating : null,
+    edition: {
+      label: catalogEntry.edition || undefined,
+      barcode_title: catalogEntry.product_title || catalogEntry.title,
+      package_title: catalogEntry.product_title || catalogEntry.title,
+      package_year: catalogEntry.year,
+      formats: catalogEntry.formats || [],
+      cover_art_url: catalogEntry.package_image_url,
+      tmdb_poster_url: null,
+      disc_count: catalogEntry.disc_count,
+    },
+  };
+
+  if (activeTab === "cds" || activeTab === "games") {
+    return { direct: baseDirect };
+  }
+
   const query = catalogEntry.title;
   const year = catalogEntry.year ?? undefined;
   let results: MediaLookupResult[] = [];
@@ -366,34 +413,20 @@ async function lookupBarcodeFromEditionCatalog(barcode: string): Promise<Barcode
   }
 
   const decorate = (result: MediaLookupResult): MediaLookupResult => ({
+    ...baseDirect,
     ...result,
     detected_formats: catalogEntry.formats || result.detected_formats,
     cover_url: catalogEntry.package_image_url || result.cover_url,
     edition: {
-      label: catalogEntry.edition || undefined,
-      barcode_title: catalogEntry.product_title || catalogEntry.title,
-      package_title: catalogEntry.product_title || catalogEntry.title,
-      package_year: catalogEntry.year,
-      formats: catalogEntry.formats || [],
-      cover_art_url: catalogEntry.package_image_url,
+      ...baseDirect.edition,
       tmdb_poster_url: result.cover_url,
-      disc_count: catalogEntry.disc_count,
     },
     source: "edition_catalog",
   });
 
-  if (results.length === 1) {
-    return { direct: decorate(results[0]) };
-  }
-
-  if (results.length > 1) {
-    return { results: results.map(decorate) };
-  }
-
-  return {
-    partialTitle: catalogEntry.title,
-    partialFormats: catalogEntry.formats || [],
-  };
+  if (results.length === 1) return { direct: decorate(results[0]) };
+  if (results.length > 1) return { results: results.map(decorate) };
+  return { direct: baseDirect };
 }
 
 function mapTmdbResult(r: any): MediaLookupResult {
@@ -481,9 +514,9 @@ async function searchMusic(
   }));
 }
 
-async function searchGames(query: string): Promise<MediaLookupResult[]> {
+async function searchGames(query: string, opts?: { platform?: string }): Promise<MediaLookupResult[]> {
   const { data, error } = await supabase.functions.invoke("game-lookup", {
-    body: { query },
+    body: { query, platform: opts?.platform },
   });
   if (error) throw new Error(error.message);
   return (data.results || []).map((r: any) => ({

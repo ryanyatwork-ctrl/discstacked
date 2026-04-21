@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, Film, Gamepad2, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MediaItem, MediaTab, TABS } from "@/lib/types";
@@ -54,13 +53,6 @@ function seedToItem(seed: LandingSeed, index: number): MediaItem {
   };
 }
 
-const LANDING_TAB_ICONS = {
-  movies: Film,
-  "music-films": Music2,
-  cds: Disc3,
-  games: Gamepad2,
-} satisfies Record<MediaTab, typeof Film>;
-
 export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
   const [activeTab, setActiveTab] = useState<MediaTab>("movies");
   const [items, setItems] = useState<MediaItem[]>(() => LANDING_EXAMPLES.movies.map(seedToItem));
@@ -81,8 +73,12 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
         try {
           const mediaType = item.mediaType || activeTab;
           const isMusicRelease = mediaType === "cds";
-          const primaryQuery = isMusicRelease && item.artist ? `${item.artist} ${item.title}` : item.title;
-          let results = await searchMedia(mediaType, primaryQuery, isMusicRelease ? undefined : { year: item.year });
+          const primaryQuery = item.title;
+          let results = await searchMedia(mediaType, primaryQuery, {
+            year: isMusicRelease ? undefined : item.year,
+            artist: item.artist,
+            platform: mediaType === "games" ? item.platform : undefined,
+          });
           if ((!results || results.length === 0) && isMusicRelease && item.artist) {
             results = await searchMedia(mediaType, item.title);
           }
@@ -161,7 +157,6 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
 
           <div className="flex flex-wrap items-center justify-center gap-2">
             {TABS.map((tab) => {
-              const Icon = LANDING_TAB_ICONS[tab.id];
               return (
                 <Button
                   key={tab.id}
@@ -170,7 +165,7 @@ export function LandingPreview({ onSignIn }: { onSignIn: () => void }) {
                   onClick={() => setActiveTab(tab.id)}
                   className="gap-2"
                 >
-                  <Icon className="h-4 w-4" />
+                  <span className="text-sm leading-none" aria-hidden="true">{tab.icon}</span>
                   <span>{tab.label}</span>
                 </Button>
               );

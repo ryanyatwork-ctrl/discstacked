@@ -71,6 +71,27 @@ async function igdbSearch(query: string) {
   });
 }
 
+function normalizeText(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function rankGameResults(results: any[], platform?: string) {
+  const wantedPlatform = normalizeText(platform);
+
+  return [...results].sort((a, b) => {
+    const aPlatforms = (a.platforms || []).map((entry: any) => normalizeText(typeof entry === "string" ? entry : entry?.platform?.name || entry?.name));
+    const bPlatforms = (b.platforms || []).map((entry: any) => normalizeText(typeof entry === "string" ? entry : entry?.platform?.name || entry?.name));
+    const aPlatformMatch = wantedPlatform && aPlatforms.some((name: string) => name.includes(wantedPlatform) || wantedPlatform.includes(name)) ? 1 : 0;
+    const bPlatformMatch = wantedPlatform && bPlatforms.some((name: string) => name.includes(wantedPlatform) || wantedPlatform.includes(name)) ? 1 : 0;
+
+    if (aPlatformMatch !== bPlatformMatch) return bPlatformMatch - aPlatformMatch;
+
+    const aRating = typeof a.rating === "number" ? a.rating : -1;
+    const bRating = typeof b.rating === "number" ? b.rating : -1;
+    return bRating - aRating;
+  });
+}
+
 // RAWG search
 async function rawgSearch(query: string) {
   const key = Deno.env.get("RAWG_API_KEY");
@@ -107,7 +128,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { query, platform } = await req.json();
     if (!query?.trim()) {
       return new Response(JSON.stringify({ results: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -120,7 +141,9 @@ serve(async (req) => {
       results = await rawgSearch(query);
     }
 
-    return new Response(JSON.stringify({ results: results || [] }), {
+    const rankedResults = rankGameResults(results || [], platform);
+
+    return new Response(JSON.stringify({ results: rankedResults }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {

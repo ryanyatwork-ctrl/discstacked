@@ -101,10 +101,10 @@ async function lookupTvSeasonPoster(
 }
 
 // ── Game cover lookup ──
-async function fetchGameCover(title: string): Promise<ArtworkResult | null> {
+async function fetchGameCover(title: string, platform?: string): Promise<ArtworkResult | null> {
   try {
     const { data, error } = await supabase.functions.invoke("game-lookup", {
-      body: { query: title },
+      body: { query: title, platform },
     });
     if (error || !data?.results?.length) return null;
     const best = data.results[0];
@@ -116,10 +116,10 @@ async function fetchGameCover(title: string): Promise<ArtworkResult | null> {
 }
 
 // ── Music cover lookup ──
-async function fetchMusicCover(title: string, barcode?: string): Promise<ArtworkResult | null> {
+async function fetchMusicCover(title: string, barcode?: string, artist?: string, catalogNumber?: string): Promise<ArtworkResult | null> {
   try {
     const { data, error } = await supabase.functions.invoke("music-lookup", {
-      body: { query: title, barcode },
+      body: { query: title, barcode, artist, catalogNumber },
     });
     if (error) return null;
     const coverUrl = data?.poster_url || data?.results?.[0]?.cover_url;
@@ -178,13 +178,20 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
 
   // Games use their own lookup
   if (item.media_type === "games") {
-    return fetchGameCover(item.title);
+    const meta = (item.metadata as Record<string, any> | null) || {};
+    return fetchGameCover(item.title, item.platform || meta.platform || meta.platforms?.[0]);
   }
 
   // CDs use music lookup
   if (item.media_type === "cds") {
     const barcode = getBarcode(item);
-    return fetchMusicCover(item.title, barcode || undefined);
+    const meta = (item.metadata as Record<string, any> | null) || {};
+    return fetchMusicCover(
+      item.title,
+      barcode || undefined,
+      item.artist || meta.artist,
+      meta.catalog_number || meta.catalog_no || meta.catno,
+    );
   }
 
   // ── A. Barcode lookup (highest priority — exact owned cover) ──
