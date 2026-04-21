@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { SharedDetailDrawer } from "@/components/SharedDetailDrawer";
 import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
+import { CollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 
-type ViewMode = "covers" | "list";
 type StatusFilter = "wishlist" | "wantToWatch" | null;
 
 export default function SharedCollection() {
@@ -31,7 +31,7 @@ export default function SharedCollection() {
   const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id, currentTab);
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("covers");
+  const [viewMode, setViewMode] = useState<CollectionViewMode>(DEFAULT_COLLECTION_VIEW);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
@@ -256,20 +256,31 @@ export default function SharedCollection() {
         </p>
         <div className="flex items-center gap-1">
           <Button
-            variant="ghost"
-            size="icon"
-            className={viewMode === "covers" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setViewMode("covers")}
+            variant={viewMode === "vertical-cards" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "vertical-cards" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("vertical-cards")}
           >
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Vertical</span>
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
-            className={viewMode === "list" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
+            variant={viewMode === "horizontal-cards" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "horizontal-cards" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => setViewMode("horizontal-cards")}
+          >
+            <ImageIcon className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Horizontal</span>
+          </Button>
+          <Button
+            variant={viewMode === "list" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "list" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
             onClick={() => setViewMode("list")}
           >
-            <List className="h-4 w-4" />
+            <List className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">List</span>
           </Button>
         </div>
       </div>
@@ -279,10 +290,16 @@ export default function SharedCollection() {
         {Object.keys(grouped).sort().map((letter) => (
           <div key={letter} id={`share-letter-${letter}`} className="mb-6">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 sticky top-[120px] bg-background/95 backdrop-blur-sm py-1 z-10">{letter}</h2>
-            {viewMode === "covers" ? (
+            {viewMode === "vertical-cards" ? (
               <div className="poster-grid">
                 {grouped[letter].map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} />
+                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} variant="vertical" />
+                ))}
+              </div>
+            ) : viewMode === "horizontal-cards" ? (
+              <div className="flex flex-col gap-3">
+                {grouped[letter].map((item) => (
+                  <PosterCard key={item.id} item={item} onClick={setSelectedItem} variant="horizontal" />
                 ))}
               </div>
             ) : (

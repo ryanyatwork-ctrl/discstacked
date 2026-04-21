@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { TABS, MediaTab, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { reapplyBarcodeDetailsForUser } from "@/lib/barcode-reapply";
+import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 
 const PASSWORD_RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -53,8 +54,6 @@ function generateStrongPassword(): string {
 }
 
 type Theme = "dark" | "light";
-type ViewMode = "covers" | "list";
-
 function getStoredSetting<T>(key: string, fallback: T): T {
   try {
     const val = localStorage.getItem(key);
@@ -75,7 +74,7 @@ export default function Settings() {
   const { profile, updateProfile } = useProfile();
 
   const [theme, setTheme] = useState<Theme>(() => getStoredSetting("ds-theme", "dark"));
-  const [defaultView, setDefaultView] = useState<ViewMode>(() => getStoredSetting("ds-default-view", "covers"));
+  const [defaultView, setDefaultView] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStoredSetting("ds-default-view", DEFAULT_COLLECTION_VIEW)));
   const [defaultTab, setDefaultTab] = useState<MediaTab>(() => coerceMediaTab(getStoredSetting("ds-default-tab", DEFAULT_MEDIA_TAB)));
 
   // Shared tabs state
@@ -128,7 +127,7 @@ export default function Settings() {
     toast({ title: `Theme set to ${newTheme} mode` });
   };
 
-  const handleViewChange = (view: ViewMode) => {
+  const handleViewChange = (view: CollectionViewMode) => {
     setDefaultView(view);
     setSetting("ds-default-view", view);
     toast({ title: `Default view set to ${view}` });
@@ -203,15 +202,24 @@ export default function Settings() {
         {/* Default View */}
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Default View</h2>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Button
-              variant={defaultView === "covers" ? "default" : "outline"}
+              variant={defaultView === "vertical-cards" ? "default" : "outline"}
               size="sm"
               className="flex-1 gap-2"
-              onClick={() => handleViewChange("covers")}
+              onClick={() => handleViewChange("vertical-cards")}
             >
               <LayoutGrid className="h-4 w-4" />
-              Covers
+              Vertical Cards
+            </Button>
+            <Button
+              variant={defaultView === "horizontal-cards" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => handleViewChange("horizontal-cards")}
+            >
+              <Disc className="h-4 w-4" />
+              Horizontal Cards
             </Button>
             <Button
               variant={defaultView === "list" ? "default" : "outline"}

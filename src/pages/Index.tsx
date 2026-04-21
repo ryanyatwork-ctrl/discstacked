@@ -4,7 +4,6 @@ import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/ty
 import { Badge } from "@/components/ui/badge";
 import { generateMockData } from "@/lib/mock-data";
 import { sortTitle, groupLetter } from "@/lib/utils";
-import { getEditionLabel } from "@/lib/edition-utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -29,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
 import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
+import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   const formats = (db as any).formats as string[] | null;
@@ -56,7 +56,6 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   };
 }
 
-type ViewMode = "covers" | "list" | "editions";
 type SortMode = "title" | "year" | "recent";
 
 function getStored<T>(key: string, fallback: T): T {
@@ -74,7 +73,7 @@ export default function Index() { // force rebuild
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(() => getStored("ds-default-view", "covers"));
+  const [viewMode, setViewMode] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStored("ds-default-view", DEFAULT_COLLECTION_VIEW)));
   const [sortMode, setSortMode] = useState<SortMode>(() => getStored("ds-default-sort", "title"));
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -182,18 +181,6 @@ export default function Index() { // force rebuild
     return groups;
   }, [filteredItems, sortMode]);
 
-  // Group items by base title for editions view
-  const editionGroups = useMemo(() => {
-    const groups: Record<string, MediaItem[]> = {};
-    filteredItems.forEach((item) => {
-      // Use the base title (without edition) as the grouping key
-      const baseTitle = item.title;
-      if (!groups[baseTitle]) groups[baseTitle] = [];
-      groups[baseTitle].push(item);
-    });
-    return groups;
-  }, [filteredItems]);
-
   const handleFormatToggle = useCallback((format: string) => {
     setActiveFormats((prev) =>
       prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
@@ -235,9 +222,10 @@ export default function Index() { // force rebuild
 
   const sortedLetters = sortMode === "title" ? Object.keys(groupedItems).sort() : ["All"];
 
-  const sortedEditionGroups = useMemo(() => {
-    return Object.entries(editionGroups).sort(([, itemsA], [, itemsB]) => compareItems(itemsA[0], itemsB[0]));
-  }, [editionGroups, compareItems]);
+  const handleViewModeChange = useCallback((nextView: CollectionViewMode) => {
+    setViewMode(nextView);
+    localStorage.setItem("ds-default-view", JSON.stringify(nextView));
+  }, []);
 
   const handleSortChange = useCallback((value: SortMode) => {
     setSortMode(value);
@@ -384,110 +372,71 @@ export default function Index() { // force rebuild
               <SelectItem value="recent">Recently Added</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 rounded-md border border-border bg-card p-1">
           <Button
-            variant="ghost"
-            size="icon"
-            className={viewMode === "covers" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setViewMode("covers")}
-            title="Cover grid"
+            variant={viewMode === "vertical-cards" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "vertical-cards" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => handleViewModeChange("vertical-cards")}
+            title="Vertical cards"
           >
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Vertical</span>
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
-            className={viewMode === "list" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setViewMode("list")}
+            variant={viewMode === "horizontal-cards" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "horizontal-cards" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => handleViewModeChange("horizontal-cards")}
+            title="Horizontal cards"
+          >
+            <Layers className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Horizontal</span>
+          </Button>
+          <Button
+            variant={viewMode === "list" ? "secondary" : "ghost"}
+            size="sm"
+            className={viewMode === "list" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
+            onClick={() => handleViewModeChange("list")}
             title="List view"
           >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={viewMode === "editions" ? "text-primary" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setViewMode("editions")}
-            title="Group by editions"
-          >
-            <Layers className="h-4 w-4" />
+            <List className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">List</span>
           </Button>
           </div>
         </div>
       </div>
 
-      {/* Grid / List / Editions */}
+      {/* Grid / Cards / List */}
       <main className="px-4 pb-8" ref={gridRef}>
-        {viewMode === "editions" ? (
-          // Editions grouped view
-          sortedEditionGroups
-            .map(([title, items]) => (
-              <div key={title} className="mb-4">
-                <div className="flex items-center gap-2 py-1.5">
-                  <h3 className="text-sm font-semibold text-foreground truncate">{title}</h3>
-                  {items[0]?.year && <span className="text-xs text-muted-foreground">({items[0].year})</span>}
-                  {items.length > 1 && (
-                    <Badge variant="secondary" className="text-[10px]">{items.length} editions</Badge>
-                  )}
-                </div>
-                <div className="flex flex-col pl-3 border-l-2 border-border/50">
-                  {items.map((item) => {
-                    const edition = getEditionLabel(item.metadata);
-                    const formatBadges = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setSelectedItemId(item.id)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary/60 transition-colors text-left"
-                      >
-                        {item.posterUrl && (
-                          <img src={item.posterUrl} alt="" className="w-8 h-12 rounded object-cover shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm text-foreground">
-                            {edition || "Standard Edition"}
-                          </span>
-                          {(item.metadata as any)?.case_type && (
-                            <span className="text-[10px] text-muted-foreground ml-1">· {(item.metadata as any).case_type}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {formatBadges.map((f) => (
-                            <Badge key={f} variant={f === "4K" ? "4k" : f === "Blu-ray" ? "bluray" : f === "DVD" ? "dvd" : "secondary"} className="text-[10px]">
-                              {f}
-                            </Badge>
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+        {sortedLetters.map((letter) => (
+          <div key={letter} id={`letter-${letter}`} className="mb-6">
+            {sortMode === "title" && (
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
+                {letter}
+              </h2>
+            )}
+            {viewMode === "vertical-cards" ? (
+              <div className="poster-grid">
+                {groupedItems[letter].map((item) => (
+                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="vertical" />
+                ))}
               </div>
-            ))
-        ) : (
-          sortedLetters.map((letter) => (
-            <div key={letter} id={`letter-${letter}`} className="mb-6">
-              {sortMode === "title" && (
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
-                  {letter}
-                </h2>
-              )}
-              {viewMode === "covers" ? (
-                <div className="poster-grid">
-                  {groupedItems[letter].map((item) => (
-                    <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  {groupedItems[letter].map((item) => (
-                    <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
-        )}
+            ) : viewMode === "horizontal-cards" ? (
+              <div className="flex flex-col gap-3">
+                {groupedItems[letter].map((item) => (
+                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="horizontal" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {groupedItems[letter].map((item) => (
+                  <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
         {!isLoading && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
             {user ? (
