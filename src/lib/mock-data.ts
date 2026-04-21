@@ -1,4 +1,5 @@
 import { MediaItem, MediaTab } from "./types";
+import { searchTmdb } from "./tmdb";
 
 const movieTitles = [
   "Alien", "Blade Runner 2049", "Casino Royale", "Dune", "Edge of Tomorrow",
@@ -15,18 +16,42 @@ const movieTitles = [
 
 const formats = ["4K", "Blu-ray", "DVD"];
 
+const DEMO_POSTER_CACHE_KEY = "ds-demo-posters-v1";
+
+let demoPosterCache: Record<string, string | null> | null = null;
+
+function loadPosterCache() {
+  if (demoPosterCache) return demoPosterCache;
+  try {
+    const raw = localStorage.getItem(DEMO_POSTER_CACHE_KEY);
+    demoPosterCache = raw ? JSON.parse(raw) as Record<string, string | null> : {};
+  } catch {
+    demoPosterCache = {};
+  }
+  return demoPosterCache;
+}
+
+function savePosterCache() {
+  if (!demoPosterCache) return;
+  try {
+    localStorage.setItem(DEMO_POSTER_CACHE_KEY, JSON.stringify(demoPosterCache));
+  } catch {
+    // Ignore storage failures in demo mode.
+  }
+}
+
 export function generateMockData(tab: MediaTab): MediaItem[] {
   if (tab === "movies" || tab === "music-films") {
     return movieTitles.map((title, i) => ({
       id: `${tab}-${i}`,
       title,
-      year: 1990 + Math.floor(Math.random() * 34),
-      format: formats[Math.floor(Math.random() * 3)],
-      inPlex: Math.random() > 0.3,
-      digitalCopy: Math.random() > 0.5,
-      wishlist: Math.random() > 0.85,
-      wantToWatch: Math.random() > 0.7,
-      lastWatched: Math.random() > 0.5 ? new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : undefined,
+      year: 1988 + ((i * 3) % 36),
+      format: formats[i % formats.length],
+      inPlex: i % 2 === 0,
+      digitalCopy: i % 3 !== 0,
+      wishlist: i % 7 === 0,
+      wantToWatch: i % 5 === 0,
+      lastWatched: i % 4 === 0 ? new Date(Date.now() - i * 11 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : undefined,
     }));
   }
   if (tab === "cds") {
@@ -40,8 +65,8 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
       id: `cd-${i}`,
       title,
       artist: "Various Artists",
-      year: 1970 + Math.floor(Math.random() * 54),
-      format: ["CD", "Vinyl", "Cassette"][Math.floor(Math.random() * 3)],
+      year: 1970 + ((i * 4) % 50),
+      format: ["CD", "Vinyl", "Cassette"][i % 3],
     }));
   }
   // Games (default fallthrough)
@@ -52,8 +77,39 @@ export function generateMockData(tab: MediaTab): MediaItem[] {
   return games.map((title, i) => ({
     id: `game-${i}`,
     title,
-    year: 2018 + Math.floor(Math.random() * 7),
-    format: ["PS5", "Xbox", "Switch", "PC"][Math.floor(Math.random() * 4)],
+    year: 2018 + (i % 7),
+    format: ["PS5", "Xbox", "Switch", "PC"][i % 4],
     platform: "PS5",
+  }));
+}
+
+export async function hydrateMockDataPosters(items: MediaItem[], tab: MediaTab): Promise<MediaItem[]> {
+  if (tab !== "movies" && tab !== "music-films") return items;
+
+  const cache = loadPosterCache();
+  const titlesToLookup = [...new Set(
+    items
+      .filter((item) => !item.posterUrl && cache[item.title] === undefined)
+      .map((item) => item.title),
+  )];
+
+  if (titlesToLookup.length > 0) {
+    await Promise.all(
+      titlesToLookup.map(async (title) => {
+        try {
+          const results = await searchTmdb(title);
+          const poster = results.find((result) => !!result.poster_url)?.poster_url || null;
+          cache[title] = poster;
+        } catch {
+          cache[title] = null;
+        }
+      }),
+    );
+    savePosterCache();
+  }
+
+  return items.map((item) => ({
+    ...item,
+    posterUrl: item.posterUrl || cache[item.title] || undefined,
   }));
 }

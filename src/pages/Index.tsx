@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { generateMockData } from "@/lib/mock-data";
+import { generateMockData, hydrateMockDataPosters } from "@/lib/mock-data";
 import { getCollectorGroupLetter, getCollectorSortKey } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
@@ -74,6 +74,7 @@ export default function Index() { // force rebuild
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStored("ds-default-view", DEFAULT_COLLECTION_VIEW)));
   const [sortMode, setSortMode] = useState<SortMode>(() => getStored("ds-default-sort", "title"));
+  const [demoItems, setDemoItems] = useState<MediaItem[]>(() => generateMockData(DEFAULT_MEDIA_TAB));
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -82,6 +83,22 @@ export default function Index() { // force rebuild
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
 
+  useEffect(() => {
+    if (user) return;
+
+    const baseItems = generateMockData(activeTab);
+    setDemoItems(baseItems);
+
+    let cancelled = false;
+    hydrateMockDataPosters(baseItems, activeTab).then((hydratedItems) => {
+      if (!cancelled) setDemoItems(hydratedItems);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, user]);
+
   const allItems = useMemo(() => {
     if (user && dbItems && dbItems.length > 0) {
       return dbItems.map(dbToMediaItem);
@@ -89,8 +106,8 @@ export default function Index() { // force rebuild
     if (user && dbItems && dbItems.length === 0) {
       return [];
     }
-    return generateMockData(activeTab);
-  }, [activeTab, user, dbItems]);
+    return demoItems;
+  }, [user, dbItems, demoItems]);
 
   // Derive live selectedItem from latest data so edits are reflected immediately
   const selectedItem = useMemo(() => {
