@@ -81,10 +81,6 @@ export default function Index() { // force rebuild
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
 
-  if (!user) {
-    return <LandingPreview onSignIn={() => navigate("/auth")} />;
-  }
-
   const allItems = useMemo(() => {
     if (dbItems && dbItems.length > 0) {
       return dbItems.map(dbToMediaItem);
@@ -234,6 +230,10 @@ export default function Index() { // force rebuild
     localStorage.setItem("ds-default-sort", JSON.stringify(value));
     setActiveLetter(null);
   }, []);
+
+  if (!user) {
+    return <LandingPreview onSignIn={() => navigate("/auth")} />;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">
