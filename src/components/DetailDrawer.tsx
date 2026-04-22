@@ -1075,6 +1075,13 @@ function mapBarcodeLookupToDetailMatches(result: BarcodeLookupResult): MediaLook
 function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnType<typeof useUpdateItem> }) {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [watchNote, setWatchNote] = useState("");
+  const isGame = item.mediaType === "games";
+  const historyLabel = isGame ? "Play History" : "Watch History";
+  const lastActionLabel = isGame ? "Last played" : "Last watched";
+  const emptyLabel = isGame ? "Not yet played" : "Not yet watched";
+  const actionLabel = item.lastWatched
+    ? (isGame ? "Played Again" : "Watched Again")
+    : (isGame ? "Mark as Played" : "Mark as Watched");
 
   const handleMarkWatched = async (note?: string) => {
     const today = new Date().toISOString().split("T")[0];
@@ -1082,7 +1089,7 @@ function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnTyp
       const updates: any = { id: item.id, last_watched: today, want_to_watch: false };
       if (note?.trim()) updates.watch_notes = note.trim();
       await onUpdate.mutateAsync(updates);
-      toast({ title: "Marked as watched!", description: `${item.title} — ${today}` });
+      toast({ title: isGame ? "Marked as played!" : "Marked as watched!", description: `${item.title} — ${today}` });
       setShowNoteInput(false);
       setWatchNote("");
     } catch {
@@ -1092,17 +1099,17 @@ function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnTyp
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Watch History</p>
+      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{historyLabel}</p>
       {item.lastWatched ? (
         <div className="space-y-1">
           <p className="text-sm text-foreground flex items-center gap-1.5">
             <CalendarCheck className="w-3.5 h-3.5 text-primary" />
-            Last watched: {item.lastWatched}
+            {lastActionLabel}: {item.lastWatched}
           </p>
           {item.watchNotes && <p className="text-sm text-muted-foreground italic">"{item.watchNotes}"</p>}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Not yet watched</p>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       )}
       {showNoteInput ? (
         <div className="space-y-2">
@@ -1131,7 +1138,7 @@ function WatchHistory({ item, onUpdate }: { item: MediaItem; onUpdate: ReturnTyp
           className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
         >
           <CalendarCheck className="w-3.5 h-3.5" />
-          {item.lastWatched ? "Watched Again" : "Mark as Watched"}
+          {actionLabel}
         </Button>
       )}
     </div>
