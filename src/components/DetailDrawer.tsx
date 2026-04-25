@@ -17,7 +17,7 @@ import { FormatEditor } from "@/components/FormatEditor";
 import { PhysicalMediaDetails } from "@/components/PhysicalMediaDetails";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { GenerateCoverArtButton } from "@/components/GenerateCoverArtButton";
-import { getFallbackPosterUrl, hasManualArtworkOverride, isPackageArtwork } from "@/lib/cover-utils";
+import { getDisplayPosterUrl, getFallbackPosterUrl, hasManualArtworkOverride, isPackageArtwork } from "@/lib/cover-utils";
 
 interface DetailDrawerProps {
   item: MediaItem | null;
@@ -59,7 +59,7 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
   }, [item?.id]);
 
   useEffect(() => {
-    setDisplayPoster(item?.posterUrl || null);
+    setDisplayPoster(item ? getDisplayPosterUrl(item) : null);
   }, [item?.id, item?.posterUrl]);
 
   useEffect(() => {

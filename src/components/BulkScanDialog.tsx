@@ -15,6 +15,7 @@ import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeaso
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
 import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
+import { preferPosterUrl } from "@/lib/cover-utils";
 
 interface ScanQueueItem {
   barcode: string;
@@ -137,7 +138,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         return {
           status: "multi_movie",
           title: result.multiMovie.collection_name || result.multiMovie.product_title,
-          posterUrl: result.multiMovie.cover_art_url || null,
+          posterUrl: preferPosterUrl(result.multiMovie.cover_art_url || null, result.multiMovie.movies[0]?.poster_url || null),
           multiMovie: result.multiMovie,
           formats: result.multiMovie.detected_formats,
           format: result.multiMovie.detected_formats[0] || "",
@@ -149,7 +150,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         return {
           status: "multi_season",
           title: result.multiSeason.show_name || result.multiSeason.product_title,
-          posterUrl: result.multiSeason.cover_art_url || null,
+          posterUrl: preferPosterUrl(result.multiSeason.cover_art_url || null, result.multiSeason.seasons[0]?.poster_url || null),
           multiSeason: result.multiSeason,
           formats: result.multiSeason.detected_formats,
           format: result.multiSeason.detected_formats[0] || "",

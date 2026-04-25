@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Monitor, Download, Eye, Heart, Disc, Disc3, Cloud, AlertTriangle } from "lucide-react";
 import { getEditionLabel } from "@/lib/edition-utils";
 import { hasCopyIssue } from "@/lib/collector-utils";
-import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
+import { getDisplayPosterUrl, getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
 
 interface PosterCardProps {
   item: MediaItem;
@@ -16,16 +16,17 @@ interface PosterCardProps {
 
 export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardProps) {
   const [loaded, setLoaded] = useState(false);
-  const [displaySrc, setDisplaySrc] = useState<string | null>(item.posterUrl || null);
+  const preferredSrc = getDisplayPosterUrl(item);
+  const [displaySrc, setDisplaySrc] = useState<string | null>(preferredSrc);
   const [failedSources, setFailedSources] = useState<string[]>([]);
   const fallbackSrc = getFallbackPosterUrl(item);
   const hasPoster = !!displaySrc;
 
   useEffect(() => {
     setLoaded(false);
-    setDisplaySrc(item.posterUrl || null);
+    setDisplaySrc(preferredSrc);
     setFailedSources([]);
-  }, [item.id, item.posterUrl]);
+  }, [item.id, item.posterUrl, preferredSrc]);
 
   const formatBadges = (item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : []);
   const physicalFormats = formatBadges.filter(f => f !== "Digital");

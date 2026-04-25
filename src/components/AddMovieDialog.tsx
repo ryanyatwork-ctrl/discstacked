@@ -20,6 +20,7 @@ import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils
 import { buildDiscEntries } from "@/lib/collector-utils";
 import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 import { buildMusicMediaMirrorRow } from "@/lib/music-media-mirror";
+import { preferPosterUrl } from "@/lib/cover-utils";
 
 interface AddMovieDialogProps {
   activeTab: MediaTab;
@@ -278,7 +279,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setTitle(r.title);
     setYear(r.year ? String(r.year) : "");
     setGenre(r.genre || "");
-    setSelectedPoster(r.cover_url || null);
+    setSelectedPoster(preferPosterUrl(r.cover_url || null, r.edition?.tmdb_poster_url || null));
     setArtist(r.artist || r.author || (isMusicFilmTab ? artist : ""));
     setCatalogNumber(r.catalog_number || "");
     // Auto-apply detected formats from barcode lookup
@@ -814,7 +815,24 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           {/* Poster preview */}
           {selectedPoster && (
             <div className="flex justify-center">
-              <img src={selectedPoster} alt="Cover" className="h-32 rounded-md border border-border" />
+              <img
+                src={selectedPoster}
+                alt="Cover"
+                className="h-32 rounded-md border border-border"
+                onError={() => {
+                  const fallbackPoster = preferPosterUrl(
+                    (extraMeta.edition as Record<string, any> | undefined)?.cover_art_url || null,
+                    (extraMeta.edition as Record<string, any> | undefined)?.tmdb_poster_url || null,
+                  );
+
+                  if (fallbackPoster && fallbackPoster !== selectedPoster) {
+                    setSelectedPoster(fallbackPoster);
+                    return;
+                  }
+
+                  setSelectedPoster(null);
+                }}
+              />
             </div>
           )}
 

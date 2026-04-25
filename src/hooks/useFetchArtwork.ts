@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { searchTmdb } from "@/lib/tmdb";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DbMediaItem } from "@/hooks/useMediaItems";
-import { hasManualArtworkOverride } from "@/lib/cover-utils";
+import { hasManualArtworkOverride, isReliablePosterUrl, preferPosterUrl } from "@/lib/cover-utils";
 
 interface ArtworkResult {
   poster_url: string;
@@ -34,7 +34,10 @@ async function lookupByBarcode(barcode: string): Promise<ArtworkResult | null> {
       body: { barcode },
     });
     if (error || !data) return null;
-    const posterUrl = data.package_image_url || data.poster_url || data.results?.[0]?.package_image_url || data.results?.[0]?.poster_url;
+    const posterUrl = preferPosterUrl(
+      data.package_image_url || data.results?.[0]?.package_image_url || null,
+      data.poster_url || data.results?.[0]?.poster_url || null,
+    );
     if (posterUrl) return { poster_url: posterUrl, source: "matched by barcode", match_type: "exact_owned_cover" };
     return null;
   } catch {
@@ -274,6 +277,11 @@ async function findRepairCandidates(items: DbMediaItem[]) {
     const edition = getEditionMeta(item);
     const hasBrokenPoster = item.poster_url ? !(await canLoadImage(item.poster_url)) : false;
     const hasFallbackPoster = !!edition.tmdb_poster_url;
+    const shouldPreferFallbackPoster =
+      !!item.poster_url &&
+      !!edition.tmdb_poster_url &&
+      !isReliablePosterUrl(item.poster_url) &&
+      preferPosterUrl(item.poster_url, edition.tmdb_poster_url) === edition.tmdb_poster_url;
     const packagePosterNeedsFallback =
       !!item.poster_url &&
       !!edition.cover_art_url &&
@@ -281,7 +289,7 @@ async function findRepairCandidates(items: DbMediaItem[]) {
       hasBrokenPoster &&
       hasFallbackPoster;
 
-    if (!item.poster_url || hasBrokenPoster || packagePosterNeedsFallback) {
+    if (!item.poster_url || hasBrokenPoster || packagePosterNeedsFallback || shouldPreferFallbackPoster) {
       candidates.push(item);
     }
   }
@@ -306,13 +314,13 @@ export function useFetchArtwork() {
       const item = candidates[i];
       try {
         const edition = getEditionMeta(item);
-        const isBrokenPackageCover =
+        const shouldSwapToFallbackPoster =
           !!item.poster_url &&
-          !!edition.cover_art_url &&
-          item.poster_url === edition.cover_art_url &&
-          !!edition.tmdb_poster_url;
+          !!edition.tmdb_poster_url &&
+          preferPosterUrl(item.poster_url, edition.tmdb_poster_url) === edition.tmdb_poster_url &&
+          item.poster_url !== edition.tmdb_poster_url;
 
-        const artworkResult = isBrokenPackageCover
+        const artworkResult = shouldSwapToFallbackPoster
           ? {
               poster_url: edition.tmdb_poster_url,
               source: "repaired from TMDB fallback poster",

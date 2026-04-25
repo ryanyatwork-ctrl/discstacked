@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Heart, Eye, ExternalLink, ImageIcon, Monitor, Download, Barcode, Clock, Tag, Disc, Package, HardDrive, Shield, Layers, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { DiscEditor, DiscEntry } from "@/components/DiscEditor";
 import { CollectionEditor } from "@/components/CollectionEditor";
-import { getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
+import { getDisplayPosterUrl, getFallbackPosterUrl, isPackageArtwork } from "@/lib/cover-utils";
 
 interface SharedDetailDrawerProps {
   item: MediaItem | null;
@@ -43,7 +43,7 @@ export function SharedDetailDrawer({ item, open, onClose, itemList, onNavigate }
   const [displayPoster, setDisplayPoster] = useState<string | null>(null);
 
   useEffect(() => {
-    setDisplayPoster(item?.posterUrl || null);
+    setDisplayPoster(item ? getDisplayPosterUrl(item) : null);
   }, [item?.id, item?.posterUrl]);
 
   if (!item) return null;

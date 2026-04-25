@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { MediaTab } from "@/lib/types";
 import { lookupEditionCatalogByBarcode } from "@/lib/edition-catalog";
+import { preferPosterUrl } from "@/lib/cover-utils";
 
 export interface MediaLookupResult {
   id: string;
@@ -226,7 +227,7 @@ export async function lookupBarcode(
           tmdb_id: data.tmdb_id || null,
           title: data.title,
           year: data.year || null,
-          cover_url: data.package_image_url || data.poster_url || null,
+          cover_url: preferPosterUrl(data.package_image_url || null, data.tmdb_poster_url || data.poster_url || null),
           genre: data.genre || null,
           runtime: data.runtime,
           tagline: data.tagline,
@@ -416,7 +417,7 @@ async function lookupBarcodeFromEditionCatalog(barcode: string, activeTab: Media
     ...baseDirect,
     ...result,
     detected_formats: catalogEntry.formats || result.detected_formats,
-    cover_url: catalogEntry.package_image_url || result.cover_url,
+    cover_url: preferPosterUrl(catalogEntry.package_image_url || null, result.cover_url || null),
     edition: {
       ...baseDirect.edition,
       tmdb_poster_url: result.cover_url,

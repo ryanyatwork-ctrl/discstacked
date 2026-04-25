@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import { useMediaItems, DbMediaItem } from "@/hooks/useMediaItems";
 import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
 import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
+import { useFetchArtwork } from "@/hooks/useFetchArtwork";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   const formats = (db as any).formats as string[] | null;
@@ -64,6 +65,7 @@ function getStored<T>(key: string, fallback: T): T {
 }
 
 export default function Index() { // force rebuild
+  const autoRepairVersion = "2026-04-24";
   const [activeTab, setActiveTab] = useState<MediaTab>(() => coerceMediaTab(getStored("ds-default-tab", DEFAULT_MEDIA_TAB)));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
@@ -79,7 +81,34 @@ export default function Index() { // force rebuild
 
   const { user, signOut } = useAuth();
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
+  const { fetchArtwork } = useFetchArtwork();
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
+
+  useEffect(() => {
+    if (!user || isLoading || !dbItems || dbItems.length === 0) return;
+
+    const repairKey = `ds-artwork-autorepair:${autoRepairVersion}:${user.id}:${activeTab}`;
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(repairKey) === today) return;
+
+    localStorage.setItem(repairKey, today);
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await fetchArtwork(dbItems);
+      } catch {
+        if (!cancelled) {
+          localStorage.removeItem(repairKey);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, autoRepairVersion, dbItems, fetchArtwork, isLoading, user]);
 
   const allItems = useMemo(() => {
     if (dbItems && dbItems.length > 0) {
