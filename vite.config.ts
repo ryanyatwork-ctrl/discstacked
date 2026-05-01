@@ -23,8 +23,9 @@ export default defineConfig(({ mode }) => ({
             urlPattern: /^https:\/\/(picsum\.photos|image\.tmdb\.org|i\.discogs\.com|img\.discogs\.com|coverartarchive\.org|images\.igdb\.com|media\.rawg\.io)\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "collector-artwork",
+              cacheName: "collector-artwork-v2",
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],
