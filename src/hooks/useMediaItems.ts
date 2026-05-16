@@ -121,6 +121,131 @@ function mergeImportedRowIntoExisting(
   };
 }
 
+/**
+ * For every inserted media_item, create a matching physical_product + media_copy
+ * so the item is never an orphan. This is what the original implementation was
+ * missing — every imported row used to land in media_items only, generating
+ * thousands of orphans in the April 2026 CSV import.
+ *
+ * Done in chunks parallel to the media_items inserts, so the IDs line up.
+ */
+async function createProductsAndCopiesForRows(
+  userId: string,
+  insertedItems: DbMediaItem[],
+): Promise<void> {
+  if (insertedItems.length === 0) return;
+
+  // Build a physical_product row for each media_item.
+  const productRows = insertedItems.map((item) => {
+    const meta = asRecord(item.metadata);
+    const editionMeta = (meta.edition && typeof meta.edition === "object") ? meta.edition : {};
+    const productTitle = editionMeta.package_title || editionMeta.barcode_title || item.title || "Untitled";
+    const editionLabel = typeof editionMeta.label === "string" ? editionMeta.label : null;
+
+    return {
+      user_id: userId,
+      barcode: item.barcode || null,
+      product_title: productTitle,
+      formats: item.formats || (item.format ? [item.format] : []),
+      media_type: item.media_type,
+      edition: editionLabel,
+      is_multi_title: false,
+      disc_count: editionMeta.disc_count || meta.disc_count || 1,
+      metadata: meta as Json,
+    };
+  });
+
+  // Bulk insert physical_products in matching chunks.
+  const PRODUCT_CHUNK = 500;
+  const insertedProductIds: string[] = [];
+
+  for (let i = 0; i < productRows.length; i += PRODUCT_CHUNK) {
+    const chunk = productRows.slice(i, i + PRODUCT_CHUNK);
+    const { data, error } = await supabase
+      .from("physical_products")
+      .insert(chunk as any)
+      .select("id");
+
+    if (error) throw error;
+    if (!data || data.length !== chunk.length) {
+      throw new Error(
+        `physical_products insert returned ${data?.length ?? 0} rows for ${chunk.length} requested — refusing to proceed and create misaligned media_copies`,
+      );
+    }
+    insertedProductIds.push(...data.map((d) => d.id));
+  }
+
+  // Build media_copies linking each media_item to its product.
+  const copyRows = insertedItems.map((item, i) => ({
+    media_item_id: item.id,
+    physical_product_id: insertedProductIds[i],
+    format: item.format || (item.formats && item.formats.length > 0 ? item.formats[0] : null),
+  }));
+
+  // Bulk insert media_copies.
+  const COPY_CHUNK = 1000;
+  for (let i = 0; i < copyRows.length; i += COPY_CHUNK) {
+    const chunk = copyRows.slice(i, i + COPY_CHUNK);
+    const { error } = await supabase.from("media_copies").insert(chunk as any);
+    if (error) throw error;
+  }
+}
+
+/**
+ * For an EXISTING media_item that's about to be updated (merge mode), make sure
+ * it has at least one media_copy. If it doesn't, it's a legacy orphan — create
+ * a physical_product + media_copy now so it stops being one.
+ */
+async function ensureCopyExistsForExistingItem(
+  userId: string,
+  item: DbMediaItem,
+  mergedUpdate: TablesUpdate<"media_items">,
+): Promise<void> {
+  // Cheap check first — does this item have any copy already?
+  const { count, error: countError } = await supabase
+    .from("media_copies")
+    .select("id", { count: "exact", head: true })
+    .eq("media_item_id", item.id);
+
+  if (countError) throw countError;
+  if ((count ?? 0) > 0) return; // already linked, nothing to do
+
+  // Orphan — create a product + copy using the merged values.
+  const meta = asRecord((mergedUpdate.metadata as Json | null) || item.metadata);
+  const editionMeta = (meta.edition && typeof meta.edition === "object") ? meta.edition : {};
+  const formats = (mergedUpdate.formats as string[] | undefined) || item.formats || [];
+  const format = (mergedUpdate.format as string | undefined) || item.format || formats[0] || null;
+  const productTitle = editionMeta.package_title || editionMeta.barcode_title || mergedUpdate.title || item.title || "Untitled";
+
+  const { data: pp, error: ppError } = await supabase
+    .from("physical_products")
+    .insert({
+      user_id: userId,
+      barcode: (mergedUpdate.barcode as string | null) ?? item.barcode ?? null,
+      product_title: productTitle,
+      formats,
+      media_type: item.media_type,
+      edition: typeof editionMeta.label === "string" ? editionMeta.label : null,
+      is_multi_title: false,
+      disc_count: editionMeta.disc_count || meta.disc_count || 1,
+      metadata: meta as Json,
+    } as any)
+    .select("id")
+    .single();
+
+  if (ppError) throw ppError;
+
+  const { error: mcError } = await supabase
+    .from("media_copies")
+    .insert({
+      media_item_id: item.id,
+      physical_product_id: pp.id,
+      format,
+    } as any);
+
+  if (mcError) throw mcError;
+}
+
 async function insertMediaItemsWithMirrors(
   userId: string,
   rows: Partial<TablesInsert<"media_items">>[],
@@ -134,6 +259,9 @@ async function insertMediaItemsWithMirrors(
     if (error) throw error;
     insertedRows.push(...((data || []) as DbMediaItem[]));
   }
+
+  // CRITICAL: create physical_products + media_copies so nothing is orphaned.
+  await createProductsAndCopiesForRows(userId, insertedRows);
 
   if (mediaType === "cds") {
     const mirrorRows = insertedRows
@@ -150,10 +278,16 @@ async function insertMediaItemsWithMirrors(
       }))
       .filter(Boolean) as TablesInsert<"media_items">[];
 
-    for (let i = 0; i < mirrorRows.length; i += 500) {
-      const chunk = mirrorRows.slice(i, i + 500);
-      const { error } = await supabase.from("media_items").insert(chunk);
-      if (error) throw error;
+    if (mirrorRows.length > 0) {
+      const insertedMirrors: DbMediaItem[] = [];
+      for (let i = 0; i < mirrorRows.length; i += 500) {
+        const chunk = mirrorRows.slice(i, i + 500);
+        const { data, error } = await supabase.from("media_items").insert(chunk).select("*");
+        if (error) throw error;
+        insertedMirrors.push(...((data || []) as DbMediaItem[]));
+      }
+      // Mirrors also get products+copies so they don't show as orphans in music-films either.
+      await createProductsAndCopiesForRows(userId, insertedMirrors);
     }
   }
 
@@ -190,12 +324,35 @@ export function useImportItems() {
       if (!user) throw new Error("Not authenticated");
 
       if (replace) {
+        // Replace mode: nuke this tab's data for the user, then rebuild.
+        // media_copies cascade from media_items, but physical_products live
+        // independently — wipe both explicitly to avoid leaving dangling products.
+        const { data: oldProducts, error: oldProductsError } = await supabase
+          .from("physical_products")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("media_type", mediaType);
+        if (oldProductsError) throw oldProductsError;
+
         const { error: delError } = await supabase
           .from("media_items")
           .delete()
           .eq("user_id", user.id)
           .eq("media_type", mediaType);
         if (delError) throw delError;
+
+        if (oldProducts && oldProducts.length > 0) {
+          const oldProductIds = oldProducts.map((p) => p.id);
+          // Delete in chunks to avoid massive IN clauses
+          for (let i = 0; i < oldProductIds.length; i += 500) {
+            const chunk = oldProductIds.slice(i, i + 500);
+            const { error: ppDelError } = await supabase
+              .from("physical_products")
+              .delete()
+              .in("id", chunk);
+            if (ppDelError) throw ppDelError;
+          }
+        }
 
         if (mediaType === "cds") {
           const { error: mirrorDeleteError } = await supabase
@@ -241,7 +398,7 @@ export function useImportItems() {
         }
 
         const rowsToInsert: Partial<TablesInsert<"media_items">>[] = [];
-        const updatesToApply: { id: string; data: TablesUpdate<"media_items"> }[] = [];
+        const updatesToApply: { existing: DbMediaItem; data: TablesUpdate<"media_items"> }[] = [];
 
         if (mediaType === "cds") {
           rowsToInsert.push(...rows);
@@ -252,7 +409,7 @@ export function useImportItems() {
 
             if (existing) {
               const merged = mergeImportedRowIntoExisting(existing, row, mediaType);
-              updatesToApply.push({ id: existing.id, data: merged });
+              updatesToApply.push({ existing, data: merged });
               rowsForCatalog.push({
                 ...existing,
                 ...merged,
@@ -266,11 +423,15 @@ export function useImportItems() {
           }
         }
 
+        // Apply updates AND simultaneously ensure each matched item has a media_copy.
+        // This auto-fixes legacy orphans for users re-importing into existing collections.
         for (let i = 0; i < updatesToApply.length; i += 100) {
           const chunk = updatesToApply.slice(i, i + 100);
-          await Promise.all(chunk.map(async ({ id, data }) => {
-            const { error } = await supabase.from("media_items").update(data).eq("id", id);
+          await Promise.all(chunk.map(async ({ existing, data }) => {
+            const { error } = await supabase.from("media_items").update(data).eq("id", existing.id);
             if (error) throw error;
+            // Backfill product+copy if this item is currently an orphan
+            await ensureCopyExistsForExistingItem(user.id, existing, data);
           }));
         }
 
@@ -302,6 +463,7 @@ export function useImportItems() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      queryClient.invalidateQueries({ queryKey: ["physical_products_for_item"] });
     },
   });
 }
@@ -337,10 +499,17 @@ export function useDuplicateItem() {
         .select()
         .single();
       if (error) throw error;
+      // Give the duplicate its own physical_product + media_copy so it isn't an orphan.
+      try {
+        await createProductsAndCopiesForRows(user.id, [data as DbMediaItem]);
+      } catch (err) {
+        console.warn("Failed to create product/copy for duplicate:", err);
+      }
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      queryClient.invalidateQueries({ queryKey: ["physical_products_for_item"] });
     },
   });
 }

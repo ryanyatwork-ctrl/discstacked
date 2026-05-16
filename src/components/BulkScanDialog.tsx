@@ -11,11 +11,17 @@ import { MediaTab, FORMATS } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { lookupBarcode as unifiedLookupBarcode, searchMedia, MediaLookupResult, MultiMovieResult, MultiSeasonResult, isHighConfidenceFallbackResult } from "@/lib/media-lookup";
-import { createPhysicalProductForItem, createMultiMovieProduct, createMultiSeasonProduct } from "@/hooks/usePhysicalProducts";
+import {
+  createPhysicalProductForItem,
+  createMultiMovieProduct,
+  createMultiSeasonProduct,
+  upsertPhysicalMediaAtomic,
+} from "@/hooks/usePhysicalProducts";
 import { buildLookupMetadata, getLookupExternalId } from "@/lib/media-item-utils";
 import { buildDiscEntries } from "@/lib/collector-utils";
 import { buildEditionCatalogSeedFromItem, upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 import { preferPosterUrl } from "@/lib/cover-utils";
+import { toProxiedImageUrl } from "@/lib/image-proxy";
 
 interface ScanQueueItem {
   barcode: string;
@@ -50,6 +56,7 @@ interface BulkScanDialogProps {
 
 const TAB_LABELS: Record<MediaTab, string> = {
   movies: "Bulk Barcode Scan",
+  tv: "Bulk Barcode Scan — TV",
   "music-films": "Bulk Barcode Scan",
   cds: "Bulk Barcode Scan — Music",
   games: "Bulk Scan — Games",
@@ -71,6 +78,22 @@ function humanizeSource(source?: string | null) {
   };
 
   return labels[normalized] || normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+/**
+ * Determine which DB media_type a single item should be saved as.
+ * TV items detected by the lookup chain auto-route to the TV tab regardless
+ * of which tab the user was scanning from.
+ */
+function resolveTargetMediaType(item: ScanQueueItem, activeTab: MediaTab): string {
+  const detectedContentType = item.extraMeta?.content_type;
+  if (detectedContentType === "tv_season") return "tv-season";
+  if (detectedContentType === "tv") return "tv";
+  // Some lookup paths surface media_type instead of content_type
+  const detectedMediaType = item.extraMeta?.media_type;
+  if (detectedMediaType === "tv_season") return "tv-season";
+  if (detectedMediaType === "tv") return "tv";
+  return activeTab;
 }
 
 export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
@@ -280,7 +303,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
 
           // Lookup in background using unified lookup
           const result = await doLookup(decoded);
-          
+
           // If not already owned by barcode, check if we own the same title (different edition)
           let differentEdition = false;
           if (!alreadyOwned && user && 'title' in result && result.title) {
@@ -288,7 +311,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               .from("media_items")
               .select("title, formats")
               .eq("user_id", user.id)
-              .eq("media_type", activeTab)
+              .in("media_type", ["movies", "tv", "tv-season", activeTab])
               .ilike("title", result.title)
               .limit(1);
             if (titleMatch && titleMatch.length > 0) {
@@ -297,7 +320,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               existingFormats = titleMatch[0].formats || [];
             }
           }
-          
+
           setQueue((prev) =>
             prev.map((item) =>
               item.barcode === decoded
@@ -360,7 +383,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         .from("media_items")
         .select("title, formats")
         .eq("user_id", user.id)
-        .eq("media_type", activeTab)
+        .in("media_type", ["movies", "tv", "tv-season", activeTab])
         .ilike("title", candidate.title)
         .limit(1);
 
@@ -505,12 +528,12 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     }
 
     const result = await doLookup(code);
-    
+
     let differentEdition = false;
     if (!alreadyOwned && user && 'title' in result && result.title) {
       const { data: titleMatch } = await supabase
         .from("media_items").select("title, formats")
-        .eq("user_id", user.id).eq("media_type", activeTab)
+        .eq("user_id", user.id).in("media_type", ["movies", "tv", "tv-season", activeTab])
         .ilike("title", result.title).limit(1);
       if (titleMatch && titleMatch.length > 0) {
         differentEdition = true;
@@ -518,7 +541,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
         existingFormats = existingFormats || titleMatch[0].formats || [];
       }
     }
-    
+
     setQueue((prev) =>
       prev.map((item) =>
         item.barcode === code
@@ -535,79 +558,92 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
     const totalCount = singleItems.length + multiItems.length + seasonItems.length;
     if (totalCount === 0 || !user) return;
     setSaving(true);
+
+    // Track per-tab counts for a useful summary toast
+    const savedByType: Record<string, number> = {};
+    const failures: { title: string; error: unknown }[] = [];
+
     try {
-      // Handle single items
+      // ===========================================================
+      // 1) Single items — ATOMIC via upsert_physical_media RPC
+      //    Auto-routes TV detections to the TV tab regardless of activeTab.
+      // ===========================================================
       if (singleItems.length > 0) {
-        const rows = singleItems.map((item) => ({
-          user_id: user.id,
-          title: item.title!,
-          year: item.year ?? null,
-          format: item.formats.length > 0 ? item.formats[0] : (item.format || null),
-          formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
-          genre: item.genre ?? null,
-          poster_url: item.posterUrl ?? null,
-          barcode: item.barcode,
-          media_type: activeTab,
-          external_id: getLookupExternalId({
+        const editionSeeds: any[] = [];
+
+        for (const item of singleItems) {
+          const targetMediaType = resolveTargetMediaType(item, activeTab);
+
+          const externalId = getLookupExternalId({
             tmdb_id: item.tmdb_id || null,
             media_type: item.extraMeta?.content_type || null,
             tmdb_series_id: item.extraMeta?.tmdb_series_id || null,
             season_number: item.extraMeta?.season_number || null,
-          }),
-          metadata: {
+          });
+
+          const formats =
+            item.formats.length > 0
+              ? item.formats
+              : item.format
+              ? [item.format]
+              : [];
+
+          const metadata = {
             ...(item.runtime ? { runtime: item.runtime } : {}),
             ...(item.tagline ? { tagline: item.tagline } : {}),
             ...(item.artist ? { artist: item.artist } : {}),
             ...(item.author ? { author: item.author } : {}),
             ...(item.extraMeta || {}),
-          },
-        }));
+          };
 
-        for (let i = 0; i < rows.length; i += 500) {
-          const chunk = rows.slice(i, i + 500);
-          const { data: inserted, error } = await supabase.from("media_items").insert(chunk as any).select();
-          if (error) throw error;
+          try {
+            await upsertPhysicalMediaAtomic(user.id, {
+              mediaType: targetMediaType,
+              title: item.title!,
+              year: item.year ?? null,
+              externalId,
+              format: formats[0] ?? null,
+              formats,
+              barcode: item.barcode,
+              productTitle: item.extraMeta?.edition?.package_title || item.title!,
+              posterUrl: item.posterUrl ?? null,
+              genre: item.genre ?? null,
+              metadata,
+              edition: item.extraMeta?.edition?.label ?? null,
+            });
 
-          if (inserted) {
-            const editionSeeds = inserted.map((savedRow, j) =>
-              buildEditionCatalogSeedFromItem({
-                barcode: savedRow.barcode,
-                title: savedRow.title,
-                year: savedRow.year,
-                format: savedRow.format,
-                formats: savedRow.formats,
-                media_type: savedRow.media_type,
-                external_id: savedRow.external_id,
-                metadata: rows[i + j].metadata as Record<string, any>,
-                poster_url: savedRow.poster_url,
-              }),
-            ).filter(Boolean);
+            savedByType[targetMediaType] = (savedByType[targetMediaType] || 0) + 1;
 
-            if (editionSeeds.length > 0) {
-              await upsertEditionCatalogSeeds(editionSeeds);
-            }
+            // Build edition catalog seed for cross-user barcode cache
+            const seed = buildEditionCatalogSeedFromItem({
+              barcode: item.barcode,
+              title: item.title!,
+              year: item.year ?? null,
+              format: formats[0] ?? null,
+              formats,
+              media_type: targetMediaType,
+              external_id: externalId,
+              metadata,
+              poster_url: item.posterUrl ?? null,
+            });
+            if (seed) editionSeeds.push(seed);
+          } catch (err) {
+            failures.push({ title: item.title || item.barcode, error: err });
+          }
+        }
 
-            for (let j = 0; j < inserted.length; j++) {
-              const item = singleItems[i + j];
-              try {
-                await createPhysicalProductForItem(user.id, inserted[j].id, {
-                  barcode: item.barcode,
-                  productTitle: item.extraMeta?.edition?.package_title || item.title!,
-                  formats: item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []),
-                  mediaType: activeTab,
-                  format: item.formats[0] || item.format || null,
-                  discCount: item.extraMeta?.edition?.disc_count || item.extraMeta?.discs?.length || 1,
-                  metadata: rows[i + j].metadata as Record<string, any>,
-                });
-              } catch (ppErr) {
-                console.warn("Physical product creation failed:", ppErr);
-              }
-            }
+        if (editionSeeds.length > 0) {
+          try {
+            await upsertEditionCatalogSeeds(editionSeeds);
+          } catch (seedErr) {
+            console.warn("Edition catalog seed upsert failed:", seedErr);
           }
         }
       }
 
-      // Handle multi-movie items
+      // ===========================================================
+      // 2) Multi-movie sets — always 'movies' media_type
+      // ===========================================================
       for (const item of multiItems) {
         const mm = item.multiMovie!;
         try {
@@ -617,7 +653,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               barcode: item.barcode,
               productTitle: mm.collection_name || mm.product_title,
               formats: mm.detected_formats,
-              mediaType: activeTab,
+              mediaType: "movies",
               discCount: mm.disc_count || mm.movies.length,
               metadata: {
                 edition: {
@@ -643,9 +679,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               overview: m.overview || null,
             }))
           );
+          savedByType["movies"] = (savedByType["movies"] || 0) + mm.movies.length;
+
           await upsertEditionCatalogSeeds([{
             barcode: item.barcode,
-            media_type: activeTab,
+            media_type: "movies",
             title: mm.collection_name || mm.product_title,
             product_title: mm.collection_name || mm.product_title,
             formats: mm.detected_formats,
@@ -664,10 +702,13 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             },
           }]);
         } catch (mmErr: any) {
-          console.warn("Multi-movie creation failed:", mmErr);
+          failures.push({ title: mm.collection_name || mm.product_title, error: mmErr });
         }
       }
 
+      // ===========================================================
+      // 3) Multi-season box sets — always 'tv-season' media_type
+      // ===========================================================
       for (const item of seasonItems) {
         const seasonBox = item.multiSeason!;
         try {
@@ -677,7 +718,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               barcode: item.barcode,
               productTitle: seasonBox.product_title,
               formats: seasonBox.detected_formats,
-              mediaType: activeTab,
+              mediaType: "tv-season",
               discCount: seasonBox.disc_count || seasonBox.seasons.length,
               metadata: {
                 edition: {
@@ -708,9 +749,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
               episode_count: season.episode_count || null,
             })),
           );
+          savedByType["tv-season"] = (savedByType["tv-season"] || 0) + seasonBox.seasons.length;
+
           await upsertEditionCatalogSeeds([{
             barcode: item.barcode,
-            media_type: activeTab,
+            media_type: "tv-season",
             title: seasonBox.show_name,
             product_title: seasonBox.product_title,
             formats: seasonBox.detected_formats,
@@ -731,12 +774,46 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             },
           }]);
         } catch (seasonErr: any) {
-          console.warn("Multi-season creation failed:", seasonErr);
+          failures.push({ title: seasonBox.product_title, error: seasonErr });
         }
       }
 
-      toast({ title: "Added!", description: `${totalCount} items added to your collection.` });
+      // Build a useful summary toast
+      const totalSaved = Object.values(savedByType).reduce((a, b) => a + b, 0);
+      const typeBreakdown = Object.entries(savedByType)
+        .filter(([, n]) => n > 0)
+        .map(([type, n]) => {
+          const label =
+            type === "movies" ? "movie" :
+            type === "tv" ? "TV item" :
+            type === "tv-season" ? "TV season" :
+            type === "music-films" ? "music film" :
+            type === "cds" ? "CD" :
+            type === "games" ? "game" : type;
+          return `${n} ${label}${n === 1 ? "" : "s"}`;
+        })
+        .join(", ");
+
+      if (totalSaved > 0) {
+        toast({
+          title: "Added to collection",
+          description: typeBreakdown,
+        });
+      }
+
+      if (failures.length > 0) {
+        toast({
+          title: `${failures.length} item${failures.length === 1 ? "" : "s"} failed to save`,
+          description: failures
+            .slice(0, 3)
+            .map((f) => `${f.title}: ${(f.error as any)?.message || "unknown error"}`)
+            .join("; "),
+          variant: "destructive",
+        });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["media_items"] });
+      queryClient.invalidateQueries({ queryKey: ["physical_products_for_item"] });
       setQueue([]);
       processedBarcodesRef.current.clear();
       setOpen(false);
@@ -847,7 +924,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                 onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
               />
               <Button variant="outline" size="sm" onClick={handleManualAdd} disabled={!manualBarcode.trim()} className="gap-1">
-                <Keyboard className="h-3 h-3" /> Add
+                <Keyboard className="h-3 w-3" /> Add
               </Button>
             </div>
           )}
@@ -861,7 +938,19 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                 {selectedCount > 0 && ` · ${selectedCount} selected`}
               </p>
               <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
-                {queue.map((item) => (
+                {queue.map((item) => {
+                  // Surface which tab this item will be saved to if it differs from activeTab
+                  const targetType =
+                    item.status === "found"
+                      ? resolveTargetMediaType(item, activeTab)
+                      : item.status === "multi_season"
+                      ? "tv-season"
+                      : item.status === "multi_movie"
+                      ? "movies"
+                      : activeTab;
+                  const showAutoRouteBadge = targetType !== activeTab && (item.status === "found" || item.status === "multi_season");
+
+                  return (
                   <div
                     key={item.barcode}
                     className={`flex items-center gap-2 p-2 rounded-md border transition-colors ${
@@ -873,7 +962,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     {/* Poster thumbnail */}
                     <div className="w-10 h-14 rounded overflow-hidden shrink-0 bg-secondary">
                       {item.posterUrl ? (
-                        <img src={item.posterUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={toProxiedImageUrl(item.posterUrl) ?? item.posterUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           {item.status === "looking" ? (
@@ -929,6 +1018,9 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                           <div className="flex items-center gap-1">
                             <Package className="w-3 h-3 text-primary" />
                             <p className="text-sm font-medium text-primary truncate">{item.multiSeason.product_title}</p>
+                            {showAutoRouteBadge && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 h-4 border-primary/40 text-primary">→ TV</Badge>
+                            )}
                           </div>
                           <p className="text-[10px] text-muted-foreground">
                             {item.multiSeason.seasons.length} seasons: {item.multiSeason.seasons.map((season) => season.title).join(", ")}
@@ -963,6 +1055,11 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                          <>
                            <div className="flex items-center gap-1 group/title">
                              <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                             {showAutoRouteBadge && (
+                               <Badge variant="outline" className="text-[9px] py-0 px-1 h-4 border-primary/40 text-primary shrink-0">
+                                 → {targetType === "tv" || targetType === "tv-season" ? "TV" : targetType}
+                               </Badge>
+                             )}
                              <button
                                onClick={() => startEditTitle(item.barcode, item.title || "")}
                                className="opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0"
@@ -1055,7 +1152,8 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                       <Trash2 className="w-3 h-3 text-muted-foreground" />
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

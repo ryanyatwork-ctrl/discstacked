@@ -32,8 +32,63 @@ export interface MediaCopy {
 }
 
 /**
- * Creates a physical product and links it to a media item via media_copies.
- * For single-title items, creates one physical_product + one media_copy.
+ * ATOMIC: Insert (or upsert) a media_item + physical_product + media_copy in one
+ * transactional call via the upsert_physical_media Postgres function. Replaces
+ * the legacy two-step pattern (insert media_items, then createPhysicalProductForItem)
+ * which left orphaned rows whenever the second step failed silently.
+ *
+ * Use this for any single-item save (scan flow, manual add, CSV import).
+ */
+export async function upsertPhysicalMediaAtomic(
+  userId: string,
+  args: {
+    mediaType: string;
+    title: string;
+    year?: number | null;
+    externalId?: string | null;
+    format?: string | null;
+    formats?: string[];
+    barcode?: string | null;
+    productTitle?: string | null;
+    posterUrl?: string | null;
+    genre?: string | null;
+    metadata?: Record<string, any>;
+    isMultiTitle?: boolean;
+    edition?: string | null;
+    discLabel?: string;
+  }
+): Promise<{ media_item_id: string; physical_product_id: string; media_copy_id: string }> {
+  const { data, error } = await supabase.rpc("upsert_physical_media", {
+    p_user_id: userId,
+    p_media_type: args.mediaType,
+    p_title: args.title,
+    p_year: args.year ?? null,
+    p_external_id: args.externalId ?? null,
+    p_format: args.format ?? null,
+    p_formats: args.formats ?? [],
+    p_barcode: args.barcode ?? null,
+    p_product_title: args.productTitle ?? null,
+    p_poster_url: args.posterUrl ?? null,
+    p_genre: args.genre ?? null,
+    p_metadata: args.metadata ?? {},
+    p_is_multi_title: args.isMultiTitle ?? false,
+    p_edition: args.edition ?? null,
+    p_disc_label: args.discLabel ?? "Main Disc",
+  });
+
+  if (error) throw error;
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    throw new Error("upsert_physical_media returned no rows");
+  }
+  return Array.isArray(data) ? data[0] : data;
+}
+
+/**
+ * @deprecated Use upsertPhysicalMediaAtomic instead. This function creates a
+ * physical_product + media_copy AFTER a separate media_items insert, and silent
+ * failures here caused ~78% of items to be orphaned in the April 2026 bulk import.
+ *
+ * Kept for backward compat with any callers that still need it.
  */
 export async function createPhysicalProductForItem(
   userId: string,
@@ -91,6 +146,8 @@ export async function createPhysicalProductForItem(
  * Creates a multi-movie physical product and links multiple media items to it.
  * For each movie: finds existing by external_id or creates a new media_item.
  * Returns the created physical product and all media item IDs.
+ *
+ * media_type is always 'movies' here — multi-movie packs are by definition movies.
  */
 export async function createMultiMovieProduct(
   userId: string,
@@ -269,9 +326,11 @@ export async function createMultiMovieProduct(
  * Creates a multi-season TV physical product (e.g. "Friends: The Complete Series")
  * and links one media_item per season to it.
  *
- * Seasons stay in the current tab's media_type so they remain visible in the
- * collection, while metadata.content_type + the composite external_id preserve
- * their season-specific identity for dedupe and artwork lookups.
+ * Both the physical_product and each season's media_item are stored with
+ * media_type='tv-season' so they appear in the TV tab regardless of which tab
+ * the user was on when scanning.
+ *
+ * Pass product.mediaType to override (e.g. for legacy data); defaults to 'tv-season'.
  */
 export async function createMultiSeasonProduct(
   userId: string,
@@ -279,7 +338,7 @@ export async function createMultiSeasonProduct(
     barcode?: string | null;
     productTitle: string;
     formats: string[];
-    mediaType: string;
+    mediaType?: string;  // defaults to 'tv-season' — only override for legacy data
     discCount?: number;
     purchaseDate?: string | null;
     purchasePrice?: number | null;
@@ -300,6 +359,8 @@ export async function createMultiSeasonProduct(
     genre?: string | null;
   }[]
 ): Promise<{ physicalProduct: any; mediaItemIds: string[] }> {
+  const mediaType = product.mediaType || "tv-season";
+
   // Create the physical product
   const { data: pp, error: ppError } = await supabase
     .from("physical_products")
@@ -308,7 +369,7 @@ export async function createMultiSeasonProduct(
       barcode: product.barcode || null,
       product_title: product.productTitle,
       formats: product.formats,
-      media_type: product.mediaType,
+      media_type: mediaType,
       is_multi_title: true,
       disc_count: product.discCount || seasons.length,
       purchase_date: product.purchaseDate || null,
@@ -335,27 +396,28 @@ export async function createMultiSeasonProduct(
       .select("id")
       .eq("user_id", userId)
       .eq("external_id", externalId)
-      .eq("media_type", product.mediaType)
+      .eq("media_type", mediaType)
       .limit(1);
 
     if (existing && existing.length > 0) {
       mediaItemId = existing[0].id;
     } else {
-      // Fall back to title match (legacy items)
+      // Fall back to title match (legacy items). Search across both tv and tv-season
+      // for backward compat with items that may have been stored under 'tv' first.
       const { data: titleMatch } = await supabase
         .from("media_items")
         .select("id")
         .eq("user_id", userId)
-        .eq("media_type", product.mediaType)
+        .in("media_type", ["tv", "tv-season", "movies"])
         .ilike("title", season.title)
         .limit(1);
 
       if (titleMatch && titleMatch.length > 0) {
         mediaItemId = titleMatch[0].id;
-        // Backfill external_id on the legacy row
+        // Backfill external_id and migrate to tv-season if it was on a different tab
         await supabase
           .from("media_items")
-          .update({ external_id: externalId } as any)
+          .update({ external_id: externalId, media_type: mediaType } as any)
           .eq("id", mediaItemId);
       } else {
         const metadata: Record<string, any> = {
@@ -381,7 +443,7 @@ export async function createMultiSeasonProduct(
             year: season.year,
             poster_url: season.poster_url,
             genre: season.genre || null,
-            media_type: product.mediaType,
+            media_type: mediaType,
             external_id: externalId,
             formats: product.formats,
             format: product.formats[0] || null,
