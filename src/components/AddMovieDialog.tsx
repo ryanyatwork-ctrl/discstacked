@@ -29,6 +29,7 @@ interface AddMovieDialogProps {
 // Tab-specific labels
 const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; wantAction: string }> = {
   movies: { title: "Movie", searchPlaceholder: "Movie title…", wantAction: "Want to Watch" },
+  tv: { title: "TV", searchPlaceholder: "Search TV shows", wantAction: "Add Wanted Show" },
   "music-films": { title: "Music Film", searchPlaceholder: "Concert / music film…", wantAction: "Want to Watch" },
   cds: { title: "Album", searchPlaceholder: "Artist or album…", wantAction: "Want to Listen" },
   games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },

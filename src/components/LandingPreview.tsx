@@ -19,6 +19,14 @@ const LANDING_EXAMPLES: Record<MediaTab, LandingSeed[]> = {
     { title: "Oppenheimer", year: 2023, format: "Blu-ray", genre: "Drama", mediaType: "movies" },
     { title: "Blade Runner 2049", year: 2017, format: "4K", genre: "Science Fiction", mediaType: "movies" },
   ],
+  tv: [
+    { title: "Breaking Bad", year: 2008, format: "Blu-ray", genre: "Drama", mediaType: "tv" },
+    { title: "The Sopranos", year: 1999, format: "Blu-ray", genre: "Drama", mediaType: "tv" },
+    { title: "Succession", year: 2018, format: "Blu-ray", genre: "Drama", mediaType: "tv" },
+    { title: "The Wire", year: 2002, format: "DVD", genre: "Crime", mediaType: "tv" },
+    { title: "Chernobyl", year: 2019, format: "Blu-ray", genre: "Drama", mediaType: "tv" },
+    { title: "Severance", year: 2022, format: "4K", genre: "Science Fiction", mediaType: "tv" },
+  ],
   "music-films": [
     { title: "Taylor Swift: The Eras Tour", artist: "Taylor Swift", year: 2023, format: "Blu-ray", genre: "Music", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/jf3YO8hOqGHCupsREf5qymYq1n.jpg" },
     { title: "Stop Making Sense", artist: "Talking Heads", year: 1984, format: "Blu-ray", genre: "Music", mediaType: "music-films", posterUrl: "https://image.tmdb.org/t/p/w500/utNpurUe1MMjEaHqvpkfxgfpSnV.jpg" },
