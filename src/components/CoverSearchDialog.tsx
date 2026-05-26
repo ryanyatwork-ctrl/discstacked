@@ -93,10 +93,11 @@ function extractChildCandidates(query: string): string[] {
 /** Search with composite fallback: try exact query first, then child candidates */
 async function searchWithCompositeFallback(
   query: string,
-  year?: number
+  year?: number,
+  searchType?: "movie" | "tv",
 ): Promise<{ results: TmdbResult[]; source: string }> {
   // Try exact query first
-  const exactResults = await searchTmdb(query, year);
+  const exactResults = await searchTmdb(query, year, searchType);
   if (exactResults.length > 0) {
     return { results: exactResults, source: "manual exact search" };
   }
@@ -109,7 +110,7 @@ async function searchWithCompositeFallback(
 
     for (const child of children) {
       try {
-        const childResults = await searchTmdb(child, undefined);
+        const childResults = await searchTmdb(child, undefined, searchType);
         for (const r of childResults) {
           if (!seen.has(r.tmdb_id)) {
             seen.add(r.tmdb_id);
@@ -142,6 +143,7 @@ interface CoverSearchDialogProps {
 export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProps) {
   const { user } = useAuth();
   const isGame = item.mediaType === "games";
+  const searchType = item.mediaType === "tv" ? "tv" : "movie";
   const [query, setQuery] = useState(item.title);
   const [results, setResults] = useState<(TmdbResult | GameResult)[]>([]);
   const [searching, setSearching] = useState(false);
@@ -168,7 +170,7 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
           toast({ title: "No results", description: "Try a different search term." });
         }
       } else {
-        const { results: res, source } = await searchWithCompositeFallback(query);
+        const { results: res, source } = await searchWithCompositeFallback(query, item.year, searchType);
         setResults(res);
         setSearchSource(source);
         if (res.length === 0) {

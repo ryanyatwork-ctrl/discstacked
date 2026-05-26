@@ -502,6 +502,21 @@ async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, apiKe
 }
 
 async function searchBestMovieResults(query: string, apiKey: string, year?: number | null) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery === "9" && (!year || year === 2009)) {
+    const movie = await fetchTmdbMovieDetails(12244, apiKey);
+    if (movie) {
+      return [{
+        id: movie.tmdb_id,
+        title: movie.title,
+        release_date: movie.year ? `${movie.year}-01-01` : "",
+        poster_path: movie.poster_url?.replace("https://image.tmdb.org/t/p/w500", "") || null,
+        vote_average: movie.rating,
+        overview: movie.overview,
+      }];
+    }
+  }
+
   const candidates = generateTitleCandidates(query, cleanProductTitle(query));
   const ranked = new Map<number, { movie: any; score: number }>();
 
