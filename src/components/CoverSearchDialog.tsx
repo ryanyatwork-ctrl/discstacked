@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ interface GameResult {
   rating: number | null;
 }
 
+type CoverSearchResult = (TmdbResult & { source_label?: string }) | GameResult;
+
 async function searchGames(query: string, platform?: string): Promise<GameResult[]> {
   const { data, error } = await supabase.functions.invoke("game-lookup", {
     body: { query, platform },
@@ -33,6 +35,73 @@ async function searchGames(query: string, platform?: string): Promise<GameResult
     genre: r.genre || null,
     rating: r.rating || null,
   }));
+}
+
+async function findLinkedBarcode(item: MediaItem): Promise<string | null> {
+  const directBarcode = item.barcode || item.metadata?.barcode || item.metadata?.upc;
+  if (directBarcode) return String(directBarcode);
+
+  const { data, error } = await supabase
+    .from("media_copies")
+    .select("physical_product:physical_products(barcode)")
+    .eq("media_item_id", item.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return null;
+
+  const physicalProduct = Array.isArray((data as any)?.physical_product)
+    ? (data as any).physical_product[0]
+    : (data as any)?.physical_product;
+
+  return physicalProduct?.barcode ? String(physicalProduct.barcode) : null;
+}
+
+async function searchBarcodeCovers(
+  barcode: string,
+  title: string,
+  year?: number,
+  searchType?: "movie" | "tv",
+): Promise<TmdbResult[]> {
+  const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
+    body: { barcode, query: title, year, search_type: searchType },
+  });
+  if (error) throw new Error(error.message);
+  if (!data) return [];
+
+  const results: TmdbResult[] = [];
+  const seenUrls = new Set<string>();
+  const addResult = (posterUrl: string | null | undefined, sourceLabel: string) => {
+    if (!posterUrl || seenUrls.has(posterUrl)) return;
+    seenUrls.add(posterUrl);
+    results.push({
+      tmdb_id: data.tmdb_id || data.tmdb_series_id || 0,
+      title: data.product_title || data.barcode_title || data.title || title,
+      year: data.year || year || null,
+      poster_url: posterUrl,
+      rating: data.rating || null,
+      overview: data.overview || null,
+      media_type: "barcode_package",
+      source_label: sourceLabel,
+    });
+  };
+
+  addResult(data.package_image_url, "barcode package art");
+  addResult(data.tmdb_poster_url || data.poster_url, "barcode title match");
+
+  for (const result of data.results || []) {
+    addResult(result.package_image_url || result.poster_url, "barcode result");
+  }
+
+  for (const movie of data.multi_movies || []) {
+    addResult(movie.poster_url, "barcode included title");
+  }
+
+  for (const season of data.seasons || []) {
+    addResult(season.poster_url, "barcode season art");
+  }
+
+  return results;
 }
 
 /** Detect composite/package-style titles and extract child candidates */
@@ -144,8 +213,9 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
   const { user } = useAuth();
   const isGame = item.mediaType === "games";
   const searchType = item.mediaType === "tv" ? "tv" : "movie";
+  const [itemBarcode, setItemBarcode] = useState<string | null>(item.barcode || null);
   const [query, setQuery] = useState(item.title);
-  const [results, setResults] = useState<(TmdbResult | GameResult)[]>([]);
+  const [results, setResults] = useState<CoverSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingPosters, setLoadingPosters] = useState(false);
@@ -154,6 +224,20 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
   const [searchSource, setSearchSource] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const updateItem = useUpdateItem();
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setItemBarcode(item.barcode || null);
+
+    findLinkedBarcode(item).then((barcode) => {
+      if (!cancelled) setItemBarcode(barcode);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item, open]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -170,6 +254,15 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
           toast({ title: "No results", description: "Try a different search term." });
         }
       } else {
+        if (itemBarcode) {
+          const barcodeResults = await searchBarcodeCovers(itemBarcode, query, item.year, searchType);
+          if (barcodeResults.length > 0) {
+            setResults(barcodeResults);
+            setSearchSource("barcode lookup");
+            return;
+          }
+        }
+
         const { results: res, source } = await searchWithCompositeFallback(query, item.year, searchType);
         setResults(res);
         setSearchSource(source);
@@ -360,6 +453,8 @@ export function CoverSearchDialog({ item, open, onClose }: CoverSearchDialogProp
                         onClick={() => {
                           if (isGame && coverUrl) {
                             handlePickGameCover(r as GameResult);
+                          } else if ('media_type' in r && r.media_type === "barcode_package" && coverUrl) {
+                            handlePickPoster(coverUrl);
                           } else if ('tmdb_id' in r) {
                             handleSelectResult(r as TmdbResult);
                           }
