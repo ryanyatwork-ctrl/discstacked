@@ -81,8 +81,8 @@ export function toProxiedImageUrl(input?: string | null): string | null {
   if (trimmed.startsWith("data:") || trimmed.startsWith("blob:")) return trimmed;
 
   // Dev escape hatch — `vite dev` doesn't run Pages Functions, so /img/* 404s.
-  // Production builds still proxy because import.meta.env.DEV is false there.
-  if (import.meta.env.DEV) return trimmed;
+  // Vitest also sets DEV, so key this to Vite's development mode instead.
+  if (import.meta.env.MODE === "development") return trimmed;
 
   let url: URL;
   try {
