@@ -12,6 +12,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://ykyneinxsgcdjejmlxkg.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_MEfAwZY-IqPSvGtrARNOCw_7N793vNp
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -48,6 +51,8 @@ jobs:
       PROJECT_NAME: discstacked
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      VITE_SUPABASE_URL: https://ykyneinxsgcdjejmlxkg.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_MEfAwZY-IqPSvGtrARNOCw_7N793vNp
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
