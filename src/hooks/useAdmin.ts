@@ -26,21 +26,19 @@ export function useAdmin() {
       const response = (error as { context?: Response }).context;
 
       if (response instanceof Response) {
+        let errorMessage: string | null = null;
         try {
           const payload = await response.clone().json();
           if (payload?.error) {
-            throw new Error(payload.error);
+            errorMessage = payload.error;
           }
         } catch {
           try {
-            const text = await response.text();
-            if (text) {
-              throw new Error(text);
-            }
-          } catch {
-            // Fall through to default error below
-          }
+            const text = await response.clone().text();
+            if (text) errorMessage = text;
+          } catch { /* fall through */ }
         }
+        if (errorMessage) throw new Error(errorMessage);
       }
 
       throw error;

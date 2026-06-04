@@ -88,7 +88,10 @@ Deno.serve(async (req) => {
 
       while (true) {
         const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
-        if (error) throw error;
+        if (error) {
+          console.error("listUsers error:", JSON.stringify(error));
+          throw error;
+        }
 
         const batch = data?.users ?? [];
         users.push(...batch);
@@ -207,7 +210,9 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    const message = (err as Error).message ?? String(err);
+    console.error("admin-users error:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
