@@ -157,6 +157,7 @@ export async function searchMedia(
   opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv"; artist?: string; catalogNumber?: string; platform?: string }
 ): Promise<MediaLookupResult[]> {
   if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(activeTab === "music-films" && opts?.artist ? `${opts.artist} ${query}` : query, opts);
+  if (activeTab === "tv") return searchTmdb(query, { ...opts, searchType: opts?.searchType ?? "tv" });
   if (activeTab === "cds") return searchMusic(query, { barcode: opts?.barcode, artist: opts?.artist, catalogNumber: opts?.catalogNumber });
   if (activeTab === "games") return searchGames(query, { platform: opts?.platform });
   return [];
@@ -166,7 +167,7 @@ export async function lookupBarcode(
   activeTab: MediaTab,
   barcode: string
 ): Promise<BarcodeLookupResult> {
-  if (activeTab === "movies" || activeTab === "music-films") {
+  if (activeTab === "movies" || activeTab === "music-films" || activeTab === "tv") {
     const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode, activeTab);
     if (localCatalogResult) return localCatalogResult;
 
