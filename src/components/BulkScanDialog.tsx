@@ -42,6 +42,10 @@ interface ScanQueueItem {
   differentEdition?: boolean;
   existingTitle?: string;
   existingFormats?: string[];
+  existingEdition?: string;
+  existingNotes?: string;
+  existingWatchNotes?: string;
+  existingProductNotes?: string;
   extraMeta?: Record<string, any>;
   candidates?: MediaLookupResult[];
   // Multi-movie fields
@@ -271,22 +275,36 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             osc.stop(ctx.currentTime + 0.1);
           } catch {}
 
-          // Check if already in collection
+          // Check if already in collection (via physical_products for richer data)
           let alreadyOwned = false;
           let existingTitle: string | undefined;
           let existingFormats: string[] | undefined;
+          let existingEdition: string | undefined;
+          let existingNotes: string | undefined;
+          let existingWatchNotes: string | undefined;
+          let existingProductNotes: string | undefined;
           if (user) {
-            const { data: existing } = await supabase
-              .from("media_items")
-              .select("title, formats")
+            const { data: ppMatch } = await supabase
+              .from("physical_products" as any)
+              .select("id, edition, product_title, notes")
               .eq("user_id", user.id)
               .eq("barcode", decoded)
               .limit(1);
-            if (existing && existing.length > 0) {
+            if (ppMatch?.[0]) {
+              const pp = ppMatch[0] as any;
+              const { data: copyData } = await supabase
+                .from("media_copies" as any)
+                .select("media_items(title, formats, notes, watch_notes)")
+                .eq("physical_product_id", pp.id)
+                .limit(1);
+              const mi = (copyData?.[0] as any)?.media_items;
               alreadyOwned = true;
-              existingTitle = existing[0].title;
-              existingFormats = existing[0].formats || [];
-              // Play a different warning tone
+              existingTitle = mi?.title;
+              existingFormats = mi?.formats || [];
+              existingEdition = pp.edition ?? undefined;
+              existingNotes = mi?.notes ?? undefined;
+              existingWatchNotes = mi?.watch_notes ?? undefined;
+              existingProductNotes = pp.notes ?? undefined;
               try {
                 const ctx = new AudioContext();
                 const osc = ctx.createOscillator();
@@ -309,15 +327,27 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
           if (!alreadyOwned && user && 'title' in result && result.title) {
             const { data: titleMatch } = await supabase
               .from("media_items")
-              .select("title, formats")
+              .select("id, title, formats, notes, watch_notes")
               .eq("user_id", user.id)
               .in("media_type", ["movies", "tv", "tv-season", activeTab])
               .ilike("title", result.title)
               .limit(1);
-            if (titleMatch && titleMatch.length > 0) {
+            if (titleMatch?.[0]) {
               differentEdition = true;
-              existingTitle = titleMatch[0].title;
-              existingFormats = titleMatch[0].formats || [];
+              const mi = titleMatch[0] as any;
+              existingTitle = mi.title;
+              existingFormats = mi.formats || [];
+              existingNotes = mi.notes ?? undefined;
+              existingWatchNotes = mi.watch_notes ?? undefined;
+              // Also fetch edition from physical product linked to this item
+              const { data: copyData } = await supabase
+                .from("media_copies" as any)
+                .select("physical_products(edition, notes)")
+                .eq("media_item_id", (titleMatch[0] as any).id ?? "")
+                .limit(1);
+              const pp = (copyData?.[0] as any)?.physical_products;
+              existingEdition = pp?.edition ?? undefined;
+              existingProductNotes = pp?.notes ?? undefined;
             }
           }
 
@@ -331,6 +361,10 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     differentEdition,
                     existingTitle: existingTitle || ('title' in result ? result.title : undefined),
                     existingFormats,
+                    existingEdition,
+                    existingNotes,
+                    existingWatchNotes,
+                    existingProductNotes,
                     selected: !alreadyOwned,
                   }
                 : item
@@ -1056,26 +1090,38 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                              {item.artist || item.author || ""}{(item.artist || item.author) && item.year ? " · " : ""}
                              {item.year}{item.genre ? ` · ${item.genre}` : ""}{item.runtime ? ` · ${Math.floor(item.runtime / 60)}h${item.runtime % 60}m` : ""}
                            </p>
-                          {item.alreadyOwned && (
-                             <p className="text-[10px] text-warning flex items-center gap-1 mt-0.5">
-                               <Copy className="w-3 h-3" />
-                               Already in collection as "{item.existingTitle}"
-                               {item.existingFormats && item.existingFormats.length > 0 && (
-                                 <span className="font-semibold">({item.existingFormats.join(", ")})</span>
-                               )}
-                               {!item.selected && " — tap ✓ to add anyway"}
-                             </p>
-                           )}
-                           {!item.alreadyOwned && item.differentEdition && (
-                              <p className="text-[10px] text-primary flex items-center gap-1 mt-0.5">
-                                <Layers className="w-3 h-3" />
-                                You own "{item.existingTitle}"
-                                {item.existingFormats && item.existingFormats.length > 0 && (
-                                  <span className="font-semibold">on {item.existingFormats.join(", ")}</span>
-                                )}
-                                — this is a different edition
+                          {(item.alreadyOwned || item.differentEdition) && (
+                            <div className={`mt-1 rounded border px-2 py-1.5 text-[10px] leading-snug ${
+                              item.alreadyOwned
+                                ? "border-warning/40 bg-warning/10"
+                                : "border-primary/40 bg-primary/10"
+                            }`}>
+                              <p className={`flex items-center gap-1 font-semibold ${item.alreadyOwned ? "text-warning" : "text-primary"}`}>
+                                {item.alreadyOwned ? <Copy className="w-3 h-3 shrink-0" /> : <Layers className="w-3 h-3 shrink-0" />}
+                                {item.alreadyOwned ? "Already in collection" : "You own this — different edition"}
                               </p>
-                            )}
+                              <div className="mt-0.5 space-y-0.5 text-muted-foreground pl-4">
+                                {item.existingFormats && item.existingFormats.length > 0 && (
+                                  <p>Formats: <span className="font-medium text-foreground">{item.existingFormats.join(", ")}</span></p>
+                                )}
+                                {item.existingEdition && (
+                                  <p>Edition: <span className="font-medium text-foreground">{item.existingEdition}</span></p>
+                                )}
+                                {item.existingNotes && (
+                                  <p className="text-warning font-medium">⚑ {item.existingNotes}</p>
+                                )}
+                                {item.existingWatchNotes && (
+                                  <p className="italic">"{item.existingWatchNotes}"</p>
+                                )}
+                                {item.existingProductNotes && item.existingProductNotes !== item.existingNotes && (
+                                  <p className="text-warning font-medium">⚑ {item.existingProductNotes}</p>
+                                )}
+                              </div>
+                              {!item.selected && item.alreadyOwned && (
+                                <p className="mt-0.5 text-muted-foreground pl-4">Tap ✓ to add anyway</p>
+                              )}
+                            </div>
+                           )}
                            {(item.extraMeta?.source || item.extraMeta?.source_confidence || item.extraMeta?.edition?.package_title) && (
                               <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                                 {humanizeSource(item.extraMeta?.source) ? `Matched by ${humanizeSource(item.extraMeta?.source)}` : "Matched"}
