@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
+      db: { schema: "discstacked" },
     });
     const userResult = await userClient.auth.getUser();
     const currentUser = userResult.data?.user;
@@ -38,7 +39,9 @@ Deno.serve(async (req) => {
     const userId = currentUser.id;
     const { action, targetUserId, password } = await req.json();
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      db: { schema: "discstacked" },
+    });
 
     if (action === "admin-status") {
       const [{ count: adminCount, error: adminCountError }, { data: roleData, error: roleError }] = await Promise.all([
