@@ -152,11 +152,14 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         return;
       }
     }
-    // Check by title (different edition)
+    // Check by title (different edition) — include TV types for cross-tab detection
     if (checkTitle) {
+      const mediaTypes = (activeTab === "movies" || activeTab === "tv")
+        ? ["movies", "tv", "tv-season"]
+        : [activeTab];
       const { data: titleMatch } = await supabase
         .from("media_items").select("title, formats")
-        .eq("user_id", user.id).eq("media_type", activeTab)
+        .eq("user_id", user.id).in("media_type", mediaTypes)
         .ilike("title", checkTitle.trim()).limit(1);
       if (titleMatch && titleMatch.length > 0) {
         setOwnershipWarning({
@@ -684,7 +687,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                       <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1">
                         <p className="text-[9px] font-medium text-foreground truncate">{r.title}</p>
                         <p className="text-[8px] text-muted-foreground">
-                          {r.artist || r.author || ""}{r.year ? ` (${r.year})` : ""}
+                          {r.artist || r.author || (r.season_number ? `Season ${r.season_number}` : r.series_title || "")}{r.year ? ` (${r.year})` : ""}
                         </p>
                       </div>
                     </button>

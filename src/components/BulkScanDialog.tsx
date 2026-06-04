@@ -437,23 +437,7 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
             item.barcode === barcode
               ? {
                   ...item,
-                  status: "found" as const,
-                  title: top.title,
-                  year: top.year,
-                  genre: top.genre,
-                  posterUrl: top.poster_url,
-                  tmdb_id: top.tmdb_id,
-                  extraMeta: buildLookupMetadata({
-                    tmdb_id: top.tmdb_id,
-                    runtime: top.runtime,
-                    tagline: top.tagline,
-                    overview: top.overview,
-                    media_type: top.media_type,
-                    tmdb_series_id: (top as any).tmdb_series_id,
-                    season_number: (top as any).season_number,
-                    series_title: (top as any).series_title,
-                    episode_count: (top as any).episode_count,
-                  }),
+                  ...buildFoundQueueItem(top),
                   selected: true,
                 }
               : item
