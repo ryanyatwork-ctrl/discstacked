@@ -38,6 +38,6 @@ Run these after each meaningful deployment-related change:
 
 ## Supabase cutover note
 
-- Canonical Supabase project ref: `uehokbnqudoabjfzcfaj`
+- Canonical Supabase project ref: `ykyneinxsgcdjejmlxkg`
 - Deprecated Lovable-era project ref: `eesngfxqbaalpfxcaxqc`
 - Until the cutover is fully validated, treat any auth email, magic link, or dashboard action against `eesngfxqbaalpfxcaxqc` as non-production and avoid mixing the two backends.

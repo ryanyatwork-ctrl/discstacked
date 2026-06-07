@@ -7,7 +7,6 @@ const RELIABLE_ARTWORK_HOSTS = new Set([
   "coverartarchive.org",
   "images.igdb.com",
   "media.rawg.io",
-  "uehokbnqudoabjfzcfaj.supabase.co",
 ]);
 
 function getEditionObject(item: MediaItem) {
