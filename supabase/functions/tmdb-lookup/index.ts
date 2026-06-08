@@ -100,9 +100,9 @@ function stripHtml(value: string) {
   return decodeHtmlEntities(value.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
-async function lookupBluRayDotCom(barcode: string): Promise<BluRayDotComLookup | null> {
+async function lookupBluRayDotComSection(barcode: string, section: string): Promise<BluRayDotComLookup | null> {
   const response = await fetch(
-    `https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword=${encodeURIComponent(barcode)}&section=bluraymovies`,
+    `https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword=${encodeURIComponent(barcode)}&section=${section}`,
     {
       headers: {
         "user-agent": "DiscStacked/1.0 (+https://discstacked.app)",
@@ -142,6 +142,13 @@ async function lookupBluRayDotCom(barcode: string): Promise<BluRayDotComLookup |
     discCount,
     sourceUrl: finalUrl,
   };
+}
+
+async function lookupBluRayDotCom(barcode: string): Promise<BluRayDotComLookup | null> {
+  // Try Blu-ray/4K section first, then DVD — covers the full physical media catalog
+  const bdResult = await lookupBluRayDotComSection(barcode, "bluraymovies");
+  if (bdResult) return bdResult;
+  return lookupBluRayDotComSection(barcode, "dvd");
 }
 
 function attachPackageContext(payload: Record<string, any>, context: PackageContext) {
@@ -777,59 +784,13 @@ serve(async (req) => {
         return isStrongResolvedMatch(resolved);
       };
 
-      try {
-        const upcResponse = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
-        const upcRaw = upcResponse.ok ? await upcResponse.json() : null;
-
-        if (upcRaw?.items?.length > 0) {
-          const upcItem = upcRaw.items[0];
-          upcTitle = upcItem.title || "";
-          upcFormats = detectFormats(upcTitle);
-          upcCleanTitle = cleanProductTitle(upcTitle);
-          if (!barcodeYear) barcodeYear = extractYearFromText(upcTitle);
-          packageContext = {
-            rawTitle: upcTitle,
-            productTitle: upcTitle,
-            detectedFormats: upcFormats,
-            discCount: extractDiscCount(`${upcTitle} ${upcItem.description || ""}`),
-            packageImageUrl: Array.isArray(upcItem.images) && upcItem.images.length > 0 ? upcItem.images[0] : null,
-          };
-
-          debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
-
-          if (barcodeOverride) {
-            const overrideContext: PackageContext = {
-              ...packageContext,
-              productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
-              detectedFormats: barcodeOverride.formats,
-              discCount: barcodeOverride.discCount,
-              editionLabel: barcodeOverride.editionLabel || null,
-              digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
-              slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
-            };
-            const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
-            debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
-            return buildJsonResponse(overridePayload, debugLog);
-          }
-
-          if (upcCleanTitle) {
-            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
-            const packagedResult = result ? attachPackageContext(result, packageContext) : null;
-            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
-          }
-        } else {
-          debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
-        }
-      } catch (error) {
-        debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(error) });
-      }
-
+      // ── 1. Blu-ray.com: primary source for physical media barcodes ────────────
+      // Tries Blu-ray/4K section first, then DVD. Media-specific database with
+      // accurate package titles, formats, disc counts, and cover images.
       try {
         const bluRayMatch = await lookupBluRayDotCom(barcode);
         if (bluRayMatch) {
-          const bluRayFormats = bluRayMatch.formats.length > 0
-            ? bluRayMatch.formats
-            : upcFormats;
+          const bluRayFormats = bluRayMatch.formats.length > 0 ? bluRayMatch.formats : [];
           const bluRayYear = extractYearFromText(bluRayMatch.packageTitle);
 
           packageContext = {
@@ -881,6 +842,62 @@ serve(async (req) => {
         }
       } catch (error) {
         debugLog.push({ source: "BluRay.com", status: "ERROR", raw: String(error) });
+      }
+
+      // ── 2. UPCitemdb: general fallback for barcodes not in Blu-ray.com ────────
+      // Covers older DVDs, multi-region discs, and non-video media.
+      try {
+        const upcResponse = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
+        const upcRaw = upcResponse.ok ? await upcResponse.json() : null;
+
+        if (upcRaw?.items?.length > 0) {
+          const upcItem = upcRaw.items[0];
+          const upcRawTitle = upcItem.title || "";
+          const upcRawFormats = detectFormats(upcRawTitle);
+          const upcRawCleanTitle = cleanProductTitle(upcRawTitle);
+          if (!barcodeYear) barcodeYear = extractYearFromText(upcRawTitle);
+
+          // Only override package context if Blu-ray.com didn't already set it
+          if (!upcTitle) {
+            upcTitle = upcRawTitle;
+            upcCleanTitle = upcRawCleanTitle;
+            upcFormats = upcRawFormats;
+            packageContext = {
+              rawTitle: upcRawTitle,
+              productTitle: upcRawTitle,
+              detectedFormats: upcRawFormats,
+              discCount: extractDiscCount(`${upcRawTitle} ${upcItem.description || ""}`),
+              packageImageUrl: Array.isArray(upcItem.images) && upcItem.images.length > 0 ? upcItem.images[0] : null,
+            };
+          }
+
+          debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcRawTitle, category: upcItem.category, brand: upcItem.brand } });
+
+          if (barcodeOverride) {
+            const overrideContext: PackageContext = {
+              ...packageContext,
+              productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+              detectedFormats: barcodeOverride.formats,
+              discCount: barcodeOverride.discCount,
+              editionLabel: barcodeOverride.editionLabel || null,
+              digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
+              slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
+            };
+            const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
+            debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
+            return buildJsonResponse(overridePayload, debugLog);
+          }
+
+          if (upcRawCleanTitle && !isStrongResolvedMatch(bestResolved)) {
+            const result = await processBarcodeTitle(upcRawCleanTitle, upcRawTitle, upcRawFormats, barcodeYear);
+            const packagedResult = result ? attachPackageContext(result, packageContext) : null;
+            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
+          }
+        } else {
+          debugLog.push({ source: "UPCitemdb", status: "MISS", raw: upcRaw });
+        }
+      } catch (error) {
+        debugLog.push({ source: "UPCitemdb", status: "ERROR", raw: String(error) });
       }
 
       if (barcodeOverride) {

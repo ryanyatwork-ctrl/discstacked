@@ -354,4 +354,15 @@ export const BARCODE_OVERRIDES: Record<string, BarcodeOverride> = {
     digitalCodeExpected: false,
     slipcoverExpected: null,
   },
+  "794043702020": {
+    kind: "multi_movie",
+    productTitle: "Teenage Mutant Ninja Turtles 3-Pak (DVD)",
+    collectionName: "Teenage Mutant Ninja Turtles (Original) Collection",
+    editionLabel: "3-Pak",
+    movieTmdbIds: [1498, 1497, 1499],
+    formats: ["DVD"],
+    discCount: 3,
+    digitalCodeExpected: false,
+    slipcoverExpected: null,
+  },
 };

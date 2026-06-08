@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       db: { schema: "discstacked" },
       global: { headers: { Authorization: authHeader } },
+      db: { schema: "discstacked" },
     });
     const userResult = await userClient.auth.getUser();
     const currentUser = userResult.data?.user;
@@ -82,23 +83,12 @@ Deno.serve(async (req) => {
         });
       }
 
-      const users: any[] = [];
-      let page = 1;
-      const perPage = 200;
-
-      while (true) {
-        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
-        if (error) throw error;
-
-        const batch = data?.users ?? [];
-        users.push(...batch);
-
-        if (batch.length < perPage) {
-          break;
-        }
-
-        page += 1;
+      const { data: authUsersData, error: authUsersError } = await adminClient.rpc("list_auth_users");
+      if (authUsersError) {
+        console.error("list_auth_users error:", JSON.stringify(authUsersError));
+        throw authUsersError;
       }
+      const users: any[] = authUsersData ?? [];
 
       // Get profiles
       const { data: profiles } = await adminClient.from("profiles").select("*");
@@ -207,7 +197,9 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    const message = (err as Error).message ?? String(err);
+    console.error("admin-users error:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

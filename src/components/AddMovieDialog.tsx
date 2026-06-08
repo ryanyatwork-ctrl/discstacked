@@ -29,6 +29,7 @@ interface AddMovieDialogProps {
 // Tab-specific labels
 const TAB_LABELS: Record<MediaTab, { title: string; searchPlaceholder: string; wantAction: string }> = {
   movies: { title: "Movie", searchPlaceholder: "Movie title…", wantAction: "Want to Watch" },
+  tv: { title: "TV Show", searchPlaceholder: "Show or season title…", wantAction: "Want to Watch" },
   "music-films": { title: "Music Film", searchPlaceholder: "Concert / music film…", wantAction: "Want to Watch" },
   cds: { title: "Album", searchPlaceholder: "Artist or album…", wantAction: "Want to Listen" },
   games: { title: "Game", searchPlaceholder: "Game title…", wantAction: "Want to Play" },
@@ -75,7 +76,15 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const [extraMeta, setExtraMeta] = useState<Record<string, any>>({});
   const [multiSelect, setMultiSelect] = useState<MediaLookupResult[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [ownershipWarning, setOwnershipWarning] = useState<{ type: "barcode" | "title"; existingTitle: string; existingFormats: string[] } | null>(null);
+  const [ownershipWarning, setOwnershipWarning] = useState<{
+    type: "barcode" | "title";
+    existingTitle: string;
+    existingFormats: string[];
+    existingEdition?: string;
+    existingNotes?: string;
+    existingWatchNotes?: string;
+    existingProductNotes?: string;
+  } | null>(null);
   const [multiMovieResult, setMultiMovieResult] = useState<MultiMovieResult | null>(null);
   const [multiMovieSaving, setMultiMovieSaving] = useState(false);
   const [multiMovieOwned, setMultiMovieOwned] = useState<Record<number, string[]>>({});
@@ -87,11 +96,12 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const queryClient = useQueryClient();
   const labels = TAB_LABELS[activeTab];
 
+  const isTvTab = activeTab === "tv";
   const isMovieTab = activeTab === "movies" || activeTab === "music-films";
   const isMusicTab = activeTab === "cds";
   const isMusicFilmTab = activeTab === "music-films";
   const isGameTab = activeTab === "games";
-  const hasBarcode = isMovieTab || isMusicTab || isGameTab;
+  const hasBarcode = isMovieTab || isTvTab || isMusicTab || isGameTab;
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
@@ -136,31 +146,59 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
   const checkOwnership = async (checkTitle?: string, checkBarcode?: string) => {
     if (!user) return;
-    // Check by barcode first
+    // Check by barcode via physical_products (has edition + notes)
     if (checkBarcode) {
-      const { data: existing } = await supabase
-        .from("media_items").select("title, formats")
-        .eq("user_id", user.id).eq("barcode", checkBarcode.trim()).limit(1);
-      if (existing && existing.length > 0) {
+      const { data: ppMatch } = await supabase
+        .from("physical_products" as any)
+        .select("id, edition, notes")
+        .eq("user_id", user.id)
+        .eq("barcode", checkBarcode.trim())
+        .limit(1);
+      if (ppMatch?.[0]) {
+        const pp = ppMatch[0] as any;
+        const { data: copyData } = await supabase
+          .from("media_copies" as any)
+          .select("media_items(title, formats, notes, watch_notes)")
+          .eq("physical_product_id", pp.id)
+          .limit(1);
+        const mi = (copyData?.[0] as any)?.media_items;
         setOwnershipWarning({
           type: "barcode",
-          existingTitle: existing[0].title,
-          existingFormats: existing[0].formats || [],
+          existingTitle: mi?.title ?? checkBarcode,
+          existingFormats: mi?.formats || [],
+          existingEdition: pp.edition ?? undefined,
+          existingNotes: mi?.notes ?? undefined,
+          existingWatchNotes: mi?.watch_notes ?? undefined,
+          existingProductNotes: pp.notes ?? undefined,
         });
         return;
       }
     }
-    // Check by title (different edition)
+    // Check by title (different edition) — include TV types for cross-tab detection
     if (checkTitle) {
+      const mediaTypes = (activeTab === "movies" || activeTab === "tv")
+        ? ["movies", "tv", "tv-season"]
+        : [activeTab];
       const { data: titleMatch } = await supabase
-        .from("media_items").select("title, formats")
-        .eq("user_id", user.id).eq("media_type", activeTab)
+        .from("media_items").select("id, title, formats, notes, watch_notes")
+        .eq("user_id", user.id).in("media_type", mediaTypes)
         .ilike("title", checkTitle.trim()).limit(1);
-      if (titleMatch && titleMatch.length > 0) {
+      if (titleMatch?.[0]) {
+        const mi = titleMatch[0] as any;
+        const { data: copyData } = await supabase
+          .from("media_copies" as any)
+          .select("physical_products(edition, notes)")
+          .eq("media_item_id", mi.id)
+          .limit(1);
+        const pp = (copyData?.[0] as any)?.physical_products;
         setOwnershipWarning({
           type: "title",
-          existingTitle: titleMatch[0].title,
-          existingFormats: titleMatch[0].formats || [],
+          existingTitle: mi.title,
+          existingFormats: mi.formats || [],
+          existingEdition: pp?.edition ?? undefined,
+          existingNotes: mi.notes ?? undefined,
+          existingWatchNotes: mi.watch_notes ?? undefined,
+          existingProductNotes: pp?.notes ?? undefined,
         });
         return;
       }
@@ -254,9 +292,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
     setLookingUp(true);
     try {
       const yearNum = year ? parseInt(year) : undefined;
-      // Detect TV season patterns and search as TV
+      // TV tab always searches TV; movies tab detects season patterns and upgrades to TV
       const tvSeasonPattern = /\b(season|s\d|series|complete\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\b/i;
-      const searchType = tvSeasonPattern.test(title) ? "tv" as const : undefined;
+      const searchType = (isTvTab || tvSeasonPattern.test(title)) ? "tv" as const : undefined;
       const results = await searchMedia(activeTab, title, {
         year: yearNum,
         searchType,
@@ -464,6 +502,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         metaPayload["catalog_number"] = catalogNumber;
       }
 
+      // Auto-route TV items detected by the lookup (mirrors BulkScanDialog.resolveTargetMediaType)
+      const detectedContentType = extraMeta.content_type as string | undefined;
+      const effectiveMediaType: string =
+        detectedContentType === "tv_season" ? "tv-season" :
+        detectedContentType === "tv" ? "tv" :
+        activeTab;
+
       const externalId = getLookupExternalId({
         tmdb_id: extraMeta.tmdb_id || null,
         media_type: extraMeta.content_type || null,
@@ -486,7 +531,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         digital_copy: format === "Digital" ? true : digitalCopy,
         wishlist,
         want_to_watch: effectiveWantToWatch,
-        media_type: activeTab,
+        media_type: effectiveMediaType,
         external_id: externalId,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       } as any).select().single();
@@ -498,7 +543,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           barcode: barcode || null,
           productTitle: extraMeta?.edition?.package_title || title.trim(),
           formats: effectiveFormats,
-          mediaType: activeTab,
+          mediaType: effectiveMediaType,
           format: effectiveFormats[0] || null,
           discCount: extraMeta?.edition?.disc_count || extraMeta?.discs?.length || 1,
           metadata: metaPayload,
@@ -675,7 +720,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                       <div className="absolute inset-x-0 bottom-0 bg-background/90 p-1">
                         <p className="text-[9px] font-medium text-foreground truncate">{r.title}</p>
                         <p className="text-[8px] text-muted-foreground">
-                          {r.artist || r.author || ""}{r.year ? ` (${r.year})` : ""}
+                          {r.artist || r.author || (r.season_number ? `Season ${r.season_number}` : r.series_title || "")}{r.year ? ` (${r.year})` : ""}
                         </p>
                       </div>
                     </button>
@@ -784,30 +829,47 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
 
           {/* Ownership warning */}
           {ownershipWarning && !multiMovieResult && !multiSeasonResult && (
-            <div className={`flex items-start gap-2 rounded-md border p-3 ${
-              ownershipWarning.type === "barcode" 
-                ? "border-warning/40 bg-warning/10" 
+            <div className={`rounded-md border p-3 text-xs ${
+              ownershipWarning.type === "barcode"
+                ? "border-warning/40 bg-warning/10"
                 : "border-primary/40 bg-primary/10"
             }`}>
-              {ownershipWarning.type === "barcode" ? (
-                <Copy className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-              ) : (
-                <Layers className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              )}
-              <div className="text-xs">
-                <p className="font-medium text-foreground">
-                  {ownershipWarning.type === "barcode" 
-                    ? `Already in collection as "${ownershipWarning.existingTitle}"`
-                    : `You own "${ownershipWarning.existingTitle}"`}
-                  {ownershipWarning.existingFormats.length > 0 && (
-                    <span className="font-semibold"> on {ownershipWarning.existingFormats.join(", ")}</span>
-                  )}
-                </p>
-                <p className="text-muted-foreground mt-0.5">
-                  {ownershipWarning.type === "barcode" 
-                    ? "You can still add it if this is a different copy."
-                    : "This may be a different edition — you can still add it."}
-                </p>
+              <div className="flex items-start gap-2">
+                {ownershipWarning.type === "barcode" ? (
+                  <Copy className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                ) : (
+                  <Layers className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground">
+                    {ownershipWarning.type === "barcode"
+                      ? `Already in collection — "${ownershipWarning.existingTitle}"`
+                      : `You own "${ownershipWarning.existingTitle}" — different edition`}
+                  </p>
+                  <div className="mt-1 space-y-0.5 text-muted-foreground">
+                    {ownershipWarning.existingFormats.length > 0 && (
+                      <p>Formats: <span className="font-medium text-foreground">{ownershipWarning.existingFormats.join(", ")}</span></p>
+                    )}
+                    {ownershipWarning.existingEdition && (
+                      <p>Edition: <span className="font-medium text-foreground">{ownershipWarning.existingEdition}</span></p>
+                    )}
+                    {ownershipWarning.existingNotes && (
+                      <p className="text-warning font-medium">⚑ {ownershipWarning.existingNotes}</p>
+                    )}
+                    {ownershipWarning.existingWatchNotes && (
+                      <p className="italic">"{ownershipWarning.existingWatchNotes}"</p>
+                    )}
+                    {ownershipWarning.existingProductNotes &&
+                      ownershipWarning.existingProductNotes !== ownershipWarning.existingNotes && (
+                      <p className="text-warning font-medium">⚑ {ownershipWarning.existingProductNotes}</p>
+                    )}
+                    <p className="text-muted-foreground pt-0.5">
+                      {ownershipWarning.type === "barcode"
+                        ? "You can still add it if this is a different copy."
+                        : "You can still add it as a new edition."}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
