@@ -333,5 +333,143 @@ test("'Alien Quadrilogy' → multi-movie (not TV)", () => {
   assert.ok(MULTI_MOVIE_KEYWORDS.test("Alien Quadrilogy"));
 });
 
+// ---------------- mirror of lookup-utils.ts scoring ----------------
+
+function normalizeLookupText(value) {
+  return value
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreMovieResult(query, result, barcodeYear) {
+  const normalizedQuery = normalizeLookupText(query);
+  const normalizedTitle = normalizeLookupText(result.title || "");
+  if (!normalizedQuery || !normalizedTitle) return Number.NEGATIVE_INFINITY;
+
+  const queryWords = Array.from(new Set(normalizedQuery.split(" ").filter(Boolean)));
+  const titleWords = Array.from(new Set(normalizedTitle.split(" ").filter(Boolean)));
+  const overlap = queryWords.filter((word) => titleWords.includes(word)).length;
+  const coverage = overlap / Math.max(queryWords.length, 1);
+  const precision = overlap / Math.max(titleWords.length, 1);
+
+  let score = 0;
+  if (normalizedTitle === normalizedQuery) {
+    score = 100;
+  } else if (normalizedTitle.startsWith(normalizedQuery)) {
+    score = 82;
+  } else if (normalizedQuery.startsWith(normalizedTitle)) {
+    const delimiterPrefix = normalizeLookupText((query.split(/[:|–]|\s-\s/)[0] || ""));
+    const isFranchiseBaseOnly = Boolean(delimiterPrefix)
+      && delimiterPrefix !== normalizedQuery
+      && normalizedTitle === delimiterPrefix;
+    score = isFranchiseBaseOnly ? 55 : 82;
+  } else {
+    score = Math.round((coverage * 60) + (precision * 20));
+    if (precision === 1 && coverage >= 0.6) score = Math.max(score, 78);
+  }
+
+  if (overlap === 0) score -= 40;
+
+  const resultYear = result.release_date && result.release_date.length >= 4
+    ? parseInt(result.release_date.slice(0, 4), 10)
+    : null;
+  if (barcodeYear && resultYear) {
+    const diff = Math.abs(barcodeYear - resultYear);
+    if (diff === 0) score += 85;
+    else if (diff === 1) score += 65;
+    else if (diff <= 3) score += 35;
+    else if (diff <= 10) score -= 5;
+    else score -= 20;
+  } else if (barcodeYear && !resultYear) {
+    score -= 10;
+  }
+
+  score += Math.min(result.popularity || 0, 30) / 10;
+  return score;
+}
+
+function scoreMovieCandidate(fullQuery, candidate, result, barcodeYear) {
+  const fullScore = scoreMovieResult(fullQuery, result, barcodeYear);
+
+  const fullWords = new Set(normalizeLookupText(fullQuery).split(" ").filter(Boolean));
+  const candidateWords = new Set(normalizeLookupText(candidate).split(" ").filter(Boolean));
+  if (candidateWords.size >= fullWords.size) {
+    return Math.max(fullScore, scoreMovieResult(candidate, result, barcodeYear));
+  }
+
+  const droppedWords = fullWords.size - candidateWords.size;
+  const candidateScore = scoreMovieResult(candidate, result, barcodeYear) - droppedWords * 18;
+
+  return Math.max(fullScore, candidateScore);
+}
+
+console.log("\nCandidate scoring (truncated-candidate regression)");
+const FORCE_AWAKENS = { id: 140607, title: "Star Wars: The Force Awakens", release_date: "2015-12-15", popularity: 30 };
+const STAR_WARS_1977 = { id: 11, title: "Star Wars", release_date: "1977-05-25", popularity: 30 };
+const FA_FULL_TITLE = "Star Wars: Episode VII: The Force Awakens";
+
+test("'Star Wars: Episode VII: The Force Awakens' → Force Awakens beats Star Wars (1977)", () => {
+  // The colon-base candidate "Star Wars" exact-matches the 1977 film; the
+  // truncation penalty must keep it below the real movie's full-title score.
+  const faScore = Math.max(
+    scoreMovieCandidate(FA_FULL_TITLE, FA_FULL_TITLE, FORCE_AWAKENS),
+    scoreMovieCandidate(FA_FULL_TITLE, "Star Wars", FORCE_AWAKENS),
+  );
+  const swScore = Math.max(
+    scoreMovieCandidate(FA_FULL_TITLE, FA_FULL_TITLE, STAR_WARS_1977),
+    scoreMovieCandidate(FA_FULL_TITLE, "Star Wars", STAR_WARS_1977),
+  );
+  assert.ok(faScore > swScore, `expected Force Awakens (${faScore}) > Star Wars 1977 (${swScore})`);
+});
+
+test("winning score for wrapped title clears the >=70 single-movie accept threshold", () => {
+  const faScore = scoreMovieCandidate(FA_FULL_TITLE, FA_FULL_TITLE, FORCE_AWAKENS);
+  assert.ok(faScore >= 70, `expected >= 70, got ${faScore}`);
+});
+
+test("de-studio candidate keeps exact match strong: 'Cineverse The Toxic Avenger'", () => {
+  const movie = { id: 1, title: "The Toxic Avenger", release_date: "2025-08-01", popularity: 10 };
+  const score = scoreMovieCandidate("Cineverse The Toxic Avenger", "The Toxic Avenger", movie);
+  assert.ok(score >= 70, `expected >= 70, got ${score}`);
+});
+
+test("exact full-title match still scores 100+: 'U.S. Marshals'", () => {
+  const movie = { id: 1, title: "U.S. Marshals", release_date: "1998-03-06", popularity: 15 };
+  const score = scoreMovieCandidate("U.S. Marshals", "U.S. Marshals", movie);
+  assert.ok(score >= 100, `expected >= 100, got ${score}`);
+});
+
+test("barcode year still outranks popularity for remakes", () => {
+  const remake = scoreMovieCandidate("Planet of the Apes", "Planet of the Apes", { id: 1, title: "Planet of the Apes", release_date: "2001-07-27", popularity: 20 }, 2001);
+  const original = scoreMovieCandidate("Planet of the Apes", "Planet of the Apes", { id: 2, title: "Planet of the Apes", release_date: "1968-02-07", popularity: 40 }, 2001);
+  assert.ok(remake > original);
+});
+
+test("junk suffix without a colon still prefix-matches: 'Braveheart Mel Gibson'", () => {
+  const movie = { id: 197, title: "Braveheart", release_date: "1995-05-24", popularity: 20 };
+  const score = scoreMovieCandidate("Braveheart Mel Gibson", "Braveheart Mel Gibson", movie);
+  assert.ok(score >= 70, `expected >= 70, got ${score}`);
+});
+
+test("franchise base scores below threshold when query has a subtitle: 'Dune: Part Two' vs 'Dune'", () => {
+  const partTwo = { id: 693134, title: "Dune: Part Two", release_date: "2024-02-27", popularity: 30 };
+  const baseDune = { id: 438631, title: "Dune", release_date: "2021-09-15", popularity: 30 };
+  const query = "Dune: Part Two";
+  const partTwoScore = scoreMovieCandidate(query, query, partTwo);
+  const baseScore = scoreMovieCandidate(query, query, baseDune);
+  assert.ok(partTwoScore > baseScore, `expected ${partTwoScore} > ${baseScore}`);
+  assert.ok(baseScore < 70, `expected base Dune below accept threshold, got ${baseScore}`);
+});
+
+test("slash title exact match scores >= 95 (Face/Off single-movie guard)", () => {
+  const movie = { id: 754, title: "Face/Off", release_date: "1997-06-27", popularity: 25 };
+  const score = scoreMovieCandidate("Face/Off", "Face/Off", movie);
+  assert.ok(score >= 95, `expected >= 95, got ${score}`);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

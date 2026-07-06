@@ -286,10 +286,26 @@ export function scoreMovieResult(query: string, result: TmdbMovieSearchResult, b
 
   if (normalizedTitle === normalizedQuery) {
     score = 100;
-  } else if (normalizedTitle.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedTitle)) {
+  } else if (normalizedTitle.startsWith(normalizedQuery)) {
     score = 82;
+  } else if (normalizedQuery.startsWith(normalizedTitle)) {
+    // The result title is a prefix of the query. If the query has a colon /
+    // dash structure and the title only matches the pre-delimiter segment
+    // ("Star Wars" from "Star Wars: Episode VII: The Force Awakens"), the
+    // rest of the query is almost certainly the real subtitle, so this is a
+    // franchise-base near-miss — score it below the accept threshold.
+    const delimiterPrefix = normalizeLookupText((query.split(/[:|–]|\s-\s/)[0] || ""));
+    const isFranchiseBaseOnly = Boolean(delimiterPrefix)
+      && delimiterPrefix !== normalizedQuery
+      && normalizedTitle === delimiterPrefix;
+    score = isFranchiseBaseOnly ? 55 : 82;
   } else {
     score = Math.round((coverage * 60) + (precision * 20));
+    // Package text often wraps the real title in extra words ("Star Wars:
+    // Episode VII: The Force Awakens" vs TMDB's "Star Wars: The Force
+    // Awakens"). When every title word is present and most of the query is
+    // covered, treat it as a near-match instead of a weak word-soup score.
+    if (precision === 1 && coverage >= 0.6) score = Math.max(score, 78);
   }
 
   if (overlap === 0) score -= 40;
@@ -309,4 +325,31 @@ export function scoreMovieResult(query: string, result: TmdbMovieSearchResult, b
   score += Math.min(result.popularity || 0, 30) / 10;
 
   return score;
+}
+
+// Score a result found through a derived search candidate (colon-base,
+// de-studio, genre-stripped, etc). The candidate is only a search query —
+// the result must still be judged against the full cleaned title, otherwise
+// a truncated candidate like "Star Wars" (from "Star Wars: Episode VII: The
+// Force Awakens") exact-matches the wrong franchise-base movie. Each word the
+// candidate drops from the full title costs 18 points, and the full-title
+// score acts as the floor.
+export function scoreMovieCandidate(
+  fullQuery: string,
+  candidate: string,
+  result: TmdbMovieSearchResult,
+  barcodeYear?: number | null,
+): number {
+  const fullScore = scoreMovieResult(fullQuery, result, barcodeYear);
+
+  const fullWords = new Set(normalizeLookupText(fullQuery).split(" ").filter(Boolean));
+  const candidateWords = new Set(normalizeLookupText(candidate).split(" ").filter(Boolean));
+  if (candidateWords.size >= fullWords.size) {
+    return Math.max(fullScore, scoreMovieResult(candidate, result, barcodeYear));
+  }
+
+  const droppedWords = fullWords.size - candidateWords.size;
+  const candidateScore = scoreMovieResult(candidate, result, barcodeYear) - droppedWords * 18;
+
+  return Math.max(fullScore, candidateScore);
 }
