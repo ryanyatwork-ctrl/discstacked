@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildImportIdentityKeys, detectFormats, mapClzRow, mergeDuplicates, parseCsv } from "@/lib/import-utils";
+import { buildImportIdentityKeys, detectFormats, detectTvFromTitle, expandBoxSets, mapClzRow, mergeDuplicates, parseCsv } from "@/lib/import-utils";
 
 describe("import-utils", () => {
   it("detects collector formats from Blu-ray.com style strings", () => {
@@ -258,5 +258,64 @@ describe("import-utils", () => {
 
     expect(row.external_id).toBeUndefined();
     expect(row.metadata.imdb_id).toBe("tt0119094");
+  });
+
+  describe("TV detection", () => {
+    it("detects single seasons from the title", () => {
+      expect(detectTvFromTitle("24: Season 1")).toMatchObject({ mediaType: "tv-season", contentType: "tv_season", showName: "24", seasonNumber: 1 });
+      expect(detectTvFromTitle("The Sopranos - The Complete Fourth Season")).toMatchObject({ mediaType: "tv-season", seasonNumber: 4, showName: "The Sopranos" });
+    });
+
+    it("detects whole-series and ranges as tv", () => {
+      expect(detectTvFromTitle("Friends: The Complete Series")).toMatchObject({ mediaType: "tv", contentType: "tv", showName: "Friends" });
+      expect(detectTvFromTitle("The Wire: Seasons 1-3")).toMatchObject({ mediaType: "tv", showName: "The Wire" });
+      expect(detectTvFromTitle("Band of Brothers Miniseries")).toMatchObject({ mediaType: "tv", showName: "Band of Brothers" });
+    });
+
+    it("detects TV from the CLZ edition field when the title is just the show name", () => {
+      expect(detectTvFromTitle("Chuck", "The Complete Season 2")).toMatchObject({ mediaType: "tv-season", seasonNumber: 2, showName: "Chuck" });
+    });
+
+    it("does not mistake movie titles for TV", () => {
+      expect(detectTvFromTitle("Season of the Witch")).toBeNull();
+      expect(detectTvFromTitle("The Final Season")).toBeNull();
+      expect(detectTvFromTitle("Face/Off")).toBeNull();
+      expect(detectTvFromTitle("Star Wars: Episode VIII")).toBeNull();
+    });
+
+    it("does not misfile 'Open Season' movie-franchise titles as TV", () => {
+      // Bare '<words> Season <n>' with no delimiter/marker stays a movie.
+      expect(detectTvFromTitle("Open Season 2")).toBeNull();
+      expect(detectTvFromTitle("Open Season: Scared Silly")).toBeNull();
+      expect(detectTvFromTitle("Open Season", "Special Edition")).toBeNull();
+    });
+
+    it("handles worded, ordinal, and vol/episode season forms", () => {
+      expect(detectTvFromTitle("The Smurfs: Season One")).toMatchObject({ mediaType: "tv-season", seasonNumber: 1 });
+      expect(detectTvFromTitle("Gomer Pyle U.S.M.C.: The Complete 3rd Season")).toMatchObject({ seasonNumber: 3 });
+      expect(detectTvFromTitle("Sliders - Third Season")).toMatchObject({ seasonNumber: 3 });
+      expect(detectTvFromTitle("Stargate SG-1 Season 1, Vol. 1: Episodes 1-3")).toMatchObject({ mediaType: "tv-season", seasonNumber: 1 });
+    });
+
+    it("routes a TV row to tv-season during a movie import", () => {
+      const row = mapClzRow({ Title: "24: Season 1", Format: "DVD", "TMDb ID": "", Year: "2001" }, "movies");
+      expect(row._mediaTypeOverride).toBe("tv-season");
+      expect(row.metadata.content_type).toBe("tv_season");
+      expect(row.metadata.season_number).toBe(1);
+      expect(row.metadata.show_name).toBe("24");
+    });
+
+    it("keeps a plain movie on the movies tab", () => {
+      const row = mapClzRow({ Title: "The Godfather", Format: "Blu-ray", Year: "1972" }, "movies");
+      expect(row._mediaTypeOverride).toBeUndefined();
+    });
+
+    it("does not split a multi-disc TV season as a movie box set", () => {
+      const season = mapClzRow({ Title: "Chuck: Season 2", Format: "Blu-ray", "Disc Count": "6" }, "movies");
+      const expanded = expandBoxSets([season]);
+      // The season survives intact — not hidden or exploded into fake movies.
+      expect(expanded).toHaveLength(1);
+      expect(expanded[0]._mediaTypeOverride).toBe("tv-season");
+    });
   });
 });

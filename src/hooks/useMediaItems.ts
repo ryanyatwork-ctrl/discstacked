@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MediaTab } from "@/lib/types";
+import { MediaTab, dbMediaTypesForTab } from "@/lib/types";
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 import { buildImportIdentityKeys } from "@/lib/import-utils";
@@ -14,12 +14,16 @@ async function fetchAllItems(userId: string, mediaType: MediaTab): Promise<DbMed
   let allData: DbMediaItem[] = [];
   let from = 0;
 
+  // The TV tab holds both "tv" (whole-show) and "tv-season" rows; every other
+  // tab maps to a single db media_type. dbMediaTypesForTab encodes that.
+  const dbTypes = dbMediaTypesForTab(mediaType);
+
   while (true) {
     const { data, error } = await supabase
       .from("media_items")
       .select("*")
       .eq("user_id", userId)
-      .eq("media_type", mediaType)
+      .in("media_type", dbTypes)
       .order("title")
       .range(from, from + PAGE_SIZE - 1);
 
@@ -323,22 +327,42 @@ export function useImportItems() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // The importer may route some rows to a different media_type than the
+      // active tab (e.g. TV seasons detected inside a movie import get
+      // "tv-season"). Honor that per-row override and strip the marker so it
+      // never reaches the DB insert.
+      const rows = items.map((item) => {
+        const { _mediaTypeOverride, ...rest } = item as Record<string, any>;
+        return {
+          ...rest,
+          user_id: user.id,
+          media_type: (_mediaTypeOverride as string) || mediaType,
+          title: rest.title || "Untitled",
+          formats: rest.formats || (rest.format ? [rest.format] : []),
+        } as Partial<TablesInsert<"media_items">>;
+      });
+
+      // Every media_type the import writes into — the active tab plus any
+      // auto-routed types. Replace mode clears all of them so a re-import is a
+      // clean slate (otherwise routed TV rows would pile up on each replace).
+      const touchedTypes = Array.from(new Set<string>([mediaType, ...rows.map((r) => r.media_type as string)]));
+
       if (replace) {
-        // Replace mode: nuke this tab's data for the user, then rebuild.
+        // Replace mode: nuke the touched types for the user, then rebuild.
         // media_copies cascade from media_items, but physical_products live
         // independently — wipe both explicitly to avoid leaving dangling products.
         const { data: oldProducts, error: oldProductsError } = await supabase
           .from("physical_products")
           .select("id")
           .eq("user_id", user.id)
-          .eq("media_type", mediaType);
+          .in("media_type", touchedTypes);
         if (oldProductsError) throw oldProductsError;
 
         const { error: delError } = await supabase
           .from("media_items")
           .delete()
           .eq("user_id", user.id)
-          .eq("media_type", mediaType);
+          .in("media_type", touchedTypes);
         if (delError) throw delError;
 
         if (oldProducts && oldProducts.length > 0) {
@@ -365,21 +389,27 @@ export function useImportItems() {
         }
       }
 
-      const rows = items.map((item) => ({
-        ...item,
-        user_id: user.id,
-        media_type: mediaType,
-        title: item.title || "Untitled",
-        formats: item.formats || (item.format ? [item.format] : []),
-      }));
-
       const rowsForCatalog: Partial<TablesInsert<"media_items">>[] = [];
 
       if (replace) {
         const insertedRows = await insertMediaItemsWithMirrors(user.id, rows, mediaType);
         rowsForCatalog.push(...insertedRows);
       } else {
-        const existingItems = await fetchAllItems(user.id, mediaType);
+        // Dedup against existing items across every touched type so auto-routed
+        // TV rows match existing TV items (not just the active tab's type).
+        const existingItems: DbMediaItem[] = [];
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabase
+            .from("media_items")
+            .select("*")
+            .eq("user_id", user.id)
+            .in("media_type", touchedTypes)
+            .range(from, from + 999);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          existingItems.push(...(data as DbMediaItem[]));
+          if (data.length < 1000) break;
+        }
         const existingByIdentity = new Map<string, DbMediaItem>();
 
         for (const existing of existingItems) {

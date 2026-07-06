@@ -104,6 +104,103 @@ const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "b
 const ALIEN_TITLES = ["alien", "aliens", "alien3", "alien 3", "alien resurrection", "alien³"];
 const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors edition"];
 
+const TV_ORDINAL_WORDS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+  seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
+  thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
+  seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
+};
+const TV_CARDINAL_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+
+export type TvDetection = {
+  // "tv-season" for a single season; "tv" for a whole-show/complete-series/range box.
+  mediaType: "tv" | "tv-season";
+  contentType: "tv" | "tv_season";
+  showName: string;
+  seasonNumber?: number;
+};
+
+// Parse a token that follows the word "season" into a number: "1", "one", "3rd".
+function seasonTokenToNumber(token: string): number | null {
+  const t = token.toLowerCase().replace(/[.,].*$/, "");
+  const digits = t.match(/^(\d+)(?:st|nd|rd|th)?$/);
+  if (digits) return parseInt(digits[1], 10) || null;
+  return TV_CARDINAL_WORDS[t] ?? TV_ORDINAL_WORDS[t] ?? null;
+}
+// Parse a token that precedes the word "season": "third", "3rd".
+function ordinalTokenToNumber(token: string): number | null {
+  const t = token.toLowerCase();
+  const ord = t.match(/^(\d+)(?:st|nd|rd|th)$/);
+  if (ord) return parseInt(ord[1], 10) || null;
+  return TV_ORDINAL_WORDS[t] ?? null;
+}
+
+/**
+ * Detect whether an imported title/edition describes TV rather than a movie,
+ * so it can be routed to the TV tab on import.
+ *
+ * Deliberately STRICTER than the edge function's parseTvIndicator: a bare
+ * "<words> Season <n>" is NOT treated as TV unless a delimiter (": - –") or a
+ * strong TV marker (complete / series / vol / episodes) is present. Misfiling a
+ * movie into the TV tab is worse than leaving a season under movies, and movie
+ * franchises like "Open Season 2" / "Open Season: Scared Silly" otherwise
+ * collide with the season pattern.
+ */
+export function detectTvFromTitle(rawTitle: string, edition?: string | null): TvDetection | null {
+  const title = (rawTitle || "").trim();
+  if (!title) return null;
+  const cleanShow = (value: string) => value.trim().replace(/[:\-–\s]+$/g, "").trim();
+  const season = (showName: string, seasonNumber: number): TvDetection =>
+    ({ mediaType: "tv-season", contentType: "tv_season", showName: cleanShow(showName), seasonNumber });
+  const whole = (showName: string): TvDetection =>
+    ({ mediaType: "tv", contentType: "tv", showName: cleanShow(showName) });
+
+  let m: RegExpMatchArray | null;
+
+  if ((m = title.match(/^(.+?)\s*[:\-–]?\s*(?:the\s+)?complete\s+series\b/i))) return whole(m[1]);
+  if ((m = title.match(/^(.+?)\s*[:\-–]?\s*mini[-\s]?series\b/i))) return whole(m[1]);
+
+  // Season range ("Seasons 1-3") — requires the plural/"seasons" marker.
+  if ((m = title.match(/^(.+?)\s*[:\-–]?\s*seasons?\s*(\d+)\s*[-–]\s*(\d+)\b/i))) {
+    const from = parseInt(m[2], 10), to = parseInt(m[3], 10);
+    if (from && to && to >= from) return whole(m[1]);
+  }
+
+  // Delimiter + "Season <n|word|ordinal>" ("24: Season 1", "The Smurfs: Season One").
+  if ((m = title.match(/^(.+?)\s*[:\-–]\s*(?:the\s+)?(?:complete\s+)?season\s+([\w]+)\b/i))) {
+    const n = seasonTokenToNumber(m[2]);
+    if (n) return season(m[1], n);
+  }
+  // Delimiter + "<ordinal> Season" ("Sliders - Third Season", "...: Complete 3rd Season").
+  if ((m = title.match(/^(.+?)\s*[:\-–]\s*(?:the\s+)?(?:complete\s+)?(\w+)\s+season\b/i))) {
+    const n = ordinalTokenToNumber(m[2]);
+    if (n) return season(m[1], n);
+  }
+  // No delimiter, but an explicit multi-disc/volume/episode marker makes it TV
+  // ("Stargate SG-1 Season 1, Vol. 1: Episodes 1-3").
+  if (/\b(?:vol\.?|volume|episodes?|discs?)\b/i.test(title)
+      && (m = title.match(/^(.+?)\s+season\s+(\w+)/i))) {
+    const n = seasonTokenToNumber(m[2]);
+    if (n) return season(m[1].replace(/\s+season$/i, ""), n);
+  }
+
+  // CLZ often marks TV only in the edition field ("The Complete Season 1").
+  const ed = (edition || "").trim();
+  if (ed) {
+    if ((m = ed.match(/(?:the\s+)?complete\s+season\s*(\d+)\b/i) || ed.match(/^season\s+(\w+)\b/i))) {
+      const n = seasonTokenToNumber(m[1]);
+      if (n) return season(title, n);
+    }
+    if (/complete\s+series\b/i.test(ed)) return whole(title);
+  }
+
+  return null;
+}
+
 /** Detect ALL physical formats from a string (edition, audio tracks, format column) */
 export function detectFormats(value: string): string[] {
   const v = value.toLowerCase();
@@ -419,6 +516,21 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     mapped.metadata = metadata;
   }
 
+  // Route TV titles to the TV tab regardless of which tab the import ran from,
+  // mirroring how the scan flow auto-detects TV. Only applies to video imports.
+  if (mediaType === "movies" || mediaType === "music-films" || mediaType === "tv") {
+    const tv = detectTvFromTitle(mapped.title || "", metadata["edition"]);
+    if (tv) {
+      const tvMeta = (mapped.metadata as Record<string, any>) || {};
+      tvMeta.content_type = tv.contentType;
+      tvMeta.show_name = tv.showName;
+      tvMeta.series_title = tv.showName;
+      if (tv.seasonNumber != null) tvMeta.season_number = tv.seasonNumber;
+      mapped.metadata = tvMeta;
+      mapped._mediaTypeOverride = tv.mediaType;
+    }
+  }
+
   return mapped;
 }
 
@@ -491,7 +603,16 @@ export function mergeDuplicates(items: Record<string, any>[], mediaType?: MediaT
 /**
  * Check if a title is a box set based on keywords or disc count.
  */
+function isTvItem(item: Record<string, any>): boolean {
+  if (item._mediaTypeOverride === "tv" || item._mediaTypeOverride === "tv-season") return true;
+  const contentType = item.metadata?.content_type;
+  return contentType === "tv" || contentType === "tv_season";
+}
+
 function isBoxSet(item: Record<string, any>): boolean {
+  // TV seasons/series often contain "complete" or ship on >2 discs; they are
+  // not movie box sets and must not be split into individual "movies".
+  if (isTvItem(item)) return false;
   const title = (item.title || "").toLowerCase();
   if (BOX_SET_KEYWORDS.some(kw => title.includes(kw))) return true;
   const discCount = parseInt(item.metadata?.disc_count || "0", 10);
@@ -527,6 +648,10 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
     const title: string = item.title || "";
+
+    // TV rows are already routed to the TV tab; never split or absorb them as
+    // movie box sets.
+    if (isTvItem(item)) continue;
 
     // --- Strategy 1: Slash-separated multi-movie titles ---
     // Handle both " / " and "/ " separators
