@@ -517,6 +517,51 @@ async function resolveBestMovieMatch(cleanTitle: string, rawTitle: string, apiKe
   return bestMatch;
 }
 
+// When a barcode has no year and TMDB has several same-title films (an original
+// and its remake, e.g. "Child's Play" 1988 vs 2019), pick the one whose cast /
+// director names appear in the UPC product description. The 2019 Child's Play
+// description names Aubrey Plaza, Gabriel Bateman, Mark Hamill — none of whom
+// are in the 1988 film — which is decisive. Returns the winning movie only when
+// it clearly beats the runner-up, else null (fall back to normal ranking).
+async function disambiguateByDescription(
+  candidates: any[],
+  description: string,
+  apiKey: string,
+): Promise<any | null> {
+  if (!description || candidates.length < 2) return null;
+  const descLower = description.toLowerCase();
+
+  const scored = await Promise.all(candidates.slice(0, 4).map(async (movie) => {
+    try {
+      const creditsRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=${apiKey}&language=en-US`);
+      const credits = creditsRes.ok ? await creditsRes.json() : {};
+      const names: string[] = [
+        ...(credits.cast || []).slice(0, 10).map((person: any) => person.name),
+        ...(credits.crew || []).filter((person: any) => person.job === "Director").map((person: any) => person.name),
+      ].filter(Boolean);
+
+      let score = 0;
+      for (const name of names) {
+        const lower = name.toLowerCase();
+        if (descLower.includes(lower)) {
+          score += 3; // full-name hit is strong
+        } else {
+          const lastName = lower.split(/\s+/).pop() || "";
+          if (lastName.length >= 4 && descLower.includes(lastName)) score += 1;
+        }
+      }
+      return { movie, score };
+    } catch {
+      return { movie, score: 0 };
+    }
+  }));
+
+  scored.sort((left, right) => right.score - left.score);
+  const [best, runnerUp] = scored;
+  if (best && best.score >= 3 && best.score > (runnerUp?.score || 0)) return best.movie;
+  return null;
+}
+
 async function searchBestMovieResults(query: string, apiKey: string, year?: number | null) {
   const normalizedQuery = query.trim().toLowerCase();
   if (normalizedQuery === "9" && (!year || year === 2009)) {
@@ -690,7 +735,7 @@ serve(async (req) => {
     }
 
     if (barcode) {
-      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detectedFormats: string[], barcodeYear?: number | null) {
+      async function processBarcodeTitle(cleanTitle: string, rawTitle: string, detectedFormats: string[], barcodeYear?: number | null, descriptionHint = "") {
         const tvIndicator = parseTvIndicator(cleanTitle);
 
         if (tvIndicator.kind === "complete" || tvIndicator.kind === "range") {
@@ -855,6 +900,23 @@ serve(async (req) => {
         }
 
         if (cleanTitle) {
+          // No year to anchor on, but the same title may be an original AND a
+          // remake. Use the UPC description's cast/director to pick the exact
+          // one instead of defaulting to the more popular film.
+          if (!barcodeYear && descriptionHint) {
+            const ranked = await searchBestMovieResults(cleanTitle, tmdbApiKey, null);
+            const normalizedTitle = normalizeLookupText(cleanTitle);
+            const exactMatches = ranked.filter((movie: any) => normalizeLookupText(movie.title || "") === normalizedTitle);
+            const distinctYears = new Set(exactMatches.map((movie: any) => (movie.release_date || "").slice(0, 4)).filter(Boolean));
+            if (exactMatches.length >= 2 && distinctYears.size >= 2) {
+              const winner = await disambiguateByDescription(exactMatches, descriptionHint, tmdbApiKey);
+              if (winner) {
+                const detail = await fetchTmdbMovieDetails(winner.id, tmdbApiKey);
+                return { ...detail, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: 140 };
+              }
+            }
+          }
+
           const bestMovieMatch = await resolveBestMovieMatch(cleanTitle, rawTitle, tmdbApiKey, barcodeYear);
           if (bestMovieMatch && bestMovieMatch.score >= 70) {
             const detail = await fetchTmdbMovieDetails(bestMovieMatch.movie.id, tmdbApiKey);
@@ -889,6 +951,7 @@ serve(async (req) => {
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
       let barcodeYear: number | null = null;
+      let barcodeDescription = "";
       let bestResolved: Record<string, any> | null = null;
       let packageContext: PackageContext = {
         rawTitle: "",
@@ -913,7 +976,10 @@ serve(async (req) => {
           upcTitle = upcItem.title || "";
           upcFormats = detectFormats(upcTitle);
           upcCleanTitle = cleanProductTitle(upcTitle);
+          barcodeDescription = upcItem.description || "";
           if (!barcodeYear) barcodeYear = extractYearFromText(upcTitle);
+          // Some descriptions state the year even when the title doesn't.
+          if (!barcodeYear) barcodeYear = extractYearFromText(barcodeDescription);
           packageContext = {
             rawTitle: upcTitle,
             productTitle: upcTitle,
@@ -940,7 +1006,7 @@ serve(async (req) => {
           }
 
           if (upcCleanTitle) {
-            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear);
+            const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear, barcodeDescription);
             const packagedResult = result ? attachPackageContext(result, packageContext) : null;
             if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
           }
@@ -1102,7 +1168,7 @@ serve(async (req) => {
       }
 
       if (upcCleanTitle) {
-        const fuzzyResult = await processBarcodeTitle(upcCleanTitle, upcTitle || upcCleanTitle, upcFormats, barcodeYear);
+        const fuzzyResult = await processBarcodeTitle(upcCleanTitle, upcTitle || upcCleanTitle, upcFormats, barcodeYear, barcodeDescription);
         if (fuzzyResult) {
           const packagedFuzzyResult = attachPackageContext(fuzzyResult, packageContext);
           debugLog.push({
