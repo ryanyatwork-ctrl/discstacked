@@ -11,6 +11,14 @@ Deno.test("cleanProductTitle strips distributor and edition suffix noise", () =>
     cleanProductTitle("Coyote Ugly Mill Creek Entertainment"),
     "Coyote Ugly",
   );
+
+  // "double feature" must survive so the multi-movie split can see both films.
+  assertEquals(
+    cleanProductTitle("AVP Double Feature: Alien vs. Predator / Aliens vs. Predator: Requiem"),
+    "AVP Double Feature: Alien vs. Predator / Aliens vs. Predator: Requiem",
+  );
+  // A bare trailing "feature" is still stripped.
+  assertEquals(cleanProductTitle("Some Movie Feature Presentation"), "Some Movie");
 });
 
 Deno.test("generateTitleCandidates keeps the base movie title when barcode text appends genre fragments", () => {

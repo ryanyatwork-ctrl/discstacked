@@ -31,7 +31,11 @@ const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|e
 const STUDIO_ANYWHERE_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b/gi;
 const TRAILING_GENRE_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music)\b\.?$/i;
 const GENRE_CHAIN_PATTERN = /\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music|science\s*fiction|sci\s*-?fi)\b(?:[\s/&,-]+\b(?:action|comedy|drama|horror|thriller|romance|animation|adventure|fantasy|documentary|musical|western|mystery|crime|war|history|family|music|science\s*fiction|sci\s*-?fi)\b){1,}$/i;
-const TRAILING_METADATA_PATTERN = /\b(?:feature|directed\s+by|starring|presented\s+by)\b.*$/i;
+// Strips trailing "...directed by / starring / presented by / feature" noise.
+// "feature" is protected when it's part of a "double/triple feature" — that's
+// a multi-movie marker, and truncating there ("AVP Double Feature: A / B" ->
+// "AVP Double") destroys the movie list before it can be split.
+const TRAILING_METADATA_PATTERN = /\b(?:directed\s+by|starring|presented\s+by)\b.*$|(?<!\b(?:double|triple)\s)\bfeature\b.*$/i;
 // Keep this intentionally narrow. Broad single-word genre stripping caused
 // real titles like "Avengers: Infinity War" and "The Family" to be mangled
 // before fuzzy matching.
