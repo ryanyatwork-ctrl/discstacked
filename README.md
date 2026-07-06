@@ -44,7 +44,7 @@ The app also includes a checked-in fallback for the public Supabase URL and publ
 
 Canonical project note:
 
-- Active Supabase project ref: `uehokbnqudoabjfzcfaj`
+- Active Supabase project ref: `ykyneinxsgcdjejmlxkg`
 - The older `eesngfxqbaalpfxcaxqc` ref came from the Lovable-era backend and should now be treated as deprecated during cutover cleanup.
 
 ## Cloudflare Pages Deployment

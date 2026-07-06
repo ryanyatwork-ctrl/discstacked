@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,27 +26,50 @@ function getStrength(password: string) {
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
 
   const strength = useMemo(() => getStrength(password), [password]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (params.get("reset") === "1" || hashParams.get("type") === "recovery") {
+      setIsResettingPassword(true);
+      setIsSignUp(false);
+      setIsForgotPassword(false);
+      setPassword("");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = isSignUp
-      ? await signUp(email, password)
-      : await signIn(email, password);
+    const { error } = isResettingPassword
+      ? await updatePassword(password)
+      : isForgotPassword
+        ? await resetPassword(email)
+        : isSignUp
+          ? await signUp(email, password)
+          : await signIn(email, password);
 
     setLoading(false);
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else if (isResettingPassword) {
+      toast({ title: "Password updated", description: "You can now use your new password." });
+      navigate("/");
+    } else if (isForgotPassword) {
+      toast({ title: "Check your email", description: "We sent you a password reset link." });
+      setIsForgotPassword(false);
     } else if (isSignUp) {
       toast({ title: "Check your email", description: "We sent you a confirmation link." });
     } else {
@@ -69,25 +92,34 @@ export default function Auth() {
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-bold text-foreground tracking-tight">DiscStacked</h1>
             <p className="text-sm text-muted-foreground">
-              {isSignUp ? "Create your account" : "Sign in to your collection"}
+              {isResettingPassword
+                ? "Choose a new password"
+                : isForgotPassword
+                  ? "Reset your password"
+                  : isSignUp
+                    ? "Create your account"
+                    : "Sign in to your collection"}
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="bg-card border-border"
-          />
-          <div className="space-y-2">
+          {!isResettingPassword && (
+            <Input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="bg-card border-border"
+            />
+          )}
+          {!isForgotPassword && (
+            <div className="space-y-2">
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Password"
+                placeholder={isResettingPassword ? "New password" : "Password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -104,7 +136,7 @@ export default function Auth() {
               </button>
             </div>
 
-            {isSignUp && password.length > 0 && (
+            {(isSignUp || isResettingPassword) && password.length > 0 && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -137,18 +169,46 @@ export default function Auth() {
               </div>
             )}
           </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
+            {loading
+              ? "Loading..."
+              : isResettingPassword
+                ? "Update Password"
+                : isForgotPassword
+                  ? "Send Reset Link"
+                  : isSignUp
+                    ? "Sign Up"
+                    : "Sign In"}
           </Button>
         </form>
 
+        {!isSignUp && !isForgotPassword && !isResettingPassword && (
+          <p className="text-center text-sm">
+            <button
+              onClick={() => setIsForgotPassword(true)}
+              className="text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
+          </p>
+        )}
+
         <p className="text-center text-sm text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+          {isResettingPassword || isForgotPassword
+            ? "Remember your password?"
+            : isSignUp
+              ? "Already have an account?"
+              : "Don't have an account?"}{" "}
           <button
-            onClick={() => setIsSignUp(!isSignUp)}
+            onClick={() => {
+              setIsSignUp(isForgotPassword || isResettingPassword ? false : !isSignUp);
+              setIsForgotPassword(false);
+              setIsResettingPassword(false);
+            }}
             className="text-primary hover:underline"
           >
-            {isSignUp ? "Sign in" : "Sign up"}
+            {isResettingPassword || isForgotPassword ? "Sign in" : isSignUp ? "Sign in" : "Sign up"}
           </button>
         </p>
         <p className="text-center text-[10px] text-muted-foreground/60 mt-4">

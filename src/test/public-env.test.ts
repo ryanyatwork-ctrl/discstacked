@@ -28,10 +28,7 @@ describe("resolvePublicEnv", () => {
     });
   });
 
-  it("uses the checked-in public fallback when Cloudflare build vars are absent", () => {
-    const resolved = resolvePublicEnv({});
-
-    expect(resolved.supabaseUrl).toBe("https://uehokbnqudoabjfzcfaj.supabase.co");
-    expect(resolved.supabasePublishableKey).toBe("sb_publishable_KA_3Ih_2CilLB1HzW0-c4g_8F7jKL-1");
+  it("fails fast when build-time Supabase config is absent", () => {
+    expect(() => resolvePublicEnv({})).toThrow("Missing Supabase public environment variables.");
   });
 });

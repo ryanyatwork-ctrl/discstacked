@@ -45,6 +45,7 @@ async function getAuthenticatedUser(req: Request) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const client = createClient(supabaseUrl, anonKey, {
+    db: { schema: "discstacked" },
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user } } = await client.auth.getUser();
@@ -64,7 +65,9 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const admin = createClient(supabaseUrl, serviceKey);
+    const admin = createClient(supabaseUrl, serviceKey, {
+      db: { schema: "discstacked" },
+    });
 
     const body = await req.json();
     const { action } = body;

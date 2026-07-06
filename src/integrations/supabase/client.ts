@@ -4,11 +4,15 @@ import type { Database } from './types';
 import { publicEnv } from '@/config/public-env';
 
 const { supabaseUrl, supabasePublishableKey } = publicEnv;
+type DiscstackedDatabase = Omit<Database, 'public'> & {
+  discstacked: Database['public'];
+};
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient<DiscstackedDatabase, 'discstacked'>(supabaseUrl, supabasePublishableKey, {
+  db: { schema: 'discstacked' },
   auth: {
     storage: localStorage,
     persistSession: true,

@@ -82,7 +82,7 @@ describe("toProxiedImageUrl", () => {
     });
 
     it("leaves Supabase storage URLs alone (already self-hosted)", () => {
-      const supabaseUrl = "https://uehokbnqudoabjfzcfaj.supabase.co/storage/v1/object/public/cover-art/x.jpg";
+      const supabaseUrl = "https://ykyneinxsgcdjejmlxkg.supabase.co/storage/v1/object/public/cover-art/x.jpg";
       expect(toProxiedImageUrl(supabaseUrl)).toBe(supabaseUrl);
     });
 
@@ -112,7 +112,7 @@ describe("isProxiableImageUrl", () => {
   });
 
   it("is false for Supabase URLs", () => {
-    expect(isProxiableImageUrl("https://uehokbnqudoabjfzcfaj.supabase.co/storage/x.jpg")).toBe(false);
+    expect(isProxiableImageUrl("https://ykyneinxsgcdjejmlxkg.supabase.co/storage/x.jpg")).toBe(false);
   });
 
   it("is false for unknown hosts", () => {
