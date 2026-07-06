@@ -702,6 +702,41 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           const currentMeta = item.metadata || {};
           const isTvSeason = currentMeta.content_type === "tv_season";
 
+          // If this movie already carries an exact TMDB id (from a scan, add,
+          // or an import that included the id), resolve details directly by id
+          // rather than re-searching by title. Title search returns results[0],
+          // which for short/ambiguous titles ("9", "Up", "It") can be the wrong
+          // film — this keeps the known-correct identity.
+          const directTmdbId = (type === "movies" || type === "music-films") && !isTvSeason
+            && item.external_id && /^\d+$/.test(String(item.external_id))
+            ? String(item.external_id)
+            : null;
+
+          if (directTmdbId) {
+            const { data: details, error: detailErr } = await supabase.functions.invoke("tmdb-lookup", {
+              body: { tmdb_id: Number(directTmdbId), search_type: "movie" },
+            });
+            if (detailErr) throw detailErr;
+            if (details?.tmdb_id) {
+              const updatedMeta = {
+                ...currentMeta,
+                runtime: details.runtime || currentMeta.runtime,
+                tagline: details.tagline || currentMeta.tagline,
+                overview: details.overview || currentMeta.overview,
+                cast: details.cast || currentMeta.cast,
+                crew: details.crew || currentMeta.crew,
+              };
+              const updatePayload: any = { metadata: updatedMeta };
+              if (details.genre && !item.genre) updatePayload.genre = details.genre;
+              if (details.poster_url && !item.poster_url) updatePayload.poster_url = details.poster_url;
+              const { error: updErr } = await supabase.from("media_items").update(updatePayload).eq("id", item.id);
+              if (!updErr) updated++;
+            }
+            setProgress(`${i + 1}/${candidates.length} — updated ${updated} items`);
+            if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, 300));
+            continue;
+          }
+
           if (type === "movies" || type === "music-films") {
             lookupFn = "tmdb-lookup";
             body = isTvSeason

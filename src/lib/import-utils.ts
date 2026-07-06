@@ -38,6 +38,18 @@ const COLUMN_MAP: Record<string, string> = {
   ean: "_barcode",
   "upc/ean": "_barcode",
   "ean/upc": "_barcode",
+  // External IDs — carry exact identity so posters/metadata resolve by ID
+  // instead of fuzzy title search. CLZ can export these columns.
+  tmdb: "_tmdb_id",
+  "tmdb id": "_tmdb_id",
+  tmdbid: "_tmdb_id",
+  "tmdb url": "_tmdb_id",
+  themoviedb: "_tmdb_id",
+  "themoviedb id": "_tmdb_id",
+  imdb: "_imdb_id",
+  "imdb id": "_imdb_id",
+  imdbid: "_imdb_id",
+  "imdb url": "_imdb_id",
   "running time": "_running_time",
   runtime: "_running_time",
   "no. of discs/tapes": "_disc_count",
@@ -273,6 +285,22 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       metadata[metaKey] = cleanString(value);
       if (metaKey === "barcode") {
         mapped.barcode = cleanString(value);
+      }
+      // TMDB id may arrive as a bare number or a themoviedb.org URL; keep the
+      // trailing numeric id and promote it to external_id (the app's canonical
+      // movie identity) so posters/metadata resolve exactly, no title guessing.
+      if (metaKey === "tmdb_id") {
+        const tmdbId = (cleanString(value).match(/(\d+)(?!.*\d)/) || [])[1];
+        if (tmdbId) {
+          mapped.external_id = tmdbId;
+          metadata.tmdb_id = tmdbId;
+        }
+      }
+      // IMDb id kept in metadata only (external_id is TMDB-based). Accept a
+      // bare ttNNNNNNN or a full imdb.com URL.
+      if (metaKey === "imdb_id") {
+        const imdbId = (cleanString(value).match(/tt\d+/i) || [])[0];
+        if (imdbId) metadata.imdb_id = imdbId;
       }
       if (metaKey === "cover_front") {
         const coverValue = cleanString(value);

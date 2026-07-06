@@ -225,4 +225,38 @@ describe("import-utils", () => {
     expect(merged.find((item) => item.format === "PC")).toBeTruthy();
     expect(merged.find((item) => item.format === "PlayStation 1")).toBeTruthy();
   });
+
+  it("promotes a TMDb id column to external_id for exact identity", () => {
+    const row = mapClzRow({
+      Title: "The Last Jedi",
+      Year: "2017",
+      Format: "Blu-ray",
+      Barcode: "786936856972",
+      "TMDb ID": "181808",
+      "IMDb ID": "tt2527336",
+    }, "movies");
+
+    expect(row.external_id).toBe("181808");
+    expect(row.metadata.tmdb_id).toBe("181808");
+    expect(row.metadata.imdb_id).toBe("tt2527336");
+  });
+
+  it("extracts the trailing numeric id from a themoviedb URL", () => {
+    const row = mapClzRow({
+      Title: "Dune: Part Two",
+      "TMDb URL": "http://themoviedb.org/movie/693134",
+    }, "movies");
+
+    expect(row.external_id).toBe("693134");
+  });
+
+  it("pulls the ttNNNN id out of a full IMDb URL and leaves external_id unset without a TMDb id", () => {
+    const row = mapClzRow({
+      Title: "Face/Off",
+      "IMDb URL": "https://www.imdb.com/title/tt0119094/",
+    }, "movies");
+
+    expect(row.external_id).toBeUndefined();
+    expect(row.metadata.imdb_id).toBe("tt0119094");
+  });
 });
