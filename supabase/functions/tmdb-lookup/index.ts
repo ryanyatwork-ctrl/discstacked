@@ -6,6 +6,7 @@ import {
   extractYearFromText,
   expandSharedFranchiseTitles,
   generateTitleCandidates,
+  normalizeLookupText,
   parseTvIndicator,
   scoreCollectionMatch,
   scoreMovieCandidate,
@@ -26,8 +27,10 @@ function detectFormats(text: string): string[] {
   if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(upper)) detected.push("4K");
   if (/\bBLU[-\s]?RAY\b/.test(upper)) detected.push("Blu-ray");
   if (/\b3D\b/.test(upper)) detected.push("3D");
-  if (/\bDVD\b/.test(upper)) detected.push("DVD");
-  if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(upper)) detected.push("Digital");
+  // "DIGITAL VIDEO DISC" is a DVD, not a digital copy — some UPC titles spell
+  // it out. Catch it explicitly and keep it out of the Digital match below.
+  if (/\bDVD\b/.test(upper) || /\bDIGITAL\s+VIDEO\s+DISC\b/.test(upper)) detected.push("DVD");
+  if (/\b(DIGITAL(?!\s+VIDEO\s+DISC)(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(upper)) detected.push("Digital");
   if (/\bVHS\b/.test(upper)) detected.push("VHS");
   if (/\bULTRAVIOLET\b/.test(upper)) detected.push("UltraViolet");
 
@@ -157,7 +160,15 @@ function attachPackageContext(payload: Record<string, any>, context: PackageCont
   );
   const productTitle = context.productTitle || payload.product_title || payload.barcode_title || payload.title || context.rawTitle;
   const barcodeTitle = context.rawTitle || payload.barcode_title || productTitle;
-  const discCount = context.discCount ?? payload.disc_count ?? null;
+  let discCount = context.discCount ?? payload.disc_count ?? null;
+  // Combo packs (Blu-ray + DVD, 4K + Blu-ray + DVD) rarely state a disc count
+  // in the title. When multiple physical disc formats are present and no count
+  // was found, infer one disc per physical format so collectors see "2"/"3"
+  // instead of blank. Digital / UltraViolet are codes, not discs.
+  if (discCount == null) {
+    const physicalDiscs = detectedFormats.filter((format) => ["4K", "Blu-ray", "3D", "DVD", "VHS"].includes(format));
+    if (physicalDiscs.length >= 2) discCount = physicalDiscs.length;
+  }
   const digitalCodeExpected = context.digitalCodeExpected ?? payload.digital_code_expected ?? detectedFormats.includes("Digital");
   const slipcoverExpected = context.slipcoverExpected ?? payload.slipcover_expected ?? null;
   const packageImageUrl = context.packageImageUrl ?? payload.package_image_url ?? null;
@@ -741,9 +752,30 @@ serve(async (req) => {
             }
           }
 
-          const movieTitles = hasSlash ? expandSharedFranchiseTitles(splitMultiTitleCandidates(cleanTitle)) : [];
+          // Clean franchise name = the words before the first multi-movie
+          // keyword ("Alien" from "Alien Quadrilogy 4pk ..."). Much better for
+          // a collection search than the noisy full title.
+          const keywordMatch = cleanTitle.match(MULTI_MOVIE_KEYWORDS);
+          const leadingFranchise = keywordMatch && keywordMatch.index && keywordMatch.index > 0
+            ? cleanTitle.slice(0, keywordMatch.index).trim()
+            : "";
+
+          let movieTitles = hasSlash ? expandSharedFranchiseTitles(splitMultiTitleCandidates(cleanTitle)) : [];
+          // Comma-separated title lists ("... Alien, Aliens, Alien 3, Alien
+          // Resurrection") — split the text after the keyword into the exact
+          // movies the package contains.
+          if (!hasSlash && hasMultiKeyword && keywordMatch) {
+            const afterKeyword = cleanTitle.slice((keywordMatch.index || 0) + keywordMatch[0].length);
+            const commaParts = afterKeyword
+              .split(",")
+              .map((part) => part.replace(/^\s*\d+\s*(?:pk|pack|disc(?:s)?)\b/i, "").trim())
+              .filter((part) => part.length >= 2);
+            if (commaParts.length >= 2) movieTitles = commaParts;
+          }
+
           const franchiseName = extractCollectionFranchiseName(cleanTitle);
-          const collectionQueries = Array.from(new Set([cleanTitle, franchiseName, rawTitle].filter(Boolean)));
+          const collectionRef = leadingFranchise || franchiseName || cleanTitle;
+          const collectionQueries = Array.from(new Set([leadingFranchise, cleanTitle, franchiseName, rawTitle].filter(Boolean)));
 
           for (const collectionQuery of collectionQueries) {
             const collections = await searchTmdbCollection(collectionQuery, tmdbApiKey);
@@ -752,7 +784,7 @@ serve(async (req) => {
             const rankedCollection = collections
               .map((collection: any) => ({
                 collection,
-                score: scoreCollectionMatch(franchiseName || cleanTitle, collection.name || ""),
+                score: scoreCollectionMatch(collectionRef, collection.name || ""),
               }))
               .sort((left: any, right: any) => right.score - left.score)[0];
 
@@ -827,6 +859,22 @@ serve(async (req) => {
           if (bestMovieMatch && bestMovieMatch.score >= 70) {
             const detail = await fetchTmdbMovieDetails(bestMovieMatch.movie.id, tmdbApiKey);
             return { ...detail, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: bestMovieMatch.score };
+          }
+
+          // Movie search came up short. The title may be a TV series with no
+          // season wording (e.g. "A.D. The Bible Continues"). Try TV, and
+          // accept it only on a strong name match to avoid movie→TV drift.
+          const tvResults = await searchTmdbTv(cleanTitle, tmdbApiKey, barcodeYear);
+          if (tvResults.length > 0) {
+            const show = tvResults[0];
+            const normalizedQuery = normalizeLookupText(cleanTitle);
+            const normalizedShow = normalizeLookupText(show.name || "");
+            const strongTvMatch = Boolean(normalizedQuery && normalizedShow
+              && (normalizedShow === normalizedQuery || normalizedShow.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedShow)));
+            if (strongTvMatch) {
+              const detail = await fetchTmdbTvDetails(show.id, tmdbApiKey);
+              return { ...detail, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: 150 };
+            }
           }
 
           return { title: cleanTitle || rawTitle, barcode_title: rawTitle, detected_formats: detectedFormats, _matchScore: 10 };

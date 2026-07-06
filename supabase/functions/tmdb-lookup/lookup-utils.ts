@@ -14,6 +14,17 @@ const ORDINAL_WORDS: Record<string, number> = {
   thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
   seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
 };
+const CARDINAL_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+// Parse the token following "season"/"series": "2", "two", "3rd".
+function seasonWordToNumber(token: string): number | null {
+  const t = token.toLowerCase().replace(/(?:st|nd|rd|th)$/, "");
+  if (/^\d+$/.test(t)) return parseInt(t, 10) || null;
+  return CARDINAL_WORDS[t] ?? ORDINAL_WORDS[token.toLowerCase()] ?? null;
+}
 
 const STUDIO_SUFFIX_PATTERN = /\b(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b$/i;
 const STUDIO_PREFIX_PATTERN = /^(?:cineverse|mill\s*creek(?:\s*entertainment)?|entertainment\s*one|eone|studio\s*canal|studiocanal|warner\s*bros\.?|warner\s*brothers|walt\s*disney|universal|paramount|sony\s*pictures?|lions\s*gate|lionsgate|20th\s*century\s*fox|mgm|columbia|dreamworks|new\s*line|miramax|touchstone|screen\s*media|rlj\s*entertainment|ifc\s*films|shout\s*factory)\b[:\s-]*/i;
@@ -36,9 +47,14 @@ function restoreTrailingArticleTitle(value: string): string {
 export function normalizeLookupText(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[’']/g, "")
+    .replace(/[’'`]/g, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
+    // Rejoin a possessive/contraction "s" that a data source turned into a
+    // separate token by replacing the apostrophe with a space. UPCitemdb sends
+    // "Child s Play" where TMDB has "Child's Play"; both should normalize to
+    // "childs play". Requires a >=2-char lead word to avoid odd merges.
+    .replace(/\b([a-z]{2,}) s\b/g, "$1s")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -164,9 +180,13 @@ export function parseTvIndicator(title: string): {
     }
   }
 
-  const numericMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)\b/i);
+  // "Season 2", "Season Two", or British "Series Ten" (a single season \u2014 note
+  // "Complete Series" with no number is handled above as a whole-series box).
+  // Requires a non-empty show name before the keyword, so a bare movie title
+  // like "Series 7" can't be mistaken for a season.
+  const numericMatch = title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s+(\w+)\b/i);
   if (numericMatch) {
-    const seasonNum = parseInt(numericMatch[2], 10);
+    const seasonNum = seasonWordToNumber(numericMatch[2]);
     if (seasonNum) {
       return { kind: "single", seasonNum, showName: numericMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim() };
     }

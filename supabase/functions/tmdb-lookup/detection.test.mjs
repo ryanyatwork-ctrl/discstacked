@@ -25,6 +25,16 @@ const ORDINAL_WORDS = {
   thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16,
   seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20,
 };
+const CARDINAL_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+function seasonWordToNumber(token) {
+  const t = token.toLowerCase().replace(/(?:st|nd|rd|th)$/, "");
+  if (/^\d+$/.test(t)) return parseInt(t, 10) || null;
+  return CARDINAL_WORDS[t] ?? ORDINAL_WORDS[token.toLowerCase()] ?? null;
+}
 
 function parseTvIndicator(title) {
   const completeSeriesMatch = title.match(/^(.+?)\s*[:\-–]?\s*(?:the\s+)?complete\s+series\b.*$/i);
@@ -39,9 +49,9 @@ function parseTvIndicator(title) {
       return { kind: "range", from, to, showName: rangeMatch[1].trim().replace(/[:\-–\s]+$/g, "").trim() };
     }
   }
-  const numericMatch = title.match(/^(.+?)\s*[:\-–]?\s*(?:the\s+)?(?:complete\s+)?season\s*(\d+)\b/i);
+  const numericMatch = title.match(/^(.+?)\s*[:\-–]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s+(\w+)\b/i);
   if (numericMatch) {
-    const seasonNum = parseInt(numericMatch[2]);
+    const seasonNum = seasonWordToNumber(numericMatch[2]);
     if (seasonNum) {
       return { kind: "single", seasonNum, showName: numericMatch[1].trim().replace(/[:\-–\s]+$/g, "").trim() };
     }
@@ -66,8 +76,8 @@ function detectFormats(text) {
   if (/\b(4K|ULTRA\s*HD|UHD)\b/.test(t)) detected.push("4K");
   if (/\bBLU[-\s]?RAY\b/.test(t)) detected.push("Blu-ray");
   if (/\b3D\b/.test(t)) detected.push("3D");
-  if (/\bDVD\b/.test(t)) detected.push("DVD");
-  if (/\b(DIGITAL(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(t)) detected.push("Digital");
+  if (/\bDVD\b/.test(t) || /\bDIGITAL\s+VIDEO\s+DISC\b/.test(t)) detected.push("DVD");
+  if (/\b(DIGITAL(?!\s+VIDEO\s+DISC)(?:\s*(?:CODE|COPY|HD|DOWNLOAD|MOVIE))?|STREAMING)\b/.test(t)) detected.push("Digital");
   if (/\bVHS\b/.test(t)) detected.push("VHS");
   if (/\bULTRAVIOLET\b/.test(t)) detected.push("UltraViolet");
   return detected;
@@ -338,9 +348,10 @@ test("'Alien Quadrilogy' → multi-movie (not TV)", () => {
 function normalizeLookupText(value) {
   return value
     .toLowerCase()
-    .replace(/[’']/g, "")
+    .replace(/[’'`]/g, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b([a-z]{2,}) s\b/g, "$1s")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -469,6 +480,51 @@ test("slash title exact match scores >= 95 (Face/Off single-movie guard)", () =>
   const movie = { id: 754, title: "Face/Off", release_date: "1997-06-27", popularity: 25 };
   const score = scoreMovieCandidate("Face/Off", "Face/Off", movie);
   assert.ok(score >= 95, `expected >= 95, got ${score}`);
+});
+
+console.log("\nWorded seasons and British 'Series N' (barcode TV detection)");
+test("'Continuum: Season Two' → single season 2", () => {
+  const r = parseTvIndicator("Continuum: Season Two");
+  assert.equal(r.kind, "single");
+  assert.equal(r.seasonNum, 2);
+  assert.equal(r.showName, "Continuum");
+});
+test("'Doctor Who: Series Ten Part Two' → single season 10", () => {
+  const r = parseTvIndicator("Doctor Who: Series Ten Part Two");
+  assert.equal(r.kind, "single");
+  assert.equal(r.seasonNum, 10);
+  assert.equal(r.showName, "Doctor Who");
+});
+test("'Doctor Who: Season 10 Part 1' still works numerically", () => {
+  assert.equal(parseTvIndicator("Doctor Who: Season 10 Part 1").seasonNum, 10);
+});
+test("'Friends: The Complete Series' stays a whole-series box", () => {
+  assert.equal(parseTvIndicator("Friends: The Complete Series").kind, "complete");
+});
+test("bare movie 'Series 7: The Contenders' is NOT a season", () => {
+  // No show name precedes the keyword, so it must not be treated as TV.
+  assert.equal(parseTvIndicator("Series 7: The Contenders").kind, "none");
+});
+
+console.log("\nApostrophe/possessive normalization");
+test("'Child s Play' matches TMDB 'Child's Play'", () => {
+  assert.equal(normalizeLookupText("Child s Play"), normalizeLookupText("Child's Play"));
+  assert.equal(normalizeLookupText("Child's Play"), "childs play");
+});
+test("backtick apostrophe normalizes too ('Wolf`s Rain')", () => {
+  assert.equal(normalizeLookupText("Wolf`s Rain"), normalizeLookupText("Wolf's Rain"));
+});
+test("exact-title score matches across the apostrophe gap", () => {
+  const score = scoreMovieResult("Child s Play", { id: 1, title: "Child's Play", release_date: "1988-11-09", popularity: 15 });
+  assert.ok(score >= 100, `expected exact match >= 100, got ${score}`);
+});
+
+console.log("\nFormat detection: DIGITAL VIDEO DISC");
+test("'DIGITAL VIDEO DISC' → DVD, not Digital", () => {
+  assert.deepEqual(detectFormats("Silent Trigger [DIGITAL VIDEO DISC]"), ["DVD"]);
+});
+test("'Digital HD' still → Digital", () => {
+  assert.deepEqual(detectFormats("Movie Blu-ray + Digital HD"), ["Blu-ray", "Digital"]);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
