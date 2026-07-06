@@ -597,7 +597,67 @@ serve(async (req) => {
     const tmdbApiKey = Deno.env.get("TMDB_API_KEY") || "";
     if (!tmdbApiKey) throw new Error("TMDB_API_KEY not configured");
 
-    const { query, year, tmdb_id: tmdbId, search_type: searchType, barcode, get_posters: getPosters } = await req.json();
+    const {
+      query,
+      year,
+      tmdb_id: tmdbId,
+      search_type: searchType,
+      barcode,
+      get_posters: getPosters,
+      imdb_id: imdbId,
+      tmdb_series_id: tmdbSeriesId,
+      season_number: seasonNumber,
+    } = await req.json();
+
+    // Resolve an IMDb id (e.g. a series' "tt0285331") to its TMDB record.
+    // CLZ exports carry IMDb ids for TV; this turns them into an exact TMDB
+    // series id so seasons resolve without fuzzy title search.
+    if (imdbId) {
+      const findResponse = await fetch(
+        `https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}?api_key=${tmdbApiKey}&external_source=imdb_id&language=en-US`,
+      );
+      const findRaw = findResponse.ok ? await findResponse.json() : null;
+      const tv = findRaw?.tv_results?.[0] || null;
+      const movie = findRaw?.movie_results?.[0] || null;
+
+      if (tv) {
+        return new Response(JSON.stringify({
+          tmdb_id: tv.id,
+          tmdb_series_id: tv.id,
+          title: tv.name,
+          year: tv.first_air_date ? parseInt(tv.first_air_date.slice(0, 4), 10) : null,
+          poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : null,
+          media_type: "tv",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (movie) {
+        return new Response(JSON.stringify({
+          tmdb_id: movie.id,
+          title: movie.title,
+          year: movie.release_date ? parseInt(movie.release_date.slice(0, 4), 10) : null,
+          poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+          media_type: "movie",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ imdb_not_found: true, imdb_id: imdbId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Exact season lookup by series id + season number (poster/overview/episode
+    // count for that specific season), the TV analogue of a movie-by-id fetch.
+    if (tmdbSeriesId && seasonNumber != null) {
+      const showResponse = await fetch(
+        `https://api.themoviedb.org/3/tv/${tmdbSeriesId}?api_key=${tmdbApiKey}&language=en-US`,
+      );
+      if (!showResponse.ok) throw new Error("TV series not found");
+      const show = await showResponse.json();
+      const payload = await buildTvSeasonPayload(show, Number(seasonNumber), tmdbApiKey, "", []);
+      const { _matchScore, ...clean } = payload;
+      return new Response(JSON.stringify(clean), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (getPosters && tmdbId) {
       const type = searchType === "tv" || searchType === "tv_season" ? "tv" : "movie";

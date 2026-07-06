@@ -685,6 +685,10 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
         if (type === "movies" || type === "music-films") {
           return !meta.cast || !meta.crew || !meta.runtime;
         }
+        if (type === "tv" || type === "tv-season") {
+          // Needs enrichment if it lacks an exact TMDB series link or an overview.
+          return !meta.tmdb_series_id || !meta.overview;
+        }
         if (type === "cds") return !meta.artist && !meta.tracklist;
         if (type === "games") return !meta.developer && !meta.platforms;
         return false;
@@ -701,6 +705,67 @@ function BackfillTmdbButton({ userId }: { userId: string }) {
           let body: Record<string, any>;
           const currentMeta = item.metadata || {};
           const isTvSeason = currentMeta.content_type === "tv_season";
+
+          // TV resolves like movies do — by exact identity, not fuzzy title
+          // search. Anchor on the TMDB series id if we have it, otherwise
+          // resolve the CLZ-provided IMDb id to a TMDB series first. Then fetch
+          // the specific season (or the whole series) and backfill the id so
+          // future refreshes skip the resolve step.
+          if (type === "tv" || type === "tv-season") {
+            let seriesId = /^\d+$/.test(String(currentMeta.tmdb_series_id ?? ""))
+              ? Number(currentMeta.tmdb_series_id)
+              : null;
+
+            if (!seriesId && currentMeta.imdb_id) {
+              const { data: resolved } = await supabase.functions.invoke("tmdb-lookup", {
+                body: { imdb_id: currentMeta.imdb_id },
+              });
+              if (resolved?.tmdb_series_id) seriesId = resolved.tmdb_series_id;
+              else if (resolved?.media_type === "tv" && resolved?.tmdb_id) seriesId = resolved.tmdb_id;
+            }
+
+            const seasonNum = currentMeta.season_number;
+            if (seriesId && type === "tv-season" && seasonNum != null) {
+              const { data: season } = await supabase.functions.invoke("tmdb-lookup", {
+                body: { tmdb_series_id: seriesId, season_number: seasonNum },
+              });
+              if (season?.tmdb_series_id) {
+                const updatedMeta = {
+                  ...currentMeta,
+                  tmdb_series_id: seriesId,
+                  series_title: season.series_title || currentMeta.series_title,
+                  show_name: season.series_title || currentMeta.show_name,
+                  overview: season.overview || currentMeta.overview,
+                  episode_count: season.episode_count ?? currentMeta.episode_count,
+                };
+                const updatePayload: any = { metadata: updatedMeta, external_id: item.external_id || `${seriesId}:${seasonNum}` };
+                if (season.poster_url && !item.poster_url) updatePayload.poster_url = season.poster_url;
+                const { error: updErr } = await supabase.from("media_items").update(updatePayload).eq("id", item.id);
+                if (!updErr) updated++;
+              }
+            } else if (seriesId) {
+              const { data: details } = await supabase.functions.invoke("tmdb-lookup", {
+                body: { tmdb_id: seriesId, search_type: "tv" },
+              });
+              if (details?.tmdb_id) {
+                const updatedMeta = {
+                  ...currentMeta,
+                  tmdb_series_id: seriesId,
+                  overview: details.overview || currentMeta.overview,
+                  cast: details.cast || currentMeta.cast,
+                  crew: details.crew || currentMeta.crew,
+                };
+                const updatePayload: any = { metadata: updatedMeta, external_id: item.external_id || String(seriesId) };
+                if (details.genre && !item.genre) updatePayload.genre = details.genre;
+                if (details.poster_url && !item.poster_url) updatePayload.poster_url = details.poster_url;
+                const { error: updErr } = await supabase.from("media_items").update(updatePayload).eq("id", item.id);
+                if (!updErr) updated++;
+              }
+            }
+            setProgress(`${i + 1}/${candidates.length} — updated ${updated} items`);
+            if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, 300));
+            continue;
+          }
 
           // If this movie already carries an exact TMDB id (from a scan, add,
           // or an import that included the id), resolve details directly by id

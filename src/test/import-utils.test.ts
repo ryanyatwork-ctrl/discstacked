@@ -317,5 +317,27 @@ describe("import-utils", () => {
       expect(expanded).toHaveLength(1);
       expect(expanded[0]._mediaTypeOverride).toBe("tv-season");
     });
+
+    it("carries the IMDb series id into metadata for a TV season", () => {
+      const row = mapClzRow({ Title: "24: Season 1", Format: "DVD", "IMDb ID": "tt0285331" }, "movies");
+      expect(row._mediaTypeOverride).toBe("tv-season");
+      expect(row.metadata.imdb_id).toBe("tt0285331");
+      // No movie tmdb id, so no external_id yet — the refresh resolves imdb → series.
+      expect(row.external_id).toBeUndefined();
+    });
+
+    it("builds a series:season external_id when a TMDb series id is provided", () => {
+      const row = mapClzRow({ Title: "Bones: Season 4", Format: "Blu-ray", "TMDb Series ID": "1911" }, "movies");
+      expect(row._mediaTypeOverride).toBe("tv-season");
+      expect(row.metadata.tmdb_series_id).toBe("1911");
+      expect(row.external_id).toBe("1911:4");
+    });
+
+    it("does not let a movie TMDb id leak onto a TV row", () => {
+      // A stray TMDb ID column on a TV row must not become the series identity.
+      const row = mapClzRow({ Title: "Prison Break: Season 3", "TMDb ID": "2288" }, "movies");
+      expect(row._mediaTypeOverride).toBe("tv-season");
+      expect(row.external_id).toBeUndefined();
+    });
   });
 });

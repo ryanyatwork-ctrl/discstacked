@@ -46,6 +46,9 @@ const COLUMN_MAP: Record<string, string> = {
   "tmdb url": "_tmdb_id",
   themoviedb: "_tmdb_id",
   "themoviedb id": "_tmdb_id",
+  "tmdb series id": "_tmdb_series_id",
+  "series tmdb id": "_tmdb_series_id",
+  "tmdb tv id": "_tmdb_series_id",
   imdb: "_imdb_id",
   "imdb id": "_imdb_id",
   imdbid: "_imdb_id",
@@ -394,10 +397,16 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
         }
       }
       // IMDb id kept in metadata only (external_id is TMDB-based). Accept a
-      // bare ttNNNNNNN or a full imdb.com URL.
+      // bare ttNNNNNNN or a full imdb.com URL. For TV this is the anchor the
+      // metadata refresh resolves to an exact TMDB series.
       if (metaKey === "imdb_id") {
         const imdbId = (cleanString(value).match(/tt\d+/i) || [])[0];
         if (imdbId) metadata.imdb_id = imdbId;
+      }
+      // TMDB series id (rare in CLZ, but honored if an export provides it).
+      if (metaKey === "tmdb_series_id") {
+        const seriesId = (cleanString(value).match(/(\d+)(?!.*\d)/) || [])[1];
+        if (seriesId) metadata.tmdb_series_id = seriesId;
       }
       if (metaKey === "cover_front") {
         const coverValue = cleanString(value);
@@ -526,6 +535,13 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       tvMeta.show_name = tv.showName;
       tvMeta.series_title = tv.showName;
       if (tv.seasonNumber != null) tvMeta.season_number = tv.seasonNumber;
+      // A movie TMDB id doesn't apply to a TV row — clear it so a stray value
+      // can't masquerade as the series identity.
+      delete mapped.external_id;
+      const seriesId = tvMeta.tmdb_series_id;
+      if (seriesId) {
+        mapped.external_id = tv.seasonNumber != null ? `${seriesId}:${tv.seasonNumber}` : String(seriesId);
+      }
       mapped.metadata = tvMeta;
       mapped._mediaTypeOverride = tv.mediaType;
     }
