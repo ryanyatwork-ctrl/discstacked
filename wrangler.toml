@@ -1,6 +1,9 @@
 "$schema" = "./node_modules/wrangler/config-schema.json"
 name = "discstacked"
-account_id = "769c38fcd7dd8ae3637cd58eb62bf8e9"
+# NOTE: do NOT add account_id here — wrangler rejects it in Pages configs
+# ("Configuration file for Pages projects does not support account_id").
+# The account id is provided via the CLOUDFLARE_ACCOUNT_ID env var instead
+# (set in .github/workflows/cloudflare-pages.yml).
 pages_build_output_dir = "./dist"
 compatibility_date = "2026-04-19"
 

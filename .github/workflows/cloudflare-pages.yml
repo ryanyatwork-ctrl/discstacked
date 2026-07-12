@@ -59,6 +59,11 @@ jobs:
     env:
       PROJECT_NAME: discstacked
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # Account id is not a secret (it appears in dashboard URLs). Providing it
+      # lets wrangler skip the user-scoped /memberships lookup, so a token with
+      # only "Cloudflare Pages: Edit" works — /memberships was the exact call
+      # failing with auth error 10000 in runs 95-98.
+      CLOUDFLARE_ACCOUNT_ID: 769c38fcd7dd8ae3637cd58eb62bf8e9
       VITE_SUPABASE_URL: https://ykyneinxsgcdjejmlxkg.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_MEfAwZY-IqPSvGtrARNOCw_7N793vNp
     steps:
