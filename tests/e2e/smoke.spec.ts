@@ -11,6 +11,42 @@ test("homepage loads in signed-out preview mode", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Movies/i })).toBeVisible();
 });
 
+test("signed-in collection recovers from a null saved sort preference", async ({ page }) => {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  const userId = "11111111-1111-4111-8111-111111111111";
+  const accessToken = [
+    encode({ alg: "HS256", typ: "JWT" }),
+    encode({ sub: userId, aud: "authenticated", role: "authenticated", exp: expiresAt }),
+    "synthetic-signature",
+  ].join(".");
+
+  await page.addInitScript(({ accessToken, expiresAt, userId }) => {
+    localStorage.setItem("ds-default-sort", "null");
+    localStorage.setItem("sb-ykyneinxsgcdjejmlxkg-auth-token", JSON.stringify({
+      access_token: accessToken,
+      refresh_token: "synthetic-refresh-token",
+      expires_in: 3600,
+      expires_at: expiresAt,
+      token_type: "bearer",
+      user: {
+        id: userId,
+        aud: "authenticated",
+        role: "authenticated",
+        app_metadata: { provider: "email", providers: ["email"] },
+        user_metadata: {},
+        identities: [],
+        created_at: new Date().toISOString(),
+      },
+    }));
+  }, { accessToken, expiresAt, userId });
+
+  await page.goto("/");
+
+  await expect(page.getByText("Something went wrong")).toHaveCount(0);
+  await expect(page.getByRole("combobox")).toContainText("Title");
+});
+
 test("auth page renders email/password sign in", async ({ page }) => {
   await page.goto("/auth");
 

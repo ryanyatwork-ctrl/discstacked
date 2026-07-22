@@ -28,6 +28,7 @@ import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
 import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 import { useFetchArtwork } from "@/hooks/useFetchArtwork";
+import { SortMode, coerceSortMode, DEFAULT_SORT_MODE } from "@/lib/sort-mode";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
   const formats = (db as any).formats as string[] | null;
@@ -55,8 +56,6 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
   };
 }
 
-type SortMode = "title" | "year" | "recent";
-
 function getStored<T>(key: string, fallback: T): T {
   try {
     const v = localStorage.getItem(key);
@@ -74,7 +73,9 @@ export default function Index() { // force rebuild
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStored("ds-default-view", DEFAULT_COLLECTION_VIEW)));
-  const [sortMode, setSortMode] = useState<SortMode>(() => getStored("ds-default-sort", "title"));
+  const [sortMode, setSortMode] = useState<SortMode>(() =>
+    coerceSortMode(getStored<unknown>("ds-default-sort", DEFAULT_SORT_MODE))
+  );
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -437,19 +438,19 @@ export default function Index() { // force rebuild
             )}
             {viewMode === "vertical-cards" ? (
               <div className="poster-grid">
-                {groupedItems[letter].map((item) => (
+                {(groupedItems[letter] ?? []).map((item) => (
                   <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="vertical" />
                 ))}
               </div>
             ) : viewMode === "horizontal-cards" ? (
               <div className="flex flex-col gap-3">
-                {groupedItems[letter].map((item) => (
+                {(groupedItems[letter] ?? []).map((item) => (
                   <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="horizontal" />
                 ))}
               </div>
             ) : (
               <div className="flex flex-col">
-                {groupedItems[letter].map((item) => (
+                {(groupedItems[letter] ?? []).map((item) => (
                   <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
                 ))}
               </div>
