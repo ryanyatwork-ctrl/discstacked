@@ -16,9 +16,22 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
+        cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,webp}"],
-        navigateFallbackDenylist: [/^\/~oauth/],
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            // Always try the current deployment before falling back to the
+            // installed app shell. This prevents Chrome from restoring an old
+            // JavaScript bundle after the browser is restarted.
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "discstacked-pages-v1",
+              networkTimeoutSeconds: 5,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             urlPattern: /^https:\/\/(picsum\.photos|image\.tmdb\.org|i\.discogs\.com|img\.discogs\.com|coverartarchive\.org|images\.igdb\.com|media\.rawg\.io)\/.*/i,
             handler: "CacheFirst",
