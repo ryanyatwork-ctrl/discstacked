@@ -91,12 +91,14 @@ export function usePublicProfile(shareToken: string | undefined) {
       if (!shareToken) return null;
       const cacheKey = `discstacked:public-profile:${shareToken}`;
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("share_token", shareToken)
-          .single();
+        // Token validation happens server-side inside the RPC (SECURITY DEFINER,
+        // matches on share_token) rather than via a client-filtered table select —
+        // direct RLS on `profiles` is owner-only now, this is the only public read path.
+        const { data, error } = await (supabase.rpc as any)("get_shared_profile", {
+          p_token: shareToken,
+        }).maybeSingle();
         if (error) throw error;
+        if (!data) throw new Error("Collection not found");
         writeCachedJson(cacheKey, data);
         return data as Profile;
       } catch (error) {
@@ -109,28 +111,27 @@ export function usePublicProfile(shareToken: string | undefined) {
   });
 }
 
-export function usePublicCollection(userId: string | undefined, mediaType?: string) {
+export function usePublicCollection(shareToken: string | undefined, mediaType?: string) {
   return useQuery({
-    queryKey: ["public-collection", userId, mediaType],
+    queryKey: ["public-collection", shareToken, mediaType],
     queryFn: async () => {
-      if (!userId) return null;
-      const cacheKey = `discstacked:public-collection:${userId}:${mediaType || "all"}`;
+      if (!shareToken) return null;
+      const cacheKey = `discstacked:public-collection:${shareToken}:${mediaType || "all"}`;
       try {
         const PAGE_SIZE = 1000;
         let allData: any[] = [];
         let from = 0;
 
         while (true) {
-          let query = supabase
-            .from("media_items")
-            .select("*")
-            .eq("user_id", userId)
+          // Same server-side token validation as get_shared_profile above — the RPC
+          // also enforces the owner's opted-in shared_tabs, which was previously only
+          // enforced client-side.
+          const { data, error } = await (supabase.rpc as any)("get_shared_media_items", {
+            p_token: shareToken,
+            p_media_type: mediaType ?? null,
+          })
             .order("title")
             .range(from, from + PAGE_SIZE - 1);
-          if (mediaType) {
-            query = query.eq("media_type", mediaType);
-          }
-          const { data, error } = await query;
           if (error) throw error;
           if (!data || data.length === 0) break;
           allData = allData.concat(data);
@@ -146,6 +147,6 @@ export function usePublicCollection(userId: string | undefined, mediaType?: stri
         throw error;
       }
     },
-    enabled: !!userId,
+    enabled: !!shareToken,
   });
 }

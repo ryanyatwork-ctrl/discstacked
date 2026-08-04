@@ -28,7 +28,7 @@ export default function SharedCollection() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const currentTab = activeTab && sharedTabs.includes(activeTab) ? activeTab : sharedTabs[0];
 
-  const { data: items, isLoading: itemsLoading } = usePublicCollection(profile?.user_id, currentTab);
+  const { data: items, isLoading: itemsLoading } = usePublicCollection(token, currentTab);
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<CollectionViewMode>(DEFAULT_COLLECTION_VIEW);

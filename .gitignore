@@ -27,3 +27,8 @@ dist-ssr
 # Environment files
 .env
 .env.*
+
+# Local secret/credential notes (never commit — contains live tokens)
+supabase auth.txt
+*secrets*.txt
+*credentials*.txt
