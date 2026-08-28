@@ -1,0 +1,35 @@
+# DiscStacked — Agent Specifications
+
+DiscStacked is a modern inventory manager and physical cataloging application for collectors of media including movies, games, books, music, and board games.
+
+## 1. Metadata
+- **Product Name:** DiscStacked
+- **Tagline:** The modern inventory and collection manager for your physical media.
+- **Canonical URL:** https://discstacked.app
+- **Category:** Physical Inventory & Collection Management
+- **Key Differentiator:** Multi-database API lookup integrations allowing instant cataloging via title or barcode scan.
+
+## 2. Capabilities & Value Propositions
+- **Physical Media Cataloging:** Easily catalog DVDs, Blu-rays, video games, books, music albums, and board games.
+- **Multi-API Metadata Lookup:**
+  - **Movies:** TMDB API.
+  - **Video Games:** Twitch/IGDB API.
+  - **Books:** Google Books API.
+  - **Board Games:** BoardGameGeek API.
+  - **Music:** MusicBrainz / Discogs.
+- **Edition-Level Cataloging:** Tracks specific releases, publishers, barcode numbers, and collection conditions.
+- **Multi-User Library Sharing:** Share public inventory pages, custom member avatars, and profile collections.
+- **Bulk Imports:** Staging system for importing CSV lists or other legacy inventories.
+
+## 3. Technology & Architecture
+- **Backend:** Supabase Edge Functions & Postgres database
+- **Database:** Supabase Postgres (`DiscStacked` project: `uehokbnqudoabjfzcfaj`)
+- **Frontend:** React + Vite, Tailwind CSS (dark mode default)
+- **Infrastructure:** Cloudflare DNS, Pages deployment, and media caching worker (`vgg-collection`, `generate-cover-art`)
+
+## 4. API & Integration
+- **API Availability:** Edge function lookup services. Standard bearer authorization.
+
+## 5. Contact & Support
+- **Support Email:** hello@bellevillesystems.com
+- **Publisher:** Belleville Systems (Owner: Ryan Young)

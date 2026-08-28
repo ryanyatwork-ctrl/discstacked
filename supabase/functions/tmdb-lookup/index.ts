@@ -947,6 +947,21 @@ serve(async (req) => {
 
       const debugLog: { source: string; status: string; raw?: any }[] = [];
       const barcodeOverride = BARCODE_OVERRIDES[barcode];
+      if (barcodeOverride) {
+        const overrideContext: PackageContext = {
+          rawTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+          productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
+          detectedFormats: barcodeOverride.formats,
+          discCount: barcodeOverride.discCount,
+          editionLabel: barcodeOverride.editionLabel || null,
+          digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
+          slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
+        };
+        const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
+        debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
+        return buildJsonResponse(overridePayload, debugLog);
+      }
+
       let upcTitle = "";
       let upcCleanTitle = "";
       let upcFormats: string[] = [];
@@ -989,21 +1004,6 @@ serve(async (req) => {
           };
 
           debugLog.push({ source: "UPCitemdb", status: "HIT", raw: { title: upcTitle, category: upcItem.category, brand: upcItem.brand } });
-
-          if (barcodeOverride) {
-            const overrideContext: PackageContext = {
-              ...packageContext,
-              productTitle: barcodeOverride.kind === "movie" ? barcodeOverride.packageTitle : barcodeOverride.productTitle,
-              detectedFormats: barcodeOverride.formats,
-              discCount: barcodeOverride.discCount,
-              editionLabel: barcodeOverride.editionLabel || null,
-              digitalCodeExpected: barcodeOverride.digitalCodeExpected ?? null,
-              slipcoverExpected: barcodeOverride.slipcoverExpected ?? null,
-            };
-            const overridePayload = attachPackageContext(await buildOverridePayload(barcodeOverride, tmdbApiKey), overrideContext);
-            debugLog.push({ source: "BarcodeOverride", status: "HIT", raw: { kind: barcodeOverride.kind, productTitle: overrideContext.productTitle } });
-            return buildJsonResponse(overridePayload, debugLog);
-          }
 
           if (upcCleanTitle) {
             const result = await processBarcodeTitle(upcCleanTitle, upcTitle, upcFormats, barcodeYear, barcodeDescription);

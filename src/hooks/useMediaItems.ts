@@ -144,7 +144,13 @@ async function createProductsAndCopiesForRows(
     const meta = asRecord(item.metadata);
     const editionMeta = (meta.edition && typeof meta.edition === "object") ? meta.edition : {};
     const productTitle = editionMeta.package_title || editionMeta.barcode_title || item.title || "Untitled";
-    const editionLabel = typeof editionMeta.label === "string" ? editionMeta.label : null;
+    const editionLabel = typeof editionMeta.label === "string"
+      ? editionMeta.label
+      : typeof meta.edition_label === "string"
+      ? meta.edition_label
+      : typeof meta.edition === "string"
+      ? meta.edition
+      : null;
 
     return {
       user_id: userId,
@@ -154,7 +160,7 @@ async function createProductsAndCopiesForRows(
       media_type: item.media_type,
       edition: editionLabel,
       is_multi_title: false,
-      disc_count: editionMeta.disc_count || meta.disc_count || 1,
+      disc_count: editionMeta.disc_count || meta.disc_count || (Array.isArray(meta.discs) ? meta.discs.length : null) || 1,
       metadata: meta as Json,
     };
   });
@@ -229,9 +235,15 @@ async function ensureCopyExistsForExistingItem(
       product_title: productTitle,
       formats,
       media_type: item.media_type,
-      edition: typeof editionMeta.label === "string" ? editionMeta.label : null,
+      edition: typeof editionMeta.label === "string"
+        ? editionMeta.label
+        : typeof meta.edition_label === "string"
+        ? meta.edition_label
+        : typeof meta.edition === "string"
+        ? meta.edition
+        : null,
       is_multi_title: false,
-      disc_count: editionMeta.disc_count || meta.disc_count || 1,
+      disc_count: editionMeta.disc_count || meta.disc_count || (Array.isArray(meta.discs) ? meta.discs.length : null) || 1,
       metadata: meta as Json,
     } as any)
     .select("id")

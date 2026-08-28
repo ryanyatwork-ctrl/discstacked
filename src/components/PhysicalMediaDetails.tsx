@@ -124,12 +124,21 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
   const [draft, setDraft] = useState<MetadataFields>({});
 
   const startEditing = () => {
+    const fallbackFormats = meta.expectedFormats?.length
+      ? meta.expectedFormats
+      : (item.formats && item.formats.length > 0 ? item.formats : (item.format ? [item.format] : []));
+    const fallbackDiscCount = meta.expectedDiscCount ?? (meta.editionObject?.disc_count != null ? Number(meta.editionObject.disc_count) : null);
+    const existingDiscs = (meta.discs && meta.discs.length > 0)
+      ? [...meta.discs]
+      : buildDiscEntries(fallbackFormats, fallbackDiscCount);
+
     setDraft({
       ...meta,
       edition: {
         ...(meta.editionObject || {}),
+        label: meta.editionLabel || (meta.editionObject?.label as string) || (typeof meta.edition === "string" ? meta.edition : ""),
       },
-      discs: meta.discs ? [...meta.discs] : [],
+      discs: existingDiscs,
     });
     setEditing(true);
   };

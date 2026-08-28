@@ -1,4 +1,5 @@
 import { MediaTab } from "@/lib/types";
+import { buildDiscEntries } from "@/lib/collector-utils";
 
 export const TAB_LABELS: Record<string, string> = {
   movies: "Movies",
@@ -33,11 +34,15 @@ const COLUMN_MAP: Record<string, string> = {
   rating: "rating",
   "my rating": "rating",
   notes: "notes",
+  comments: "notes",
+  "sort title": "sort_title",
+  "index title": "sort_title",
   barcode: "_barcode",
   upc: "_barcode",
   ean: "_barcode",
   "upc/ean": "_barcode",
   "ean/upc": "_barcode",
+  "upc (barcode)": "_barcode",
   // External IDs — carry exact identity so posters/metadata resolve by ID
   // instead of fuzzy title search. CLZ can export these columns.
   tmdb: "_tmdb_id",
@@ -55,18 +60,46 @@ const COLUMN_MAP: Record<string, string> = {
   "imdb url": "_imdb_id",
   "running time": "_running_time",
   runtime: "_running_time",
+  "run time": "_running_time",
   "no. of discs/tapes": "_disc_count",
   discs: "_disc_count",
   "disc count": "_disc_count",
   "audio tracks": "_audio_tracks",
+  audio: "_audio_tracks",
   quantity: "_quantity",
   qty: "_quantity",
   subtitles: "_subtitles",
   director: "_director",
+  directors: "_director",
   studio: "_studio",
   studios: "_studio",
+  distributor: "_distributor",
+  distributors: "_distributor",
   country: "_country",
   countries: "_country",
+  region: "_region",
+  regions: "_region",
+  "region code": "_region",
+  "aspect ratio": "_aspect_ratio",
+  aspect: "_aspect_ratio",
+  ratio: "_aspect_ratio",
+  "case type": "_case_type",
+  case: "_case_type",
+  slipcover: "_slipcover",
+  "slip cover": "_slipcover",
+  slip: "_slipcover",
+  tagline: "_tagline",
+  tags: "_tags",
+  "user tags": "_tags",
+  "purchase price": "_purchase_price",
+  price: "_purchase_price",
+  cost: "_purchase_price",
+  "purchase date": "_purchase_date",
+  bought: "_purchase_date",
+  acquired: "_purchase_date",
+  store: "_purchase_location",
+  location: "_purchase_location",
+  "purchased at": "_purchase_location",
   // CLZ Music Collector columns
   artist: "_artist",
   label: "_label",
@@ -87,7 +120,6 @@ const COLUMN_MAP: Record<string, string> = {
   "cover back": "_cover_back",
   "clz albumid": "_clz_album_id",
   "clz discid": "_clz_disc_id",
-  "upc (barcode)": "_barcode",
   // CLZ Games columns
   platform: "_platform",
   platforms: "_platform",
@@ -260,9 +292,33 @@ export function detectFormats(value: string): string[] {
   return [...new Set(found)];
 }
 
-/** Strip escaped characters like \' from strings */
+export function decodeHtmlEntities(value: string): string {
+  if (!value) return "";
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&hellip;/g, "…")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const code = parseInt(dec, 10);
+      return Number.isFinite(code) && code > 0 && code < 65536 ? String.fromCharCode(code) : "";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      const code = parseInt(hex, 16);
+      return Number.isFinite(code) && code > 0 && code < 65536 ? String.fromCharCode(code) : "";
+    });
+}
+
+/** Strip escaped characters like \' from strings and decode HTML entities */
 export function cleanString(s: string): string {
-  return s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  const unescaped = s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  return decodeHtmlEntities(unescaped).trim();
 }
 
 /** Normalize a title for grouping: lowercase, strip punctuation, collapse whitespace */
@@ -454,15 +510,19 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     }
   }
 
+  let uniqueFormats: string[] = [];
+
   // For games, use platform as the format instead of media format detection
   if (mediaType === "games" && mapped._gamePlatform) {
     const platform = mapped._gamePlatform;
     delete mapped._gamePlatform;
     mapped.format = platform;
+    uniqueFormats = [platform];
     mapped._rowFormats = [platform];
+    mapped.formats = [platform];
   } else {
     // Deduplicate detected formats
-    const uniqueFormats = [...new Set(detectedFormats)];
+    uniqueFormats = [...new Set(detectedFormats)];
 
     // Alien format force
     const title = (mapped.title || "").toLowerCase();
@@ -478,6 +538,7 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
 
     mapped.format = uniqueFormats[0] || "DVD";
     mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
+    mapped.formats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
   }
 
   if (Object.keys(metadata).length > 0) {
@@ -519,6 +580,23 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
           ...((metadata as any).crew || {}),
           director: directors,
         };
+      }
+    }
+
+    if (typeof metadata.tags === "string") {
+      const parsedTags = metadata.tags
+        .split(/[,;]/)
+        .map((t) => cleanString(t).replace(/^#/, "").trim())
+        .filter(Boolean);
+      if (parsedTags.length > 0) {
+        (metadata as any).tags = parsedTags;
+      }
+    }
+
+    if (mediaType === "movies" || mediaType === "music-films" || !mediaType) {
+      const discCountNum = parseInt(metadata.disc_count || "0", 10) || uniqueFormats.length || 1;
+      if (!(metadata as any).discs || (metadata as any).discs.length === 0) {
+        (metadata as any).discs = buildDiscEntries(uniqueFormats, discCountNum);
       }
     }
 

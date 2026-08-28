@@ -52,6 +52,9 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
               {disc.condition && disc.condition !== "Unknown" && !disc.missing && (
                 <span className="text-[10px] text-muted-foreground">{disc.condition}</span>
               )}
+              {disc.notes && (
+                <span className="text-[10px] text-muted-foreground italic">({disc.notes})</span>
+              )}
               {disc.missing && (
                 <span className="flex items-center gap-0.5 text-destructive text-xs">
                   <AlertTriangle className="w-3 h-3" /> Missing
@@ -155,6 +158,12 @@ export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
                 <span className="text-[10px] text-muted-foreground">Needs replacement</span>
               </div>
             </div>
+            <Input
+              value={disc.notes || ""}
+              onChange={(e) => updateDisc(i, { notes: e.target.value })}
+              placeholder="Disc notes (e.g. missing bonus disc, thrift scratches, dual-layer issue…)"
+              className="h-7 text-xs mt-1"
+            />
           </div>
         </div>
       ))}

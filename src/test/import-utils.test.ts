@@ -340,4 +340,69 @@ describe("import-utils", () => {
       expect(row.external_id).toBeUndefined();
     });
   });
+
+  describe("collector movie import and packaging discs", () => {
+    it("decodes HTML entities in titles and editions", () => {
+      const row = mapClzRow({
+        Title: "The Best of Abbott &amp; Costello - Volume 2",
+        Edition: "Special Edition &amp; Bonus Disc",
+        Format: "DVD",
+        Notes: "Bill &amp; Ted&#39;s excellent adventure &quot;mint&quot;",
+      }, "movies");
+
+      expect(row.title).toBe("The Best of Abbott & Costello - Volume 2");
+      expect(row.metadata.edition).toBe("Special Edition & Bonus Disc");
+      expect(row.notes).toBe('Bill & Ted\'s excellent adventure "mint"');
+    });
+
+    it("pre-populates physical packaging discs from multi-format combos", () => {
+      const row = mapClzRow({
+        Title: "Spider-Man: Into the Spider-Verse",
+        Format: "4K Ultra HD + Blu-ray + Digital",
+        "Disc Count": "2",
+      }, "movies");
+
+      expect(row.formats).toEqual(["4K", "Blu-ray", "Digital"]);
+      expect(row.metadata.discs).toEqual([
+        {
+          label: "Disc 1",
+          format: "4K",
+          condition: "Unknown",
+          missing: false,
+          replacementNeeded: false,
+        },
+        {
+          label: "Disc 2",
+          format: "Blu-ray",
+          condition: "Unknown",
+          missing: false,
+          replacementNeeded: false,
+        },
+      ]);
+    });
+
+    it("maps extended Blu-ray.com and CLZ collector columns", () => {
+      const row = mapClzRow({
+        Title: "Blade Runner 2049",
+        Format: "4K",
+        "Case Type": "Steelbook",
+        Slipcover: "Yes",
+        "Aspect Ratio": "2.39:1",
+        Distributor: "Warner Bros.",
+        Region: "Region Free",
+        Comments: "Mint copy from thrift store",
+        Tags: "Sci-Fi, Cyberpunk, Denis Villeneuve",
+      }, "movies");
+
+      expect(row.notes).toBe("Mint copy from thrift store");
+      expect(row.metadata).toMatchObject({
+        case_type: "Steelbook",
+        slipcover: "Yes",
+        aspect_ratio: "2.39:1",
+        distributor: "Warner Bros.",
+        region: "Region Free",
+        tags: ["Sci-Fi", "Cyberpunk", "Denis Villeneuve"],
+      });
+    });
+  });
 });

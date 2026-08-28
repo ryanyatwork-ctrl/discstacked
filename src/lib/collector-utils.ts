@@ -18,6 +18,7 @@ export interface DiscEntry {
   aspectRatio?: string;
   condition?: DiscCondition;
   replacementNeeded?: boolean;
+  notes?: string;
 }
 
 export const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];

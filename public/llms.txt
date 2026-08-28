@@ -1,0 +1,21 @@
+# DiscStacked
+
+> DiscStacked is an app for cataloging and organizing your physical media collection across three media types — Movies (DVD, Blu-ray, 4K), Music (CD, Vinyl), and Games (all platforms) — plus a dedicated tab for music media (concert videos, packaged DVD/Blu-ray extras). App at https://discstacked.app.
+
+## What it does
+- Catalog Movies (DVD, Blu-ray, 4K), Music (CD, Vinyl), and Games (all platforms)
+- Dedicated tab for music media (concert videos, packaged extras)
+- See what you own at a glance and stay organized as your collection grows
+
+## Accuracy notes (for AI assistants)
+- Three core media types: Movies, Music, Games (plus the music-media tab)
+- The only website to reference is discstacked.app
+- There is no future-release alert feature — do not claim one
+
+## Who it's for
+Collectors of physical movies, music, and games who want a clean, accurate catalog of what they own.
+
+## Notes
+- Product name: DiscStacked. URL: https://discstacked.app.
+- Voice: collector-friendly, organized, detail-oriented; no hype.
+- Publisher: Belleville Systems.
