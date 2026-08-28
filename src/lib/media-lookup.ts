@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MediaTab } from "@/lib/types";
 import { lookupEditionCatalogByBarcode } from "@/lib/edition-catalog";
 import { preferPosterUrl } from "@/lib/cover-utils";
+import { BARCODE_OVERRIDES, BarcodeOverride } from "../../supabase/functions/tmdb-lookup/barcode-overrides";
 
 export interface MediaLookupResult {
   id: string;
@@ -151,12 +152,183 @@ export function isHighConfidenceFallbackResult(
   return true;
 }
 
+async function resolveBarcodeOverride(override: BarcodeOverride, barcode: string): Promise<BarcodeLookupResult> {
+  if (override.kind === "multi_movie") {
+    let movies: any[] = [];
+    try {
+      const parts = await Promise.all(
+        override.movieTmdbIds.map(async (tmdbId) => {
+          const { data } = await supabase.functions.invoke("tmdb-lookup", { body: { tmdb_id: tmdbId } }).catch(() => ({ data: null }));
+          if (data && data.title) {
+            return {
+              tmdb_id: tmdbId,
+              title: data.title,
+              year: data.year || null,
+              poster_url: data.poster_url || null,
+              genre: data.genre || null,
+              overview: data.overview || null,
+              runtime: data.runtime || null,
+              tagline: data.tagline || null,
+              cast: data.cast || [],
+              crew: data.crew || null,
+            };
+          }
+          return { tmdb_id: tmdbId, title: `Movie ${tmdbId}`, year: null, poster_url: null };
+        })
+      );
+      movies = parts;
+    } catch {
+      movies = override.movieTmdbIds.map((id) => ({ tmdb_id: id, title: `Movie ${id}`, year: null, poster_url: null }));
+    }
+
+    return {
+      multiMovie: {
+        is_multi_movie: true,
+        product_title: override.productTitle,
+        barcode_title: override.productTitle,
+        detected_formats: override.formats,
+        cover_art_url: null,
+        disc_count: override.discCount,
+        edition_label: override.editionLabel || null,
+        digital_code_expected: override.digitalCodeExpected ?? null,
+        slipcover_expected: override.slipcoverExpected ?? null,
+        collection_name: override.collectionName || override.productTitle,
+        movies,
+      },
+    };
+  }
+
+  if (override.kind === "tv_box_set") {
+    if (override.seasonNumbers.length > 1) {
+      return {
+        multiSeason: {
+          is_multi_season: true,
+          product_title: override.productTitle,
+          barcode_title: override.productTitle,
+          detected_formats: override.formats,
+          cover_art_url: null,
+          disc_count: override.discCount,
+          edition_label: override.editionLabel || null,
+          digital_code_expected: override.digitalCodeExpected ?? null,
+          slipcover_expected: override.slipcoverExpected ?? null,
+          show_name: override.showName,
+          tmdb_series_id: override.tmdbSeriesId,
+          seasons: override.seasonNumbers.map((sNum) => ({
+            tmdb_series_id: override.tmdbSeriesId,
+            season_number: sNum,
+            title: `${override.showName}: Season ${sNum}`,
+            year: null,
+            poster_url: null,
+          })),
+        },
+      };
+    }
+
+    const seasonNum = override.seasonNumbers[0] || 1;
+    let coverUrl: string | null = null;
+    let overview: string | null = null;
+    let year: number | null = null;
+    let genre: string | null = null;
+
+    try {
+      const searchRes = await searchTmdb(override.showName, { searchType: "tv" });
+      if (searchRes.length > 0) {
+        coverUrl = searchRes[0].cover_url || null;
+        overview = searchRes[0].overview || null;
+        year = searchRes[0].year || null;
+        genre = searchRes[0].genre || null;
+      }
+    } catch {}
+
+    return {
+      direct: {
+        id: `tv-${override.tmdbSeriesId}-s${seasonNum}`,
+        title: `${override.showName}: Season ${seasonNum}`,
+        year,
+        cover_url: coverUrl,
+        genre,
+        overview,
+        media_type: "tv_season",
+        tmdb_series_id: override.tmdbSeriesId,
+        season_number: seasonNum,
+        series_title: override.showName,
+        show_name: override.showName,
+        detected_formats: override.formats,
+        barcode,
+        edition: {
+          barcode_title: override.productTitle,
+          package_title: override.productTitle,
+          formats: override.formats,
+          label: override.editionLabel || undefined,
+          disc_count: override.discCount,
+          digital_code_expected: override.digitalCodeExpected ?? null,
+          slipcover_expected: override.slipcoverExpected ?? null,
+        },
+      },
+    };
+  }
+
+  if (override.kind === "movie") {
+    let coverUrl: string | null = null;
+    let overview: string | null = null;
+    let runtime: number | null = null;
+    let genre: string | null = null;
+    let tagline: string | null = null;
+    let cast: any[] = [];
+    let crew: any = null;
+
+    try {
+      const { data } = await supabase.functions.invoke("tmdb-lookup", { body: { tmdb_id: override.tmdbId } }).catch(() => ({ data: null }));
+      if (data) {
+        coverUrl = data.poster_url || null;
+        overview = data.overview || null;
+        runtime = data.runtime || null;
+        genre = data.genre || null;
+        tagline = data.tagline || null;
+        cast = data.cast || [];
+        crew = data.crew || null;
+      }
+    } catch {}
+
+    return {
+      direct: {
+        id: `tmdb-${override.tmdbId}`,
+        tmdb_id: override.tmdbId,
+        title: override.title,
+        year: override.year,
+        cover_url: coverUrl,
+        genre,
+        runtime,
+        tagline,
+        overview,
+        cast,
+        crew,
+        media_type: "movie",
+        detected_formats: override.formats,
+        barcode,
+        edition: {
+          barcode_title: override.packageTitle,
+          package_title: override.packageTitle,
+          formats: override.formats,
+          label: override.editionLabel || undefined,
+          disc_count: override.discCount,
+          digital_code_expected: override.digitalCodeExpected ?? null,
+          slipcover_expected: override.slipcoverExpected ?? null,
+        },
+      },
+    };
+  }
+
+  return {};
+}
+
 export async function searchMedia(
   activeTab: MediaTab,
   query: string,
   opts?: { year?: number; barcode?: string; searchType?: "movie" | "tv"; artist?: string; catalogNumber?: string; platform?: string }
 ): Promise<MediaLookupResult[]> {
   if (activeTab === "movies" || activeTab === "music-films") return searchTmdb(activeTab === "music-films" && opts?.artist ? `${opts.artist} ${query}` : query, opts);
+  if (activeTab === "tv") return searchTmdb(query, { ...opts, searchType: "tv" });
   if (activeTab === "cds") return searchMusic(query, { barcode: opts?.barcode, artist: opts?.artist, catalogNumber: opts?.catalogNumber });
   if (activeTab === "games") return searchGames(query, { platform: opts?.platform });
   return [];
@@ -166,12 +338,23 @@ export async function lookupBarcode(
   activeTab: MediaTab,
   barcode: string
 ): Promise<BarcodeLookupResult> {
-  if (activeTab === "movies" || activeTab === "music-films") {
-    const localCatalogResult = await lookupBarcodeFromEditionCatalog(barcode, activeTab);
+  const normalizedBarcode = String(barcode || "").trim();
+  if (!normalizedBarcode) return {};
+
+  const override = BARCODE_OVERRIDES[normalizedBarcode];
+  if (override) {
+    const overrideResult = await resolveBarcodeOverride(override, normalizedBarcode);
+    if (overrideResult && (overrideResult.direct || overrideResult.multiMovie || overrideResult.multiSeason)) {
+      return overrideResult;
+    }
+  }
+
+  if (activeTab === "movies" || activeTab === "music-films" || activeTab === "tv") {
+    const localCatalogResult = await lookupBarcodeFromEditionCatalog(normalizedBarcode, activeTab);
     if (localCatalogResult) return localCatalogResult;
 
     const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-      body: { barcode },
+      body: { barcode: normalizedBarcode },
     });
     if (error) throw new Error(error.message);
 

@@ -92,7 +92,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   const isMusicTab = activeTab === "cds";
   const isMusicFilmTab = activeTab === "music-films";
   const isGameTab = activeTab === "games";
-  const hasBarcode = isMovieTab || isMusicTab || isGameTab;
+  const hasBarcode = isMovieTab || isMusicTab || isGameTab || activeTab === "tv";
 
   const resetForm = () => {
     setTitle(""); setYear(""); setFormat(""); setFormats([]); setBarcode("");
@@ -251,14 +251,22 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
   };
 
   const handleSearch = async () => {
-    if (!title.trim()) return;
+    const query = title.trim();
+    if (!query) return;
+
+    // If user enters a barcode into the Title field, redirect to barcode lookup
+    if (/^\d{8,14}$/.test(query)) {
+      setBarcode(query);
+      return handleBarcodeLookup(query);
+    }
+
     setLookingUp(true);
     try {
       const yearNum = year ? parseInt(year) : undefined;
       // Detect TV season patterns and search as TV
       const tvSeasonPattern = /\b(season|s\d|series|complete\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth))\b/i;
-      const searchType = tvSeasonPattern.test(title) ? "tv" as const : undefined;
-      const results = await searchMedia(activeTab, title, {
+      const searchType = tvSeasonPattern.test(query) ? "tv" as const : undefined;
+      const results = await searchMedia(activeTab, query, {
         year: yearNum,
         searchType,
         artist: (isMusicTab || isMusicFilmTab) ? artist.trim() || undefined : undefined,
@@ -473,6 +481,9 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
       });
       const effectiveFormats = formats.length > 0 ? formats : (format ? [format] : []);
 
+      const isTvItem = extraMeta?.content_type === "tv_season" || extraMeta?.media_type === "tv_season" || activeTab === "tv";
+      const targetMediaType = isTvItem ? (extraMeta?.season_number != null ? "tv-season" : "tv") : activeTab;
+
       const { data: newItem, error } = await supabase.from("media_items").insert({
         user_id: user.id,
         title: title.trim(),
@@ -487,7 +498,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
         digital_copy: format === "Digital" ? true : digitalCopy,
         wishlist,
         want_to_watch: effectiveWantToWatch,
-        media_type: activeTab,
+        media_type: targetMediaType,
         external_id: externalId,
         metadata: Object.keys(metaPayload).length > 0 ? metaPayload : {},
       } as any).select().single();
@@ -499,7 +510,7 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
           barcode: barcode || null,
           productTitle: extraMeta?.edition?.package_title || title.trim(),
           formats: effectiveFormats,
-          mediaType: activeTab,
+          mediaType: targetMediaType,
           format: effectiveFormats[0] || null,
           discCount: extraMeta?.edition?.disc_count || extraMeta?.discs?.length || 1,
           metadata: metaPayload,
