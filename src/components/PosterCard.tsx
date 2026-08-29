@@ -35,6 +35,15 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
   const isUpgradeTarget = !!item.metadata?.upgrade_target;
   const useContainFit = isPackageArtwork(item, displaySrc);
   const editionLabel = getEditionLabel(item.metadata);
+  const isMusic = item.mediaType === "cds" || formatBadges.some((f) => ["CD", "Vinyl", "LP", "Enhanced CD", "DualDisc", "Cassette", "SACD", "DVD-Audio"].includes(f));
+  const isCassette = formatBadges.includes("Cassette");
+  const isSquare = isMusic && !isCassette;
+
+  const aspectClass = isCassette
+    ? "aspect-[1/1.4]"
+    : isSquare
+    ? "aspect-square"
+    : "aspect-[2/3]";
 
   const handleImageError = () => {
     if (displaySrc && fallbackSrc && displaySrc !== fallbackSrc && !failedSources.includes(fallbackSrc)) {
@@ -55,6 +64,8 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
     : f === "Blu-ray" ? "bluray" as const
     : f === "DVD" ? "dvd" as const
     : f === "Vinyl" ? "vinyl" as const
+    : f === "Cassette" ? "cassette" as const
+    : f === "CD" ? "cd" as const
     : f === "Digital" ? "digital" as const
     : "secondary" as const;
 
@@ -66,8 +77,8 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
         transition={{ duration: 0.15 }}
         onClick={() => onClick(item)}
       >
-        <div className="flex min-h-[10rem]">
-          <div className="relative w-24 shrink-0 overflow-hidden bg-secondary sm:w-28">
+        <div className="flex min-h-[7rem] sm:min-h-[8rem]">
+          <div className={`relative shrink-0 overflow-hidden bg-secondary ${isCassette ? "w-24 sm:w-28 aspect-[1/1.4]" : isSquare ? "w-24 sm:w-28 aspect-square" : "w-24 sm:w-28 min-h-[10rem]"}`}>
             {hasPoster ? (
               <>
                 {!loaded && <div className="absolute inset-0 bg-secondary animate-pulse" />}
@@ -150,7 +161,7 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
       transition={{ duration: 0.15 }}
       onClick={() => onClick(item)}
     >
-      <div className="relative aspect-[2/3] overflow-hidden bg-secondary">
+      <div className={`relative ${aspectClass} overflow-hidden bg-secondary`}>
         {hasPoster ? (
           <>
             {!loaded && <div className="absolute inset-0 bg-secondary animate-pulse" />}

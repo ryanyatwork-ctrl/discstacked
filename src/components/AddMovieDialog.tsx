@@ -673,9 +673,13 @@ export function AddMovieDialog({ activeTab }: AddMovieDialogProps) {
                       className={`relative rounded-md overflow-hidden border-2 transition-colors ${isSelected ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary"}`}
                     >
                       {r.cover_url ? (
-                        <img src={r.cover_url} alt={r.title} className="w-full aspect-[2/3] object-cover" />
+                        <img
+                          src={r.cover_url}
+                          alt={r.title}
+                          className={`w-full ${isMusicTab ? "aspect-square" : "aspect-[2/3]"} object-cover`}
+                        />
                       ) : (
-                        <div className="w-full aspect-[2/3] bg-secondary flex items-center justify-center">
+                        <div className={`w-full ${isMusicTab ? "aspect-square" : "aspect-[2/3]"} bg-secondary flex items-center justify-center`}>
                           <p className="text-[9px] text-muted-foreground p-1 text-center">{r.title}</p>
                         </div>
                       )}

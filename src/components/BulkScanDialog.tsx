@@ -960,21 +960,38 @@ export function BulkScanDialog({ activeTab }: BulkScanDialogProps) {
                     }`}
                   >
                     {/* Poster thumbnail */}
-                    <div className="w-10 h-14 rounded overflow-hidden shrink-0 bg-secondary">
-                      {item.posterUrl ? (
-                        <img src={toProxiedImageUrl(item.posterUrl) ?? item.posterUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          {item.status === "looking" ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                          ) : item.status === "not_found" ? (
-                            <AlertTriangle className="w-4 h-4 text-destructive" />
+                    {(() => {
+                      const isMusicItem = activeTab === "cds" || item.format === "CD" || item.formats?.includes("CD") || item.format === "Vinyl" || item.format === "Cassette";
+                      const isCassetteItem = item.format === "Cassette" || item.formats?.includes("Cassette");
+                      const thumbClass = isCassetteItem ? "w-10 h-14" : isMusicItem ? "w-12 h-12" : "w-10 h-14";
+                      return (
+                        <div className={`${thumbClass} rounded overflow-hidden shrink-0 bg-secondary`}>
+                          {item.posterUrl ? (
+                            <img
+                              src={toProxiedImageUrl(item.posterUrl) ?? item.posterUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                if (item.posterUrl && target.src !== item.posterUrl) {
+                                  target.src = item.posterUrl;
+                                }
+                              }}
+                            />
                           ) : (
-                            <X className="w-4 h-4 text-muted-foreground" />
+                            <div className="w-full h-full flex items-center justify-center">
+                              {item.status === "looking" ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                              ) : item.status === "not_found" ? (
+                                <AlertTriangle className="w-4 h-4 text-destructive" />
+                              ) : (
+                                <X className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">

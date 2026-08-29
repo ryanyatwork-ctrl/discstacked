@@ -275,53 +275,66 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
 
           <div className="space-y-6">
             {/* Poster */}
-            <div className="relative aspect-[2/3] w-full max-w-[280px] mx-auto rounded-md overflow-hidden">
-              {displayPoster ? (
-                <img
-                  src={displayPoster}
-                  alt={item.title}
-                  className={`w-full h-full ${packagePosterFit ? "object-contain bg-card" : "object-cover"}`}
-                  onError={() => {
-                    if (fallbackPoster && displayPoster !== fallbackPoster) {
-                      setDisplayPoster(fallbackPoster);
-                    } else {
-                      setDisplayPoster(null);
-                    }
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
-                  <ImageIcon className="w-12 h-12 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">No cover art</p>
-                  <GenerateCoverArtButton
-                    title={item.title}
-                    artist={item.metadata?.artist || item.artist}
-                    genre={item.genre}
-                    onGenerated={(url) => {
-                      const currentMeta = (item.metadata as Record<string, any>) || {};
-                      updateItem.mutate({
-                        id: item.id,
-                        poster_url: url,
-                        metadata: {
-                          ...currentMeta,
-                          artwork_source: "AI generated",
-                          artwork_locked: true,
-                        },
-                      } as any);
-                    }}
-                  />
+            {(() => {
+              const itemFormats = item.formats && item.formats.length > 0 ? item.formats : item.format ? [item.format] : [];
+              const isMusic = item.mediaType === "cds" || itemFormats.some((f) => ["CD", "Vinyl", "LP", "Enhanced CD", "DualDisc", "Cassette", "SACD", "DVD-Audio"].includes(f));
+              const isCassette = itemFormats.includes("Cassette");
+              const isSquare = isMusic && !isCassette;
+              const detailAspectClass = isCassette
+                ? "aspect-[1/1.4] max-w-[240px]"
+                : isSquare
+                ? "aspect-square max-w-[300px]"
+                : "aspect-[2/3] max-w-[280px]";
+
+              return (
+                <div className={`relative ${detailAspectClass} w-full mx-auto rounded-md overflow-hidden`}>
+                  {displayPoster ? (
+                    <img
+                      src={displayPoster}
+                      alt={item.title}
+                      className={`w-full h-full ${packagePosterFit ? "object-contain bg-card" : "object-cover"}`}
+                      onError={() => {
+                        if (fallbackPoster && displayPoster !== fallbackPoster) {
+                          setDisplayPoster(fallbackPoster);
+                        } else {
+                          setDisplayPoster(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-secondary flex flex-col items-center justify-center gap-3">
+                      <ImageIcon className="w-12 h-12 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">No cover art</p>
+                      <GenerateCoverArtButton
+                        title={item.title}
+                        artist={item.metadata?.artist || item.artist}
+                        genre={item.genre}
+                        onGenerated={(url) => {
+                          const currentMeta = (item.metadata as Record<string, any>) || {};
+                          updateItem.mutate({
+                            id: item.id,
+                            poster_url: url,
+                            metadata: {
+                              ...currentMeta,
+                              artwork_source: "AI generated",
+                              artwork_locked: true,
+                            },
+                          } as any);
+                        }}
+                      />
+                    </div>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="absolute bottom-2 right-2 gap-1.5 opacity-80 hover:opacity-100"
+                    onClick={() => setCoverSearchOpen(true)}
+                  >
+                    <Search className="w-3.5 h-3.5" /> Change Artwork
+                  </Button>
                 </div>
-              )}
-              <Button
-                variant="secondary"
-                size="sm"
-                className="absolute bottom-2 right-2 gap-1.5 opacity-80 hover:opacity-100"
-                onClick={() => setCoverSearchOpen(true)}
-              >
-                <ImageIcon className="w-3 h-3" />
-                {item.posterUrl ? "Change" : "Find Cover"}
-              </Button>
-            </div>
+              );
+            })()}
 
             {/* Info */}
             <div className="space-y-3">

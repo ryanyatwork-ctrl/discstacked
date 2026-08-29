@@ -49,7 +49,7 @@ function buildUpstreamUrl(segments: string[]): URL | null {
   const mapping = UPSTREAMS[key];
   if (!mapping) return null;
 
-  const suffix = rest.map((seg) => encodeURIComponent(seg)).join("/");
+  const suffix = rest.join("/");
   const prefix = mapping.pathPrefix ? mapping.pathPrefix.replace(/\/$/, "") : "";
   return new URL(`${mapping.origin}${prefix}/${suffix}`);
 }
@@ -90,8 +90,11 @@ export const onRequestGet: PagesFunction = async ({ request, params }) => {
         cacheEverything: true,
         cacheTtl: ONE_YEAR_SECONDS,
       },
-      // Don't pass through cookies/auth — we want public, identical-for-everyone responses.
-      headers: { Accept: "image/avif,image/webp,image/*,*/*;q=0.8" },
+      // Discogs and other CDNs require a valid User-Agent to avoid 403/404 blocks
+      headers: {
+        Accept: "image/avif,image/webp,image/*,*/*;q=0.8",
+        "User-Agent": "DiscStacked/1.0 (+https://discstacked.app)",
+      },
       redirect: "follow",
     });
   } catch (err) {
