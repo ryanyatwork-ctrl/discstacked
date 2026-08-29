@@ -1,5 +1,5 @@
 import { MediaTab } from "@/lib/types";
-import { buildDiscEntries } from "@/lib/collector-utils";
+import { buildDiscEntries, normalizeCaseType } from "@/lib/collector-utils";
 
 export const TAB_LABELS: Record<string, string> = {
   movies: "Movies",
@@ -22,8 +22,16 @@ const COLUMN_MAP: Record<string, string> = {
   "game title": "title",
   year: "year",
   "movie release year": "year",
+  "theatrical year": "year",
+  "original release year": "year",
   "release year": "year",
   released: "year",
+  "blu-ray release year": "_package_year",
+  "bluray release year": "_package_year",
+  "physical release year": "_package_year",
+  "package release year": "_package_year",
+  "package year": "_package_year",
+  "disc release year": "_package_year",
   format: "format",
   media: "format",
   "video format": "format",
@@ -111,6 +119,16 @@ const COLUMN_MAP: Record<string, string> = {
   "uhd discs": "_4k_discs",
   "digital copy": "_digital_copy",
   "digital code": "_digital_copy",
+  "digital copy status": "_digital_code_status",
+  "digital status": "_digital_code_status",
+  "digital code status": "_digital_code_status",
+  "digital redeemed": "_digital_code_status",
+  "digital code redeemed": "_digital_code_status",
+  "digital platform": "_digital_code_platform",
+  "digital service": "_digital_code_platform",
+  "redemption service": "_digital_code_platform",
+  "redeemed where": "_digital_code_platform",
+  "redeemed at": "_digital_code_platform",
   "date added": "_date_added",
   added: "_date_added",
   watched: "_watched",
@@ -571,6 +589,7 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     }
   }
   if (metadata.case_type) {
+    metadata.case_type = normalizeCaseType(metadata.case_type);
     const caseFmts = detectFormats(metadata.case_type);
     if (caseFmts.length > 0) {
       detectedFormats.push(...caseFmts);
@@ -578,6 +597,14 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   }
   if (mapped.title && /\b(4k|uhd|ultra hd)\b/i.test(mapped.title)) {
     detectedFormats.push("4K");
+  }
+
+  // Physical / Package Release year extraction
+  if (metadata.package_year) {
+    const pyMatch = String(metadata.package_year).match(/\b(19\d\d|20\d\d)\b/);
+    if (pyMatch) {
+      metadata.package_year = pyMatch[1];
+    }
   }
 
   // Release date -> year extraction if year is missing
@@ -602,6 +629,30 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     metadata.slipcover = "has_slip";
   } else if (metadata.slipcover === "0" || metadata.slipcover === "false") {
     metadata.slipcover = "no_slip";
+  }
+
+  // Digital code status normalization
+  if (metadata.digital_code_status) {
+    const st = String(metadata.digital_code_status).toLowerCase().trim();
+    if (st.includes("not included") || st === "no" || st === "0" || st === "none") {
+      metadata.digital_code_status = "Not Included";
+    } else if (st.includes("expired")) {
+      metadata.digital_code_status = "Expired";
+    } else if (st.includes("missing")) {
+      metadata.digital_code_status = "Missing";
+    } else if (st.includes("unused")) {
+      metadata.digital_code_status = "Included (Unused)";
+      if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
+      mapped.digital_copy = true;
+    } else if (st.includes("used") || st.includes("redeemed")) {
+      metadata.digital_code_status = "Used / Redeemed";
+      if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
+      mapped.digital_copy = true;
+    } else if (st.includes("included") || st === "yes" || st === "1") {
+      metadata.digital_code_status = "Included (Unused)";
+      if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
+      mapped.digital_copy = true;
+    }
   }
 
   // Watched normalization
@@ -1252,13 +1303,16 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
   // Movies / TV default
   const headers = [
     "Title",
-    "Year",
+    "Movie Release Year",
+    "Blu-Ray Release Year",
     "Format",
     "Barcode",
     "Edition",
     "Disc Count",
     "Case Type",
     "Slipcover",
+    "Digital Code Status",
+    "Digital Platform",
     "Missing Discs / Notes",
     "Studio / Distributor",
     "Region",
@@ -1273,12 +1327,15 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
     [
       "Inception",
       "2010",
+      "2020",
       "4K, Blu-ray, Digital",
       "883929624782",
       "Collector's Edition",
       "3",
-      "Standard Blu-ray case",
+      "SteelBook",
       "Yes",
+      "Included (Unused)",
+      "Movies Anywhere",
       "Includes bonus features disc",
       "Warner Bros.",
       "Region A",
@@ -1292,13 +1349,16 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
     [
       "The Matrix: 4-Film Déjà Vu Collection",
       "1999",
+      "2021",
       "Blu-ray, Digital",
       "883929789702",
       "4-Film Collection",
       "4",
-      "Standard Blu-ray case",
-      "Yes",
-      "All 4 Matrix movies in one set",
+      "Box Set",
+      "Slipcase",
+      "Used / Redeemed",
+      "Apple TV / iTunes",
+      "All 4 Matrix movies in one multi pack",
       "Warner Bros.",
       "Region Free",
       "9.0",
@@ -1311,12 +1371,15 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
     [
       "Spartacus: War of the Damned",
       "2013",
+      "2013",
       "Blu-ray",
       "013132612102",
       "Best Buy Exclusive",
       "3",
       "DigiBook",
       "No",
+      "Not Included",
+      "",
       "The Complete Third Season",
       "Starz / Anchor Bay",
       "Region A",
@@ -1330,12 +1393,15 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
     [
       "Jurassic Park",
       "1993",
+      "2013",
       "Blu-ray, DVD",
       "025192128882",
       "20th Anniversary Edition",
       "2",
-      "Standard Blu-ray case",
+      "Standard",
       "No",
+      "Expired",
+      "UltraViolet",
       "Thrift store pickup - missing DVD disc 2",
       "Universal Studios",
       "Region A",
@@ -1346,7 +1412,49 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
       "Goodwill",
       "2024-04-05",
     ],
+    [
+      "Blade Runner 2049",
+      "2017",
+      "2018",
+      "4K, Blu-ray",
+      "883929571888",
+      "Deluxe Edition",
+      "2",
+      "DigiPack",
+      "Yes",
+      "Used / Redeemed",
+      "Vudu / Fandango at Home",
+      "Near mint slipcover",
+      "Warner Bros.",
+      "Region Free",
+      "9.5",
+      "Sci-Fi, Cyberpunk",
+      "Yes",
+      "12.99",
+      "Best Buy",
+      "2024-06-12",
+    ],
   ];
-  return [headers.join(","), ...sampleRows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+
+  const guideComments = [
+    "#",
+    "# === DISCSTACKED FIELD KEY & ALLOWED VALUES GUIDE ===",
+    '# FORMAT: Any combination of "4K", "Blu-ray", "3D", "DVD", "Digital", "CD", "Vinyl", "Cassette", "VHS". Case-insensitive and lenient ("bluray", "Blu-Ray", "4k uhd", "dvd" are all recognized).',
+    '# CASE TYPE: Standard, SteelBook, Box Set, DigiPack, DigiBook, Slipcase, Collection, Multi Pack, Metal Tin, Clamshell, Snap Case, Unique/Custom (all case-insensitive).',
+    '# SLIPCOVER: Yes, No, Included, Missing, Damaged, Embossed, Lenticular (or 1 / 0).',
+    '# DIGITAL CODE STATUS: Included (Unused), Used / Redeemed, Missing, Expired, Not Included (or Yes / No / 1 / 0).',
+    '# DIGITAL PLATFORM: Movies Anywhere, Apple TV / iTunes, Vudu / Fandango at Home, Google Play, Prime Video, Paramount Digital, Lionsgate VIP, Sony Pictures Core, UltraViolet.',
+    '# YEARS: "Movie Release Year" is the film\'s original premiere year (e.g. 1982). "Blu-Ray Release Year" is the physical disc edition year (e.g. 2017).',
+    '# MISSING DISCS / NOTES: Any collector notes, e.g. "Missing bonus disc", "Case cracked", "Includes obi strip".',
+    '# WATCHED: Yes / No (or 1 / 0).',
+    "#",
+  ];
+
+  return [
+    headers.join(","),
+    ...sampleRows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(",")),
+    "",
+    ...guideComments,
+  ].join("\n");
 }
 

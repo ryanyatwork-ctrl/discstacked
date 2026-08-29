@@ -16,6 +16,7 @@ import {
   CASE_TYPES,
   CONDITIONS,
   DIGITAL_CODE_STATUSES,
+  DIGITAL_PLATFORMS,
   OBI_STATUSES,
   PACKAGE_COMPONENT_CONDITIONS,
   RIP_STATUSES,
@@ -492,14 +493,20 @@ export function PhysicalMediaDetails({ item }: PhysicalMediaDetailsProps) {
           </Select>
         </Field>
 
-        {(draft.digital_code_status === "Included (Unused)" || draft.digital_code_status === "Used / Redeemed") && (
-          <Field label="Digital Platform">
+        {draft.digital_code_status && draft.digital_code_status !== "Not Included" && draft.digital_code_status !== "Unknown" && (
+          <Field label="Digital Platform / Service">
             <Input
               value={draft.digital_code_platform || ""}
               onChange={(e) => updateField("digital_code_platform", e.target.value)}
-              placeholder="e.g. Movies Anywhere, Vudu, iTunes"
+              placeholder="e.g. Movies Anywhere, Apple TV / iTunes, Vudu, Google Play"
               className="h-8 text-sm"
+              list="digital-platforms-list"
             />
+            <datalist id="digital-platforms-list">
+              {DIGITAL_PLATFORMS.map((platform) => (
+                <option key={platform} value={platform} />
+              ))}
+            </datalist>
           </Field>
         )}
 

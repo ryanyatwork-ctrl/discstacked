@@ -234,15 +234,34 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               </div>
             )}
             {isMovies && (
-              <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Recommended CLZ export settings</p>
-                <p>Use <strong>Text...</strong> export in CLZ. Keep <strong>Include Field Names on First Row</strong> on, choose <strong>Comma (,)</strong> delimiter, <strong>Double Quote</strong> text qualifier, and <strong>UTF8</strong> encoding.</p>
-                <p>DiscStacked now also accepts <strong>.xlsx</strong> workbook exports directly.</p>
-                <p>If you add more CLZ fields later, DiscStacked understands <code>Format</code>, <code>Edition</code>, <code>Barcode</code>, <code>No. of Discs/Tapes</code>, <code>Rating</code>, and <code>Notes</code>.</p>
-                <div className="pt-2 border-t border-border/50 space-y-1">
-                  <p className="font-medium text-foreground">Blu-ray.com exports</p>
-                  <p>Comma-delimited, tab-delimited, and workbook-style exports are supported. Best columns: <code>Title</code>, <code>Release</code>, <code>Year</code>/<code>Released</code>, <code>Format</code>/<code>Media</code>, <code>Barcode</code>/<code>UPC/EAN</code>, <code>Edition</code>/<code>Version</code>, and <code>Discs</code>.</p>
+              <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-3 text-xs text-muted-foreground">
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">Collector Field Key & Supported Values</p>
+                  <p className="text-[11px]">The import engine is extremely lenient and case-insensitive (e.g. <code>bluray</code>, <code>Blu-Ray</code>, and <code>STANDARD</code> work seamlessly):</p>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px] bg-background/60 p-2.5 rounded border border-border/40">
+                  <div>
+                    <strong className="text-foreground">Formats:</strong> <code>4K</code>, <code>Blu-ray</code>, <code>3D</code>, <code>DVD</code>, <code>Digital</code> (combo strings like <em>"4K Ultra HD + Blu-ray + Digital"</em> are parsed into individual disc formats).
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Case Types:</strong> <code>Standard</code>, <code>SteelBook</code>, <code>Box Set</code>, <code>DigiPack</code>, <code>DigiBook</code>, <code>Slipcase</code>, <code>Collection</code>, <code>Multi Pack</code>, <code>Metal Tin</code>, <code>Clamshell</code>.
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Release Years:</strong> <code>Movie Release Year</code> (theatrical premiere, e.g. 1982) vs <code>Blu-Ray Release Year</code> (physical disc edition, e.g. 2017).
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Digital Code Status:</strong> <code>Included (Unused)</code>, <code>Used / Redeemed</code>, <code>Missing</code>, <code>Expired</code>, <code>Not Included</code>.
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Digital Platforms:</strong> <code>Movies Anywhere</code>, <code>Apple TV / iTunes</code>, <code>Vudu / Fandango</code>, <code>Google Play</code>, <code>Prime Video</code>, <code>UltraViolet</code>.
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Slipcover:</strong> <code>Yes</code>, <code>No</code>, <code>Included</code>, <code>Missing</code>, <code>Damaged</code>, <code>Embossed</code>, <code>Lenticular</code> (or 1 / 0).
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Directly accepts <strong>Blu-ray.com</strong>, <strong>CLZ Movie Collector</strong>, custom <strong>.csv</strong>, <strong>.xlsx</strong>, and <strong>.json</strong> exports.
+                </p>
               </div>
             )}
             <input

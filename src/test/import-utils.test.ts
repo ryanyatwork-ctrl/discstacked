@@ -396,7 +396,7 @@ describe("import-utils", () => {
 
       expect(row.notes).toBe("Mint copy from thrift store");
       expect(row.metadata).toMatchObject({
-        case_type: "Steelbook",
+        case_type: "SteelBook",
         slipcover: "Yes",
         aspect_ratio: "2.39:1",
         distributor: "Warner Bros.",
@@ -423,7 +423,7 @@ describe("import-utils", () => {
       expect(row1.formats).toEqual(["Blu-ray"]);
       expect(row1.metadata.disc_count).toBe("1");
       expect(row1.metadata.slipcover).toBe("no_slip");
-      expect(row1.metadata.case_type).toBe("Standard Blu-ray case");
+      expect(row1.metadata.case_type).toBe("Standard");
       expect(row1.metadata.country).toBe("US");
 
       const row2 = mapClzRow(parsedRows[1], "movies");
@@ -444,6 +444,58 @@ describe("import-utils", () => {
       expect(row3.formats).toEqual(["Blu-ray", "Digital"]);
       expect(row3.metadata.disc_count).toBe("4");
       expect(row3.metadata.case_type).toBe("DigiBook");
+    });
+
+    it("handles movie release year vs blu-ray release year, digital redemption details, and lenient case types", () => {
+      const csvText = [
+        'Title,Movie Release Year,Blu-Ray Release Year,Format,Case Type,Digital Code Status,Digital Platform,Notes',
+        '"Blade Runner",1982,2017,"bluray","STANDARD","Included (Unused)","Movies Anywhere","4K 35th anniversary edition"',
+        '"The Matrix Trilogy",1999,2020,"4k, bluray","Box Set","Used / Redeemed","Apple TV / iTunes","All 3 films in slipcase"',
+        '"Inception",2010,2010,"Blu-Ray","Steelbook","Expired","Vudu / Fandango at Home","Steelbook edition with bonus disc"',
+        '"Star Wars",1977,2011,"Blu-ray","SLIPCASE","Not Included","","Original trilogy box"',
+        '"Indiana Jones",1981,2021,"4K UHD","Digipack","Yes","Paramount Digital","4-movie collection"',
+        '"Lethal Weapon",1987,2012,"BR","Multi Pack","Used","Other","4-film favorites"',
+      ].join("\n");
+
+      const rows = parseCsv(csvText);
+      expect(rows.length).toBe(6);
+
+      const r1 = mapClzRow(rows[0], "movies");
+      expect(r1.title).toBe("Blade Runner");
+      expect(r1.year).toBe(1982);
+      expect(r1.metadata.package_year).toBe("2017");
+      expect(r1.formats).toEqual(["Blu-ray", "Digital"]);
+      expect(r1.metadata.case_type).toBe("Standard");
+      expect(r1.metadata.digital_code_status).toBe("Included (Unused)");
+      expect(r1.metadata.digital_code_platform).toBe("Movies Anywhere");
+
+      const r2 = mapClzRow(rows[1], "movies");
+      expect(r2.title).toBe("The Matrix Trilogy");
+      expect(r2.year).toBe(1999);
+      expect(r2.metadata.package_year).toBe("2020");
+      expect(r2.formats).toEqual(["4K", "Blu-ray", "Digital"]);
+      expect(r2.metadata.case_type).toBe("Box Set");
+      expect(r2.metadata.digital_code_status).toBe("Used / Redeemed");
+      expect(r2.metadata.digital_code_platform).toBe("Apple TV / iTunes");
+
+      const r3 = mapClzRow(rows[2], "movies");
+      expect(r3.title).toBe("Inception");
+      expect(r3.formats).toEqual(["Blu-ray"]);
+      expect(r3.metadata.case_type).toBe("SteelBook");
+      expect(r3.metadata.digital_code_status).toBe("Expired");
+
+      const r4 = mapClzRow(rows[3], "movies");
+      expect(r4.metadata.case_type).toBe("Slipcase");
+      expect(r4.metadata.digital_code_status).toBe("Not Included");
+
+      const r5 = mapClzRow(rows[4], "movies");
+      expect(r5.metadata.case_type).toBe("DigiPack");
+      expect(r5.metadata.digital_code_status).toBe("Included (Unused)");
+      expect(r5.metadata.digital_code_platform).toBe("Paramount Digital");
+
+      const r6 = mapClzRow(rows[5], "movies");
+      expect(r6.metadata.case_type).toBe("Multi Pack");
+      expect(r6.metadata.digital_code_status).toBe("Used / Redeemed");
     });
   });
 });

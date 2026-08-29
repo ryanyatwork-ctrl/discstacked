@@ -21,7 +21,51 @@ export interface DiscEntry {
   notes?: string;
 }
 
-export const CASE_TYPES = ["Regular", "Steelbook", "Digipack", "Slipcase", "Box Set", "Unique/Custom"];
+export const CASE_TYPES = [
+  "Standard",
+  "SteelBook",
+  "Box Set",
+  "DigiPack",
+  "DigiBook",
+  "Slipcase",
+  "Collection",
+  "Multi Pack",
+  "Metal Tin",
+  "Clamshell",
+  "Snap Case",
+  "Unique/Custom",
+];
+
+export const DIGITAL_PLATFORMS = [
+  "Movies Anywhere",
+  "Apple TV / iTunes",
+  "Vudu / Fandango at Home",
+  "Google Play",
+  "Prime Video",
+  "Paramount Digital",
+  "Lionsgate VIP",
+  "Sony Pictures Core",
+  "UltraViolet",
+  "Other",
+];
+
+export function normalizeCaseType(value?: string | null): string {
+  const v = String(value || "").toLowerCase().trim().replace(/[-_]/g, " ");
+  if (!v) return "";
+  if (v.includes("steelbook") || v.includes("steel book") || v.includes("futurepak") || v.includes("metalpak")) return "SteelBook";
+  if (v.includes("digibook") || v.includes("digi book") || v.includes("booklet")) return "DigiBook";
+  if (v.includes("digipack") || v.includes("digipak") || v.includes("digi pack")) return "DigiPack";
+  if (v.includes("slipcase") || v.includes("slip case") || v.includes("slip cover") || v.includes("hardbox")) return "Slipcase";
+  if (v.includes("box set") || v.includes("boxset") || v.includes("box-set")) return "Box Set";
+  if (v.includes("multi pack") || v.includes("multipack") || v.includes("2 pack") || v.includes("3 pack") || v.includes("4 pack") || v.includes("double feature") || v.includes("triple feature")) return "Multi Pack";
+  if (v.includes("collection") || v.includes("anthology") || v.includes("quadrilogy") || v.includes("trilogy")) return "Collection";
+  if (v.includes("tin") || v.includes("metal tin")) return "Metal Tin";
+  if (v.includes("clamshell")) return "Clamshell";
+  if (v.includes("snap")) return "Snap Case";
+  if (v.includes("custom") || v.includes("unique")) return "Unique/Custom";
+  if (v.includes("standard") || v.includes("regular") || v.includes("keep case") || v.includes("amaray") || v.includes("case")) return "Standard";
+  return value?.trim() || "Standard";
+}
 export const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Poor"];
 export const SLIPCOVER_STATUSES: { value: SlipcoverStatus; label: string }[] = [
   { value: "unknown", label: "Unknown" },
