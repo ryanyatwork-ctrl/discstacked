@@ -9,7 +9,7 @@ describe("coerceSortMode", () => {
     },
   );
 
-  it.each(["title", "year", "recent"] as const)("keeps valid mode %s", (value) => {
+  it.each(["artist", "title", "year", "recent"] as const)("keeps valid mode %s", (value) => {
     expect(coerceSortMode(value)).toBe(value);
   });
 });

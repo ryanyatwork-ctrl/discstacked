@@ -27,7 +27,15 @@ export function ListRow({ item, onClick }: ListRowProps) {
       className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/60 transition-colors text-left group"
     >
       <span className="flex-1 text-sm font-medium text-foreground truncate">
-        {item.title}
+        {item.artist ? (
+          <>
+            <span className="font-semibold text-primary">{item.artist}</span>
+            <span className="mx-1.5 text-muted-foreground font-normal">—</span>
+            <span>{item.title}</span>
+          </>
+        ) : (
+          item.title
+        )}
         {getEditionLabel(item.metadata) && (
           <span className="ml-1.5 text-[10px] text-primary font-normal">({getEditionLabel(item.metadata)})</span>
         )}

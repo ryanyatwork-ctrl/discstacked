@@ -199,10 +199,11 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
   if (item.media_type === "cds") {
     const barcode = getBarcode(item);
     const meta = (item.metadata as Record<string, any> | null) || {};
+    const artist = (item as any).artist || meta.artist;
     return fetchMusicCover(
       item.title,
       barcode || undefined,
-      item.artist || meta.artist,
+      artist,
       meta.catalog_number || meta.catalog_no || meta.catno,
     );
   }
@@ -217,14 +218,12 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
   // ── B. Edition/package title lookup (full title, not stripped) ──
   const editionTitle = getEditionTitle(item);
   if (editionTitle && editionTitle !== item.title) {
-    // First try with the FULL package title (preserving "Complete Third Season" etc.)
     const result = await lookupByTitle(editionTitle, undefined, isTvSeason);
     if (result) return { ...result, source: "matched by package title", match_type: "exact_owned_cover" };
   }
 
   // ── C. TV season & series: use series info or extract from title for season-specific poster ──
   if (isTvSeason) {
-    // 1. Check explicit series/season info in metadata
     const seriesInfo = getSeriesInfo(item);
     if (seriesInfo?.seriesTitle && seriesInfo?.seasonNumber) {
       const seasonResult = await lookupTvSeasonPoster(
@@ -235,7 +234,6 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
       if (seasonResult) return seasonResult;
     }
 
-    // 2. Query tmdb-lookup with full item title (which parses Season N / Complete Series)
     try {
       const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
         body: { query: item.title, search_type: "tv" },
@@ -252,7 +250,6 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
       }
     } catch {}
 
-    // 3. Try parsing ": Season N" / "Season N.M" from title
     const seasonMatch = item.title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s*(\d+(?:\.\d+)?)\b/i);
     if (seasonMatch) {
       const showName = seasonMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim();
@@ -261,7 +258,6 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
       if (seasonResult) return seasonResult;
     }
 
-    // 4. Try extracted show name without season/series suffix
     const cleanShowName = item.title
       .replace(/\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s*\d+(?:\.\d+)?\b.*/i, "")
       .replace(/\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+series|complete\s+collection|mini[-\s]?series)\b.*/i, "")
@@ -273,18 +269,12 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
       if (tvResult) return { ...tvResult, source: "matched by TV series title", match_type: "generic_content_poster" };
     }
 
-    // 5. Fallback full title lookup
     const fullTitleResult = await lookupByTitle(item.title, undefined, true);
     if (fullTitleResult) return { ...fullTitleResult, source: "matched by full TV title", match_type: "generic_content_poster" };
   }
 
-  // ── D. Box set: package title, then included titles ──
+  // ── D. Box set: included titles fallback ──
   if (isBoxSet) {
-    // Try canonical title as the box set package
-    const result = await lookupByTitle(item.title, item.year ?? undefined, false);
-    if (result) return { ...result, source: "matched by box set package title", match_type: "exact_owned_cover" };
-
-    // Try first included title as fallback for set cover
     const included = getIncludedTitles(item);
     if (included.length > 0) {
       const firstResult = await lookupByTitle(included[0], undefined, false);
@@ -315,6 +305,11 @@ async function findRepairCandidates(items: DbMediaItem[]) {
       continue;
     }
 
+    if (!item.poster_url) {
+      candidates.push(item);
+      continue;
+    }
+
     const edition = getEditionMeta(item);
     const hasBrokenPoster = item.poster_url ? !(await canLoadImage(item.poster_url)) : false;
     const hasFallbackPoster = !!edition.tmdb_poster_url;
@@ -330,7 +325,7 @@ async function findRepairCandidates(items: DbMediaItem[]) {
       hasBrokenPoster &&
       hasFallbackPoster;
 
-    if (!item.poster_url || hasBrokenPoster || packagePosterNeedsFallback || shouldPreferFallbackPoster) {
+    if (hasBrokenPoster || packagePosterNeedsFallback || shouldPreferFallbackPoster) {
       candidates.push(item);
     }
   }
@@ -350,50 +345,60 @@ export function useFetchArtwork() {
     setIsRunning(true);
     setProgress({ done: 0, total: candidates.length, found: 0 });
     let found = 0;
+    let done = 0;
 
-    for (let i = 0; i < candidates.length; i++) {
-      const item = candidates[i];
-      try {
-        const edition = getEditionMeta(item);
-        const shouldSwapToFallbackPoster =
-          !!item.poster_url &&
-          !!edition.tmdb_poster_url &&
-          preferPosterUrl(item.poster_url, edition.tmdb_poster_url) === edition.tmdb_poster_url &&
-          item.poster_url !== edition.tmdb_poster_url;
+    const concurrency = 4;
+    const queue = [...candidates];
 
-        const artworkResult = shouldSwapToFallbackPoster
-          ? {
-              poster_url: edition.tmdb_poster_url,
-              source: "repaired from TMDB fallback poster",
-              match_type: "generic_content_poster" as const,
-            }
-          : await resolveArtwork(item);
+    async function worker() {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) break;
 
-        if (artworkResult?.poster_url) {
-          const currentMeta = (item.metadata as Record<string, any>) || {};
-          const { error } = await supabase
-            .from("media_items")
-            .update({
-              poster_url: artworkResult.poster_url,
-              metadata: {
-                ...currentMeta,
-                artwork_source: artworkResult.source,
-                artwork_match_type: artworkResult.match_type,
-              },
-            })
-            .eq("id", item.id);
-          if (!error) found++;
+        try {
+          const edition = getEditionMeta(item);
+          const shouldSwapToFallbackPoster =
+            !!item.poster_url &&
+            !!edition.tmdb_poster_url &&
+            preferPosterUrl(item.poster_url, edition.tmdb_poster_url) === edition.tmdb_poster_url &&
+            item.poster_url !== edition.tmdb_poster_url;
+
+          const artworkResult = shouldSwapToFallbackPoster
+            ? {
+                poster_url: edition.tmdb_poster_url,
+                source: "repaired from TMDB fallback poster",
+                match_type: "generic_content_poster" as const,
+              }
+            : await resolveArtwork(item);
+
+          if (artworkResult?.poster_url) {
+            const currentMeta = (item.metadata as Record<string, any>) || {};
+            const { error } = await supabase
+              .from("media_items")
+              .update({
+                poster_url: artworkResult.poster_url,
+                metadata: {
+                  ...currentMeta,
+                  artwork_source: artworkResult.source,
+                  artwork_match_type: artworkResult.match_type,
+                },
+              })
+              .eq("id", item.id);
+            if (!error) found++;
+          }
+        } catch {
+          // Skip failed lookups silently
+        } finally {
+          done++;
+          setProgress({ done, total: candidates.length, found });
         }
-      } catch {
-        // Skip failed lookups silently
-      }
 
-      setProgress({ done: i + 1, total: candidates.length, found });
-
-      if (i < candidates.length - 1) {
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise((r) => setTimeout(r, 120));
       }
     }
+
+    const workers = Array.from({ length: Math.min(concurrency, candidates.length) }, () => worker());
+    await Promise.all(workers);
 
     setIsRunning(false);
     queryClient.invalidateQueries({ queryKey: ["media_items"] });

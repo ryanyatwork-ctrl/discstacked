@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
-import { getCollectorGroupLetter, getCollectorSortKey } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
 import { AlphabetRail } from "@/components/AlphabetRail";
@@ -27,6 +26,7 @@ import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
 import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 import { useFetchArtwork } from "@/hooks/useFetchArtwork";
+import { getCollectorSortKey, getCollectorGroupLetter, getArtistSortKey, getArtistGroupLetter } from "@/lib/utils";
 import { SortMode, coerceSortMode, DEFAULT_SORT_MODE } from "@/lib/sort-mode";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
@@ -35,6 +35,7 @@ function dbToMediaItem(db: DbMediaItem): MediaItem {
     id: db.id,
     title: db.title,
     sortTitle: (db as any).sort_title ?? undefined,
+    artist: (db as any).artist || (db.metadata as any)?.artist || undefined,
     year: db.year ?? undefined,
     format: db.format ?? undefined,
     formats: formats && formats.length > 0 ? formats : db.format ? [db.format] : undefined,
@@ -72,9 +73,11 @@ export default function Index() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CollectionViewMode>(() => coerceCollectionViewMode(getStored("ds-default-view", DEFAULT_COLLECTION_VIEW)));
-  const [sortMode, setSortMode] = useState<SortMode>(() =>
-    coerceSortMode(getStored<unknown>("ds-default-sort", DEFAULT_SORT_MODE))
-  );
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const defaultTab = coerceMediaTab(getStored("ds-default-tab", DEFAULT_MEDIA_TAB));
+    const fallbackSort = defaultTab === "cds" ? "artist" : DEFAULT_SORT_MODE;
+    return coerceSortMode(getStored<unknown>("ds-default-sort", fallbackSort));
+  });
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -89,17 +92,33 @@ export default function Index() {
       toast({ title: "Empty tab", description: "No items to fetch artwork for." });
       return;
     }
-    toast({ title: "Checking artwork…", description: "Looking for missing or broken posters." });
     const result = await fetchArtwork(dbItems);
-    if (result.total === 0) {
-      toast({ title: "All set!", description: "No missing or broken artwork was found." });
-      return;
+    if (result.found > 0) {
+      toast({
+        title: "Artwork updated",
+        description: `Found artwork for ${result.found} of ${result.total} items.`,
+      });
+    } else {
+      toast({
+        title: "No new artwork found",
+        description: "All items already have artwork or no matches were found.",
+      });
     }
-    toast({
-      title: "Artwork fetch complete",
-      description: `Found posters for ${result.found} of ${result.total} items.`,
-    });
   }, [dbItems, fetchArtwork]);
+
+  const handleSortChange = useCallback((mode: SortMode) => {
+    setSortMode(mode);
+    try {
+      localStorage.setItem("ds-default-sort", JSON.stringify(mode));
+    } catch {}
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: CollectionViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("ds-default-view", JSON.stringify(mode));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!user || isLoading || !dbItems || dbItems.length === 0) return;
@@ -144,6 +163,10 @@ export default function Index() {
   }, [selectedItemId, allItems]);
 
   const compareItems = useCallback((a: MediaItem, b: MediaItem) => {
+    if (sortMode === "artist") {
+      return getArtistSortKey(a).localeCompare(getArtistSortKey(b));
+    }
+
     if (sortMode === "year") {
       const yearDiff = (b.year ?? -Infinity) - (a.year ?? -Infinity);
       if (yearDiff !== 0) return yearDiff;
@@ -207,10 +230,11 @@ export default function Index() {
   }, [allItems, searchQuery, activeFormats, activeTags, statusFilter, compareItems]);
 
   const availableLetters = useMemo(() => {
-    if (sortMode !== "title") return new Set<string>();
+    if (sortMode !== "title" && sortMode !== "artist") return new Set<string>();
     const letters = new Set<string>();
     filteredItems.forEach((item) => {
-      letters.add(getCollectorGroupLetter(item));
+      const letter = sortMode === "artist" ? getArtistGroupLetter(item) : getCollectorGroupLetter(item);
+      letters.add(letter);
     });
     return letters;
   }, [filteredItems, sortMode]);
@@ -218,7 +242,7 @@ export default function Index() {
   const groupedItems = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {};
     filteredItems.forEach((item) => {
-      const key = sortMode === "title" ? getCollectorGroupLetter(item) : "All";
+      const key = sortMode === "artist" ? getArtistGroupLetter(item) : sortMode === "title" ? getCollectorGroupLetter(item) : "All";
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
@@ -246,7 +270,12 @@ export default function Index() {
     setActiveTags([]);
     setStatusFilter(null);
     setActiveLetter(null);
-  }, []);
+    if (tab === "cds") {
+      setSortMode("artist");
+    } else if (sortMode === "artist") {
+      setSortMode("title");
+    }
+  }, [sortMode]);
 
   const handleTagToggle = useCallback((tag: string) => {
     setActiveTags((prev) =>
@@ -264,18 +293,7 @@ export default function Index() {
     setActiveFormats([]);
   }, []);
 
-  const sortedLetters = sortMode === "title" ? Object.keys(groupedItems).sort() : ["All"];
-
-  const handleViewModeChange = useCallback((nextView: CollectionViewMode) => {
-    setViewMode(nextView);
-    localStorage.setItem("ds-default-view", JSON.stringify(nextView));
-  }, []);
-
-  const handleSortChange = useCallback((value: SortMode) => {
-    setSortMode(value);
-    localStorage.setItem("ds-default-sort", JSON.stringify(value));
-    setActiveLetter(null);
-  }, []);
+  const sortedLetters = (sortMode === "title" || sortMode === "artist") ? Object.keys(groupedItems).sort() : ["All"];
 
   if (!user) {
     return <LandingPreview onSignIn={() => navigate("/auth")} />;
@@ -343,7 +361,7 @@ export default function Index() {
           </div>
           {/* Mobile: dropdown sits next to search */}
           <div className="md:hidden shrink-0">
-            {sortMode === "title" && (
+            {(sortMode === "title" || sortMode === "artist") && (
               <AlphabetRail
                 activeLetter={activeLetter}
                 onLetterClick={handleLetterClick}
@@ -354,7 +372,7 @@ export default function Index() {
           </div>
         </div>
         {/* Desktop: horizontal rail */}
-        {sortMode === "title" && (
+        {(sortMode === "title" || sortMode === "artist") && (
           <div className="hidden md:block px-2 sm:px-3 pb-2 border-b border-border/50">
             <AlphabetRail
               activeLetter={activeLetter}
@@ -404,6 +422,7 @@ export default function Index() {
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="artist">Artist</SelectItem>
               <SelectItem value="title">Title</SelectItem>
               <SelectItem value="year">Year</SelectItem>
               <SelectItem value="recent">Recently Added</SelectItem>

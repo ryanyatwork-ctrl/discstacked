@@ -46,3 +46,22 @@ export function getCollectorGroupLetter(item: Pick<MediaItem, "title" | "sortTit
   const seriesName = typeof metadata.series_sort_name === "string" ? metadata.series_sort_name.trim() : "";
   return groupLetter(seriesName || item.title, seriesName ? undefined : item.sortTitle);
 }
+
+export function getArtistSortKey(item: Pick<MediaItem, "title" | "sortTitle" | "artist" | "year" | "metadata">): string {
+  const metadata = (item.metadata as Record<string, any> | undefined) || {};
+  const artist = item.artist || (typeof metadata.artist === "string" ? metadata.artist.trim() : "");
+  if (artist) {
+    const yearPart = item.year != null ? String(item.year).padStart(4, "0") : "9999";
+    return `${sortTitle(artist)} ${yearPart} ${sortTitle(item.title, item.sortTitle)}`;
+  }
+  return getCollectorSortKey(item);
+}
+
+export function getArtistGroupLetter(item: Pick<MediaItem, "title" | "sortTitle" | "artist" | "metadata">): string {
+  const metadata = (item.metadata as Record<string, any> | undefined) || {};
+  const artist = item.artist || (typeof metadata.artist === "string" ? metadata.artist.trim() : "");
+  if (artist) {
+    return groupLetter(artist);
+  }
+  return getCollectorGroupLetter(item);
+}
