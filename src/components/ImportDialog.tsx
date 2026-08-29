@@ -5,7 +5,7 @@ import { Upload, ArrowLeft, Trash2, Download, FileSpreadsheet } from "lucide-rea
 import { useImportItems } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
-import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, generateImportTemplateCsv } from "@/lib/import-utils";
+import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, generateImportTemplateCsv, downloadImportTemplateXlsx } from "@/lib/import-utils";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -282,6 +282,22 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               </Button>
               <Button
                 variant="outline"
+                onClick={async () => {
+                  try {
+                    await downloadImportTemplateXlsx(activeTab);
+                    toast({ title: "Excel template downloaded", description: `Saved discstacked-template-${activeTab}.xlsx with sample items and field key guide.` });
+                  } catch (e: any) {
+                    toast({ title: "Download failed", description: e.message, variant: "destructive" });
+                  }
+                }}
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                Download Excel (.xlsx)
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   const csvContent = generateImportTemplateCsv(activeTab);
                   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -293,12 +309,12 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                   link.click();
                   document.body.removeChild(link);
                   URL.revokeObjectURL(url);
-                  toast({ title: "Template downloaded", description: `Saved discstacked-template-${activeTab}.csv with sample collector items.` });
+                  toast({ title: "Template downloaded", description: `Saved discstacked-template-${activeTab}.csv` });
                 }}
-                className="gap-2"
+                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
-                <Download className="h-4 w-4" />
-                Download Template (.csv)
+                <Download className="h-3.5 w-3.5" />
+                .csv
               </Button>
             </div>
           </div>

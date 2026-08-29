@@ -1528,3 +1528,134 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
   ].join("\n");
 }
 
+export async function downloadImportTemplateXlsx(mediaType: MediaTab) {
+  const XLSX = await import("xlsx");
+  const isCds = mediaType === "cds";
+  const isGames = mediaType === "games";
+
+  let headers: string[];
+  let sampleRows: string[][];
+
+  if (isCds) {
+    headers = [
+      "Artist",
+      "Title",
+      "Release Year",
+      "Format",
+      "Barcode",
+      "Edition",
+      "Disc Count",
+      "Case Type",
+      "Tracks",
+      "Length",
+      "Label",
+      "Catalog Number",
+      "Rating",
+      "Genre",
+      "Listened",
+      "Purchase Price",
+      "Purchase Location",
+      "Date Added",
+      "Notes",
+    ];
+    sampleRows = [
+      ["Metal Church", "Dead To Rights", "2026", "CD", "081013707077", "Standard Edition", "1", "Jewel Case", "11", "54:20", "Reaper Entertainment", "REAP0123", "9.0", "Rock, Heavy Metal, Thrash", "Yes", "15.99", "Reaper Store", "2026-08-20", "Brand new studio album"],
+      ["Scardust", "Strangers", "2020", "CD", "081013707088", "DigiPak", "1", "DigiPack", "10", "48:15", "M-Theory Audio", "MTA045", "9.5", "Rock, Progressive Metal, Symphonic Metal", "Yes", "13.99", "Bandcamp", "2024-05-12", "Includes bonus artwork booklet"],
+      ["Pink Floyd", "The Dark Side of the Moon", "1973", "Vinyl", "5099902987613", "50th Anniversary Remaster", "2", "Gatefold", "10", "42:50", "Harvest / EMI", "PFRLP8", "10.0", "Rock, Progressive Rock", "Yes", "34.99", "Local Record Store", "2024-01-10", "180g heavyweight vinyl with posters and stickers"],
+      ["Iron Maiden", "The Number of the Beast", "1982", "Cassette", "077771220248", "Original Cassette", "1", "Cassette Case", "8", "39:11", "EMI", "TC-EMC 3402", "9.8", "Rock, Heavy Metal", "Yes", "8.99", "Ebay", "2024-02-14", "Original vintage cassette release"],
+    ];
+  } else if (isGames) {
+    headers = [
+      "Title",
+      "Platform",
+      "Release Year",
+      "Format",
+      "Barcode",
+      "Edition",
+      "Region",
+      "Developer",
+      "Publisher",
+      "Rating",
+      "Genre",
+      "Completed",
+      "Disc Count",
+      "Notes",
+      "Purchase Price",
+      "Date Added",
+      "Purchase Location",
+    ];
+    sampleRows = [
+      ["The Legend of Zelda: Tears of the Kingdom", "Nintendo Switch", "2023", "Physical", "045496598099", "Collector's Edition", "NTSC", "Nintendo EPD", "Nintendo", "10.0", "Action-Adventure", "Yes", "1", "SteelBook edition", "99.99", "2023-05-12", "Best Buy"],
+      ["Final Fantasy VII Rebirth", "PlayStation 5", "2024", "Physical", "662248927008", "Deluxe Edition", "NTSC", "Square Enix", "Square Enix", "9.5", "RPG", "Yes", "2", "Includes steelbook and mini soundtrack", "99.99", "2024-02-29", "Amazon"],
+    ];
+  } else {
+    headers = [
+      "Title",
+      "Movie Release Year",
+      "Blu-Ray Release Year",
+      "Format",
+      "Barcode",
+      "Edition",
+      "Disc Count",
+      "Case Type",
+      "Slipcover",
+      "Digital Code Status",
+      "Digital Platform",
+      "Missing Discs / Notes",
+      "Studio / Distributor",
+      "Region",
+      "Rating",
+      "Genre",
+      "Watched",
+      "Purchase Price",
+      "Purchase Location",
+      "Date Added",
+    ];
+    sampleRows = [
+      ["Inception", "2010", "2020", "4K, Blu-ray, Digital", "883929624782", "Collector's Edition", "3", "SteelBook", "Yes", "Included (Unused)", "Movies Anywhere", "Includes bonus features disc", "Warner Bros.", "Region A", "9.5", "Sci-Fi, Action", "Yes", "19.99", "Best Buy", "2024-01-15"],
+      ["The Matrix: 4-Film Déjà Vu Collection", "1999", "2021", "Blu-ray, Digital", "883929789702", "4-Film Collection", "4", "Box Set", "Slipcase", "Used / Redeemed", "Apple TV / iTunes", "All 4 Matrix movies in one multi pack", "Warner Bros.", "Region Free", "9.0", "Action, Sci-Fi", "Yes", "29.99", "Amazon", "2024-03-10"],
+      ["Spartacus: War of the Damned", "2013", "2013", "Blu-ray", "013132612102", "Best Buy Exclusive", "3", "DigiBook", "No", "Not Included", "", "The Complete Third Season", "Starz / Anchor Bay", "Region A", "8.5", "Action, Drama", "Yes", "14.99", "Best Buy", "2024-02-20"],
+      ["Jurassic Park", "1993", "2013", "Blu-ray, DVD", "025192128882", "20th Anniversary Edition", "2", "Standard", "No", "Expired", "UltraViolet", "Thrift store pickup - missing DVD disc 2", "Universal Studios", "Region A", "9.0", "Adventure, Sci-Fi", "Yes", "3.99", "Goodwill", "2024-04-05"],
+      ["Blade Runner 2049", "2017", "2018", "4K, Blu-ray", "883929571888", "Deluxe Edition", "2", "DigiPack", "Yes", "Used / Redeemed", "Vudu / Fandango at Home", "Near mint slipcover", "Warner Bros.", "Region Free", "9.5", "Sci-Fi, Cyberpunk", "Yes", "12.99", "Best Buy", "2024-06-12"],
+      ["The Dark Knight", "2008", "2008", "Blu-ray, Digital Copy Disc", "085391179429", "Special Edition", "3", "Standard", "Yes", "Digital Copy Disc", "Apple TV / iTunes", "Includes Disc 3: Physical Digital Copy Disc for PC/Mac transfer", "Warner Bros.", "Region Free", "9.8", "Action, Crime, Drama", "Yes", "14.99", "Target", "2024-02-15"],
+    ];
+  }
+
+  // Create workbook with explicit string cells
+  const data = [headers, ...sampleRows];
+  const ws = XLSX.utils.aoa_to_sheet(data, { cellDates: false });
+
+  // Ensure barcode column is explicitly stored as string ("s")
+  const barcodeColIndex = headers.findIndex((h) => h.toLowerCase().includes("barcode"));
+  if (barcodeColIndex !== -1) {
+    const colLetter = XLSX.utils.encode_col(barcodeColIndex);
+    for (let r = 1; r <= sampleRows.length; r++) {
+      const cellRef = `${colLetter}${r + 1}`;
+      if (ws[cellRef]) {
+        ws[cellRef].t = "s";
+      }
+    }
+  }
+
+  // Guide sheet with key & allowed values
+  const guideHeaders = ["Field Name", "Allowed Values / Examples", "Description"];
+  const guideRows = [
+    ["Format", '4K, Blu-ray, 3D, DVD, Digital, Digital Copy Disc, CD, Vinyl, Cassette, SACD, DVD-Audio', "Supported physical and digital media formats. Case-insensitive and lenient."],
+    ["Case Type", "Standard, SteelBook, Box Set, DigiPack, DigiBook, Slipcase, Collection, Multi Pack, Metal Tin, Clamshell, Jewel Case, Gatefold", "Physical packaging type."],
+    ["Slipcover", "Yes, No, Included, Missing, Damaged, Embossed, Lenticular (or 1 / 0)", "Slipcover presence and condition."],
+    ["Digital Code Status", "Included (Unused), Used / Redeemed, Digital Copy Disc (Digital-on-Disc), Missing, Expired, Not Included", "Status of any bundled digital copy or redemption code."],
+    ["Digital Platform", "Movies Anywhere, Apple TV / iTunes, Vudu / Fandango at Home, Google Play, Prime Video, Paramount Digital, Lionsgate VIP, UltraViolet", "Digital retailer where code is redeemable."],
+    ["Release Years", "Movie Release Year (e.g. 1982) vs Blu-Ray Release Year (e.g. 2017)", "Original theatrical premiere year vs physical disc release year."],
+    ["Barcode", "UPC / EAN / ISBN (e.g. 013132612102)", "Scannable barcode. Leading zeros are preserved as text."],
+    ["Missing Discs / Notes", "Any notes, e.g. Missing bonus disc, Includes obi strip", "Free-form collector notes."],
+    ["Watched / Listened", "Yes / No (or 1 / 0)", "Watched or listened status flag."],
+  ];
+  const guideWs = XLSX.utils.aoa_to_sheet([guideHeaders, ...guideRows]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Collection Template");
+  XLSX.utils.book_append_sheet(wb, guideWs, "Field Key & Allowed Values");
+
+  XLSX.writeFile(wb, `discstacked-template-${mediaType}.xlsx`);
+}
+
