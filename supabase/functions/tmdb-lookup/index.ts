@@ -1201,6 +1201,20 @@ serve(async (req) => {
     }
 
     if (tmdbId) {
+      if (seasonNumber != null || searchType === "tv_season") {
+        try {
+          const tvShowResponse = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${tmdbApiKey}&language=en-US`);
+          if (tvShowResponse.ok) {
+            const show = await tvShowResponse.json();
+            const sNum = seasonNumber != null ? seasonNumber : 1;
+            const payload = await buildTvSeasonPayload(show, sNum, tmdbApiKey, `${show.name} - Season ${sNum}`, []);
+            return new Response(JSON.stringify(payload), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } catch {}
+      }
+
       const payload = searchType === "tv" || searchType === "tv_season"
         ? await fetchTmdbTvDetails(tmdbId, tmdbApiKey)
         : await fetchTmdbMovieDetails(tmdbId, tmdbApiKey);
@@ -1213,6 +1227,54 @@ serve(async (req) => {
     if (!query) throw new Error("Either 'query', 'tmdb_id', or 'barcode' is required");
 
     const results: any[] = [];
+
+    // Prioritize TV season or complete series pattern matching in queries
+    const queryIndicator = parseTvIndicator(query);
+    if (queryIndicator.kind === "single" && queryIndicator.seasonNum != null) {
+      let tvResults = await searchTmdbTv(queryIndicator.showName || query, tmdbApiKey, null);
+      if (tvResults.length === 0 && queryIndicator.showName) {
+        const altShowName = queryIndicator.showName.replace(/[.,:;'"!?-]/g, " ").replace(/\s+/g, " ").trim();
+        if (altShowName && altShowName !== queryIndicator.showName) {
+          tvResults = await searchTmdbTv(altShowName, tmdbApiKey, null);
+        }
+      }
+      if (tvResults.length > 0) {
+        const payload = await buildTvSeasonPayload(tvResults[0], queryIndicator.seasonNum, tmdbApiKey, query, []);
+        results.push({
+          tmdb_id: payload.tmdb_id,
+          tmdb_series_id: payload.tmdb_series_id,
+          season_number: payload.season_number,
+          series_title: payload.series_title,
+          title: payload.title,
+          year: payload.year,
+          poster_url: payload.poster_url,
+          rating: payload.rating,
+          overview: payload.overview,
+          media_type: payload.media_type,
+          episode_count: payload.episode_count || null,
+        });
+      }
+    } else if (queryIndicator.kind === "complete" && queryIndicator.showName) {
+      let tvResults = await searchTmdbTv(queryIndicator.showName, tmdbApiKey, null);
+      if (tvResults.length === 0) {
+        const altShowName = queryIndicator.showName.replace(/[.,:;'"!?-]/g, " ").replace(/\s+/g, " ").trim();
+        if (altShowName && altShowName !== queryIndicator.showName) {
+          tvResults = await searchTmdbTv(altShowName, tmdbApiKey, null);
+        }
+      }
+      if (tvResults.length > 0) {
+        const show = tvResults[0];
+        results.push({
+          tmdb_id: show.id,
+          title: show.name,
+          year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
+          poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+          rating: show.vote_average || null,
+          overview: show.overview || null,
+          media_type: "tv",
+        });
+      }
+    }
 
     if (searchType !== "tv") {
       const movieResults = await searchBestMovieResults(query, tmdbApiKey, year || null);
@@ -1240,36 +1302,17 @@ serve(async (req) => {
       }
 
       for (const show of tvResults.slice(0, 10)) {
-        results.push({
-          tmdb_id: show.id,
-          title: show.name,
-          year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
-          poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
-          rating: show.vote_average || null,
-          overview: show.overview || null,
-          media_type: "tv",
-        });
-      }
-    }
-
-    const queryIndicator = parseTvIndicator(query);
-    if (queryIndicator.kind === "single" && queryIndicator.seasonNum != null) {
-      const tvResults = await searchTmdbTv(queryIndicator.showName || query, tmdbApiKey, year || null);
-      if (tvResults.length > 0) {
-        const payload = await buildTvSeasonPayload(tvResults[0], queryIndicator.seasonNum, tmdbApiKey, query, []);
-        results.unshift({
-          tmdb_id: payload.tmdb_id,
-          tmdb_series_id: payload.tmdb_series_id,
-          season_number: payload.season_number,
-          series_title: payload.series_title,
-          title: payload.title,
-          year: payload.year,
-          poster_url: payload.poster_url,
-          rating: payload.rating,
-          overview: payload.overview,
-          media_type: payload.media_type,
-          episode_count: payload.episode_count || null,
-        });
+        if (!results.some((r) => r.tmdb_id === show.id && r.media_type === "tv")) {
+          results.push({
+            tmdb_id: show.id,
+            title: show.name,
+            year: show.first_air_date ? parseInt(show.first_air_date.slice(0, 4), 10) : null,
+            poster_url: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null,
+            rating: show.vote_average || null,
+            overview: show.overview || null,
+            media_type: "tv",
+          });
+        }
       }
     }
 

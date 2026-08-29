@@ -75,28 +75,38 @@ async function lookupTvSeasonPoster(
   tmdbSeriesId?: number
 ): Promise<ArtworkResult | null> {
   try {
-    // If we have a TMDB series ID, use it directly
+    // 1. First try calling tmdb-lookup with query `${seriesTitle}: Season ${seasonNumber}`
+    const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
+      body: { query: `${seriesTitle}: Season ${seasonNumber}`, search_type: "tv_season" },
+    });
+    if (!error && data?.results?.length) {
+      const seasonResult = data.results.find((r: any) => r.media_type === "tv_season" && r.poster_url);
+      if (seasonResult?.poster_url) {
+        return { poster_url: seasonResult.poster_url, source: "matched by TV season poster", match_type: "exact_owned_cover" };
+      }
+      const anyPoster = data.results.find((r: any) => r.poster_url);
+      if (anyPoster?.poster_url) {
+        return { poster_url: anyPoster.poster_url, source: "matched by TV series poster (season fallback)", match_type: "generic_content_poster" };
+      }
+    }
+
+    // 2. Direct lookup via series ID
     let showId = tmdbSeriesId;
     if (!showId) {
       const results = await searchTmdb(seriesTitle, undefined, "tv");
-      if (!results.length) return null;
-      showId = results[0].tmdb_id;
+      if (results.length > 0 && results[0].tmdb_id) {
+        showId = results[0].tmdb_id;
+      }
     }
-    // Fetch season-specific data which includes season poster
-    const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
-      body: { query: `${seriesTitle}: Season ${seasonNumber}` },
-    });
-    if (error || !data?.results?.length) return null;
-    // Look for tv_season type result first
-    const seasonResult = data.results.find((r: any) => r.media_type === "tv_season" && r.poster_url);
-    if (seasonResult?.poster_url) {
-      return { poster_url: seasonResult.poster_url, source: "matched by TV season poster", match_type: "exact_owned_cover" };
+    if (showId) {
+      const { data: seasonData } = await supabase.functions.invoke("tmdb-lookup", {
+        body: { tmdb_id: showId, season_number: Math.floor(seasonNumber), search_type: "tv_season" },
+      });
+      if (seasonData?.poster_url) {
+        return { poster_url: seasonData.poster_url, source: "matched by TV season poster", match_type: "exact_owned_cover" };
+      }
     }
-    // Any result with a poster as fallback
-    const anyPoster = data.results.find((r: any) => r.poster_url);
-    if (anyPoster?.poster_url) {
-      return { poster_url: anyPoster.poster_url, source: "matched by TV series poster (season fallback)", match_type: "generic_content_poster" };
-    }
+
     return null;
   } catch {
     return null;
@@ -212,8 +222,9 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
     if (result) return { ...result, source: "matched by package title", match_type: "exact_owned_cover" };
   }
 
-  // ── C. TV season: use series info for season-specific poster ──
+  // ── C. TV season & series: use series info or extract from title for season-specific poster ──
   if (isTvSeason) {
+    // 1. Check explicit series/season info in metadata
     const seriesInfo = getSeriesInfo(item);
     if (seriesInfo?.seriesTitle && seriesInfo?.seasonNumber) {
       const seasonResult = await lookupTvSeasonPoster(
@@ -223,18 +234,48 @@ async function resolveArtwork(item: DbMediaItem): Promise<ArtworkResult | null> 
       );
       if (seasonResult) return seasonResult;
     }
-    // Try the full title as-is (e.g. "X-Men: Evolution: The Complete Third Season")
-    const fullTitleResult = await lookupByTitle(item.title, undefined, true);
-    if (fullTitleResult) return { ...fullTitleResult, source: "matched by full TV season title", match_type: "exact_owned_cover" };
 
-    // Try extracting show name from title patterns like "Show: The Complete Nth Season"
-    const seasonPattern = /^(.+?):\s*(?:The\s+)?(?:Complete\s+)?\w+\s+Season$/i;
-    const seasonMatch = item.title.match(seasonPattern);
+    // 2. Query tmdb-lookup with full item title (which parses Season N / Complete Series)
+    try {
+      const { data, error } = await supabase.functions.invoke("tmdb-lookup", {
+        body: { query: item.title, search_type: "tv" },
+      });
+      if (!error && data?.results?.length) {
+        const top = data.results[0];
+        if (top.poster_url) {
+          return {
+            poster_url: top.poster_url,
+            source: top.media_type === "tv_season" ? "matched by TV season poster" : "matched by TV series poster",
+            match_type: top.media_type === "tv_season" ? "exact_owned_cover" : "generic_content_poster",
+          };
+        }
+      }
+    } catch {}
+
+    // 3. Try parsing ": Season N" / "Season N.M" from title
+    const seasonMatch = item.title.match(/^(.+?)\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s*(\d+(?:\.\d+)?)\b/i);
     if (seasonMatch) {
-      const showName = seasonMatch[1].trim();
-      const tvResult = await lookupByTitle(showName, undefined, true);
-      if (tvResult) return { ...tvResult, source: "matched by extracted series name (generic)", match_type: "generic_content_poster" };
+      const showName = seasonMatch[1].trim().replace(/[:\-\u2013\s]+$/g, "").trim();
+      const seasonNum = parseFloat(seasonMatch[2]);
+      const seasonResult = await lookupTvSeasonPoster(showName, seasonNum);
+      if (seasonResult) return seasonResult;
     }
+
+    // 4. Try extracted show name without season/series suffix
+    const cleanShowName = item.title
+      .replace(/\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+)?(?:season|series)\s*\d+(?:\.\d+)?\b.*/i, "")
+      .replace(/\s*[:\-\u2013]?\s*(?:the\s+)?(?:complete\s+series|complete\s+collection|mini[-\s]?series)\b.*/i, "")
+      .replace(/[:\-\u2013\s]+$/g, "")
+      .trim();
+
+    if (cleanShowName && cleanShowName !== item.title) {
+      const tvResult = await lookupByTitle(cleanShowName, undefined, true);
+      if (tvResult) return { ...tvResult, source: "matched by TV series title", match_type: "generic_content_poster" };
+    }
+
+    // 5. Fallback full title lookup
+    const fullTitleResult = await lookupByTitle(item.title, undefined, true);
+    if (fullTitleResult) return { ...fullTitleResult, source: "matched by full TV title", match_type: "generic_content_poster" };
   }
 
   // ── D. Box set: package title, then included titles ──

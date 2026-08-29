@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaTab, MediaItem, coerceMediaTab, DEFAULT_MEDIA_TAB } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import { getCollectorGroupLetter, getCollectorSortKey } from "@/lib/utils";
 import { TabSwitcher } from "@/components/TabSwitcher";
 import { FilterBar } from "@/components/FilterBar";
@@ -63,8 +62,8 @@ function getStored<T>(key: string, fallback: T): T {
   } catch { return fallback; }
 }
 
-export default function Index() { // force rebuild
-  const autoRepairVersion = "2026-04-24";
+export default function Index() {
+  const autoRepairVersion = "2026-08-29-tv-v2";
   const [activeTab, setActiveTab] = useState<MediaTab>(() => coerceMediaTab(getStored("ds-default-tab", DEFAULT_MEDIA_TAB)));
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
@@ -84,6 +83,23 @@ export default function Index() { // force rebuild
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
   const { fetchArtwork } = useFetchArtwork();
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
+
+  const handleManualFetchArtwork = useCallback(async () => {
+    if (!dbItems || dbItems.length === 0) {
+      toast({ title: "Empty tab", description: "No items to fetch artwork for." });
+      return;
+    }
+    toast({ title: "Checking artwork…", description: "Looking for missing or broken posters." });
+    const result = await fetchArtwork(dbItems);
+    if (result.total === 0) {
+      toast({ title: "All set!", description: "No missing or broken artwork was found." });
+      return;
+    }
+    toast({
+      title: "Artwork fetch complete",
+      description: `Found posters for ${result.found} of ${result.total} items.`,
+    });
+  }, [dbItems, fetchArtwork]);
 
   useEffect(() => {
     if (!user || isLoading || !dbItems || dbItems.length === 0) return;
@@ -274,6 +290,7 @@ export default function Index() { // force rebuild
             <MobileMenu
               isLoggedIn={!!user}
               onSignOut={signOut}
+              onFetchArtwork={handleManualFetchArtwork}
               allItems={dbItems ?? []}
             />
             <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
