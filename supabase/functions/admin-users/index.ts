@@ -45,8 +45,12 @@ Deno.serve(async (req) => {
     const userId = currentUser.id;
     const { action, targetUserId, password } = await req.json();
 
+    const rootAdminClient = createClient(supabaseUrl, serviceRoleKey);
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       db: { schema: DB_SCHEMA },
+    });
+    const bookstackedClient = createClient(supabaseUrl, serviceRoleKey, {
+      db: { schema: "bookstacked" },
     });
 
     if (action === "admin-status") {
@@ -96,7 +100,7 @@ Deno.serve(async (req) => {
       let authListError: string | null = null;
 
       while (true) {
-        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+        const { data, error } = await rootAdminClient.auth.admin.listUsers({ page, perPage });
         if (error) {
           authListError = error.message;
           break;
@@ -112,9 +116,16 @@ Deno.serve(async (req) => {
         page += 1;
       }
 
-      // Get profiles
+      // Get profiles from discstacked
       const { data: profiles, error: profilesError } = await adminClient.from("profiles").select("*");
       if (profilesError) throw profilesError;
+
+      // Get fallback profiles from bookstacked
+      let bookProfiles: any[] = [];
+      try {
+        const { data: bp } = await bookstackedClient.from("profiles").select("*");
+        bookProfiles = bp || [];
+      } catch {}
 
       // Get item counts manually. Supabase/PostgREST caps a single select
       // at 1,000 rows by default, so page through the full table.
@@ -151,23 +162,56 @@ Deno.serve(async (req) => {
         if (role.user_id) discstackedUserIds.add(role.user_id);
       });
 
-      const enrichedUsers = Array.from(discstackedUserIds).map((id) => {
-        const u = users.find((user: any) => user.id === id);
-        const profile = profiles?.find((p: any) => p.user_id === id);
-        const userRoles = roles?.filter((r: any) => r.user_id === id).map((r: any) => r.role) || [];
-        return {
-          id,
-          email: u?.email ?? null,
-          created_at: u?.created_at ?? profile?.created_at ?? null,
-          last_sign_in_at: u?.last_sign_in_at ?? null,
-          display_name: profile?.display_name || u?.raw_user_meta_data?.display_name || u?.raw_user_meta_data?.full_name || null,
-          avatar_url: profile?.avatar_url || u?.raw_user_meta_data?.avatar_url || u?.raw_user_meta_data?.picture || null,
-          item_count: countMap[id] || 0,
-          roles: userRoles,
-        };
-      }).sort((a, b) => {
+      const enrichedUsers = await Promise.all(
+        Array.from(discstackedUserIds).map(async (id) => {
+          let u = users.find((user: any) => user.id?.toLowerCase() === id?.toLowerCase());
+          if (!u) {
+            try {
+              const { data: directUser } = await rootAdminClient.auth.admin.getUserById(id);
+              if (directUser?.user) u = directUser.user;
+            } catch {}
+          }
+          const profile = profiles?.find((p: any) => (p.user_id || p.id)?.toLowerCase() === id?.toLowerCase());
+          const bookProfile = bookProfiles?.find((bp: any) => (bp.id || bp.user_id)?.toLowerCase() === id?.toLowerCase());
+          const userRoles = roles?.filter((r: any) => r.user_id?.toLowerCase() === id?.toLowerCase()).map((r: any) => r.role) || [];
+
+          const email = u?.email ?? null;
+          const displayName =
+            profile?.display_name ||
+            u?.raw_user_meta_data?.display_name ||
+            u?.raw_user_meta_data?.full_name ||
+            u?.raw_user_meta_data?.name ||
+            u?.user_metadata?.display_name ||
+            u?.user_metadata?.full_name ||
+            bookProfile?.display_name ||
+            (email ? email.split("@")[0] : null);
+
+          const avatarUrl =
+            profile?.avatar_url ||
+            u?.raw_user_meta_data?.avatar_url ||
+            u?.raw_user_meta_data?.picture ||
+            u?.user_metadata?.avatar_url ||
+            bookProfile?.avatar_url ||
+            null;
+
+          const createdAt = u?.created_at || profile?.created_at || bookProfile?.created_at || null;
+
+          return {
+            id,
+            email,
+            created_at: createdAt,
+            last_sign_in_at: u?.last_sign_in_at ?? null,
+            display_name: displayName,
+            avatar_url: avatarUrl,
+            item_count: countMap[id] || 0,
+            roles: userRoles,
+          };
+        })
+      );
+
+      enrichedUsers.sort((a, b) => {
         if (b.item_count !== a.item_count) return b.item_count - a.item_count;
-        return (a.email ?? "").localeCompare(b.email ?? "");
+        return (a.email ?? a.display_name ?? "").localeCompare(b.email ?? b.display_name ?? "");
       });
 
       return new Response(JSON.stringify({ users: enrichedUsers }), {

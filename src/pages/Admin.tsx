@@ -217,25 +217,29 @@ export default function Admin() {
               >
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={u.avatar_url || undefined} />
-                  <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                    {(u.display_name || u.email || "?").charAt(0).toUpperCase()}
+                  <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
+                    {((u.display_name || u.email || "?").replace(/^@/, "").replace(/^(\d+)/, "").charAt(0) || (u.display_name || u.email || "?").charAt(0) || "?").toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground truncate">
-                      {u.display_name || u.email}
+                      {u.display_name || (u.email ? u.email.split("@")[0] : "Unknown User")}
                     </span>
                     {u.roles.includes("admin") && (
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">Admin</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{u.email}</span>
-                    <span>•</span>
-                    <span>{u.item_count} items</span>
-                    <span>•</span>
-                    <span>Joined {new Date(u.created_at).toLocaleDateString()}</span>
+                    {u.email && <span>{u.email}</span>}
+                    {u.email && <span>•</span>}
+                    <span>{u.item_count} {u.item_count === 1 ? "item" : "items"}</span>
+                    {u.created_at && (
+                      <>
+                        <span>•</span>
+                        <span>Joined {new Date(u.created_at).toLocaleDateString()}</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 {!u.roles.includes("admin") && (
