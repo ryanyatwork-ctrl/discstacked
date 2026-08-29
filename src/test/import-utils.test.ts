@@ -527,5 +527,33 @@ describe("import-utils", () => {
       expect(row2.metadata.digital_code_status).toBe("Digital Copy Disc");
       expect(row2.formats).toContain("Digital Copy Disc");
     });
+
+    it("defaults music import rows to CD and detects vinyl, cassette, and SACD", () => {
+      const cdRow = mapClzRow({
+        Title: "Division",
+        Year: "2008",
+      }, "cds");
+
+      expect(cdRow.format).toBe("CD");
+      expect(cdRow.formats).toEqual(["CD"]);
+
+      const vinylRow = mapClzRow({
+        Title: "Abbey Road",
+        Year: "1969",
+        Format: "Vinyl LP",
+      }, "cds");
+
+      expect(vinylRow.format).toBe("Vinyl");
+      expect(vinylRow.formats).toEqual(["Vinyl"]);
+
+      const sacdRow = mapClzRow({
+        Title: "The Dark Side of the Moon",
+        Year: "1973",
+        Format: "SACD",
+      }, "cds");
+
+      expect(sacdRow.format).toBe("SACD");
+      expect(sacdRow.formats).toEqual(["SACD"]);
+    });
   });
 });

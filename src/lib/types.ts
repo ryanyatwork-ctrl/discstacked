@@ -69,7 +69,7 @@ export const FORMATS: Record<MediaTab, string[]> = {
   movies: ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "UMD", "VHS"],
   tv: ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "VHS", "Streaming"],
   "music-films": ["4K", "Blu-ray", "3D", "DVD", "Digital", "UltraViolet", "UMD", "VHS"],
-  cds: ["CD", "Enhanced CD", "DualDisc", "Blu-ray", "4K", "3D", "DVD", "Vinyl", "Cassette", "Digital"],
+  cds: ["CD", "Enhanced CD", "DualDisc", "Vinyl", "Cassette", "SACD", "DVD-Audio", "Blu-ray", "4K", "3D", "DVD", "Digital"],
   games: ["PS5", "PS4", "PS3", "PS2", "Xbox Series X", "Xbox One", "Xbox 360", "Switch", "Wii U", "Wii", "3DS", "DS", "GameCube", "N64", "SNES", "NES", "Game Boy", "Sega Genesis", "Dreamcast", "Atari", "PC", "Steam", "Digital"],
 };
 

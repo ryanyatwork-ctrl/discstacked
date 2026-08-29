@@ -330,13 +330,22 @@ export function detectFormats(value: string): string[] {
     found.push("UltraViolet");
   }
   // Music formats
-  if (v.includes("cd") || v.includes("compact disc")) {
+  if (v.includes("sacd")) {
+    found.push("SACD");
+  }
+  if (v.includes("dvd-audio") || v.includes("dvd audio")) {
+    found.push("DVD-Audio");
+  }
+  if (
+    (/\b(?:cd|compact disc|cdda|audio cd)\b/.test(v) || v.includes("enhanced cd") || v.includes("dualdisc")) &&
+    !v.includes("sacd")
+  ) {
     found.push("CD");
   }
-  if (v.includes("vinyl") || v.includes("lp") || v.includes("12\"") || v.includes("7\"")) {
+  if (v.includes("vinyl") || v.includes("lp") || v.includes("12\"") || v.includes("7\"") || v.includes("record") || v.includes("45 rpm") || v.includes("33 rpm")) {
     found.push("Vinyl");
   }
-  if (v.includes("cassette") || v.includes("tape")) {
+  if (v.includes("cassette") || v.includes("tape") || v.includes("mc")) {
     found.push("Cassette");
   }
   if (v.includes("promo")) {
@@ -718,7 +727,15 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       uniqueFormats.push("Blu-ray");
     }
 
-    const defaultFmt = (mediaType === "movies" || mediaType === "music-films" || !mediaType) ? "Blu-ray" : "DVD";
+    let defaultFmt = "Blu-ray";
+    if (mediaType === "cds") {
+      defaultFmt = "CD";
+    } else if (mediaType === "games") {
+      defaultFmt = "Physical";
+    } else if (mediaType === "movies" || mediaType === "music-films" || mediaType === "tv" || mediaType === "tv-season" || !mediaType) {
+      defaultFmt = "Blu-ray";
+    }
+
     mapped.format = uniqueFormats[0] || defaultFmt;
     mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : [defaultFmt];
     mapped.formats = uniqueFormats.length > 0 ? uniqueFormats : [defaultFmt];
