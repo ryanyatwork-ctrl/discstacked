@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, ArrowLeft, Trash2 } from "lucide-react";
+import { Upload, ArrowLeft, Trash2, Download, FileSpreadsheet } from "lucide-react";
 import { useImportItems } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
-import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv } from "@/lib/import-utils";
+import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, generateImportTemplateCsv } from "@/lib/import-utils";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -252,13 +252,36 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               onChange={handleFile}
               className="hidden"
             />
-            <Button
-              onClick={() => fileRef.current?.click()}
-              disabled={importMutation.isPending}
-              className="w-full"
-            >
-              {importMutation.isPending ? "Importing..." : "Choose File"}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                onClick={() => fileRef.current?.click()}
+                disabled={importMutation.isPending}
+                className="flex-1 gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {importMutation.isPending ? "Importing..." : "Choose File to Import"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const csvContent = generateImportTemplateCsv(activeTab);
+                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", url);
+                  link.setAttribute("download", `discstacked-template-${activeTab}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast({ title: "Template downloaded", description: `Saved discstacked-template-${activeTab}.csv with sample collector items.` });
+                }}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download Template (.csv)
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4 py-4">

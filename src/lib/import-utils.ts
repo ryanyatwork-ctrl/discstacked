@@ -99,7 +99,31 @@ const COLUMN_MAP: Record<string, string> = {
   acquired: "_purchase_date",
   store: "_purchase_location",
   location: "_purchase_location",
-  "purchased at": "_purchase_location",
+  // Additional Blu-ray.com / Spreadsheet headers
+  "country code": "_country",
+  asin: "_asin",
+  casing: "_case_type",
+  memorabilia: "_memorabilia",
+  "blu-ray discs": "_bluray_discs",
+  "bluray discs": "_bluray_discs",
+  "dvd discs": "_dvd_discs",
+  "4k discs": "_4k_discs",
+  "uhd discs": "_4k_discs",
+  "digital copy": "_digital_copy",
+  "digital code": "_digital_copy",
+  "date added": "_date_added",
+  added: "_date_added",
+  watched: "_watched",
+  comment: "notes",
+  retailer: "_purchase_location",
+  "price comment": "_price_comment",
+  "price comments": "_price_comment",
+  "missing discs": "_missing_discs",
+  "missing disc": "_missing_discs",
+  "missing discs / notes": "notes",
+  "missing discs / condition notes": "notes",
+  "studio / distributor": "_studio",
+  "barcode / upc": "_barcode",
   // CLZ Music Collector columns
   artist: "_artist",
   label: "_label",
@@ -440,7 +464,17 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       const metaKey = dbCol.slice(1);
       metadata[metaKey] = cleanString(value);
       if (metaKey === "barcode") {
-        mapped.barcode = cleanString(value);
+        const val = cleanString(value);
+        if (val) {
+          if (mapped.barcode && mapped.barcode.length === 12 && val.length === 13 && val.startsWith("0")) {
+            // Keep existing 12-digit UPC
+          } else if (val.length === 13 && val.startsWith("0")) {
+            // 13-digit EAN starting with 0 is standard 12-digit UPC in North America
+            mapped.barcode = val.slice(1);
+          } else {
+            mapped.barcode = val;
+          }
+        }
       }
       // TMDB id may arrive as a bare number or a themoviedb.org URL; keep the
       // trailing numeric id and promote it to external_id (the app's canonical
@@ -510,6 +544,72 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     }
   }
 
+  // Blu-ray.com multi-disc / format detection
+  if (metadata.bluray_discs) {
+    const bdCount = parseInt(metadata.bluray_discs, 10);
+    if (!isNaN(bdCount) && bdCount > 0) {
+      detectedFormats.push("Blu-ray");
+    }
+  }
+  if (metadata.dvd_discs) {
+    const dvdCount = parseInt(metadata.dvd_discs, 10);
+    if (!isNaN(dvdCount) && dvdCount > 0) {
+      detectedFormats.push("DVD");
+    }
+  }
+  if (metadata["4k_discs"]) {
+    const uhdCount = parseInt(metadata["4k_discs"], 10);
+    if (!isNaN(uhdCount) && uhdCount > 0) {
+      detectedFormats.push("4K");
+    }
+  }
+  if (metadata.digital_copy) {
+    const dig = String(metadata.digital_copy).toLowerCase().trim();
+    if (dig === "1" || dig === "yes" || dig === "true" || (parseInt(dig, 10) > 0)) {
+      detectedFormats.push("Digital");
+      mapped.digital_copy = true;
+    }
+  }
+  if (metadata.case_type) {
+    const caseFmts = detectFormats(metadata.case_type);
+    if (caseFmts.length > 0) {
+      detectedFormats.push(...caseFmts);
+    }
+  }
+  if (mapped.title && /\b(4k|uhd|ultra hd)\b/i.test(mapped.title)) {
+    detectedFormats.push("4K");
+  }
+
+  // Release date -> year extraction if year is missing
+  if (!mapped.year && metadata.release_date) {
+    const yMatch = metadata.release_date.match(/\b(19\d\d|20\d\d)\b/);
+    if (yMatch) {
+      mapped.year = parseInt(yMatch[1], 10);
+    }
+  }
+
+  // Calculate total disc count if individual disc counts are present
+  const bdCount = parseInt(metadata.bluray_discs || "0", 10) || 0;
+  const dvdCount = parseInt(metadata.dvd_discs || "0", 10) || 0;
+  const uhdCount = parseInt(metadata["4k_discs"] || "0", 10) || 0;
+  const computedDiscs = (bdCount > 0 ? bdCount : 0) + (dvdCount > 0 ? dvdCount : 0) + (uhdCount > 0 ? uhdCount : 0);
+  if (computedDiscs > 0 && (!metadata.disc_count || metadata.disc_count === "-1")) {
+    metadata.disc_count = String(computedDiscs);
+  }
+
+  // Slipcover normalization
+  if (metadata.slipcover === "1" || metadata.slipcover === "true") {
+    metadata.slipcover = "has_slip";
+  } else if (metadata.slipcover === "0" || metadata.slipcover === "false") {
+    metadata.slipcover = "no_slip";
+  }
+
+  // Watched normalization
+  if (metadata.watched === "1" || metadata.watched === "yes" || metadata.watched === "true") {
+    mapped.last_watched = metadata.date_added || new Date().toISOString().split("T")[0];
+    mapped.want_to_watch = false;
+  }
+
   let uniqueFormats: string[] = [];
 
   // For games, use platform as the format instead of media format detection
@@ -536,9 +636,10 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       uniqueFormats.push("Blu-ray");
     }
 
-    mapped.format = uniqueFormats[0] || "DVD";
-    mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
-    mapped.formats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
+    const defaultFmt = (mediaType === "movies" || mediaType === "music-films" || !mediaType) ? "Blu-ray" : "DVD";
+    mapped.format = uniqueFormats[0] || defaultFmt;
+    mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : [defaultFmt];
+    mapped.formats = uniqueFormats.length > 0 ? uniqueFormats : [defaultFmt];
   }
 
   if (Object.keys(metadata).length > 0) {
@@ -969,9 +1070,13 @@ function parseDelimitedRows(text: string, delimiter: "," | "\t" | ";"): string[]
 }
 
 function isLikelyHeaderRow(values: string[]) {
-  const normalized = values.map((value) => value.toLowerCase().trim());
+  const normalized = values.map((value) => value.toLowerCase().trim().replace(/['"]/g, ""));
+  // If row contains any classic title column, it is guaranteed to be a header row
+  if (normalized.some((val) => val === "title" || val === "name" || val === "movie" || val === "movie title" || val === "artist" || val === "album title" || val === "game title")) {
+    return true;
+  }
   const knownCount = normalized.filter((value) => Boolean(COLUMN_MAP[value])).length;
-  return knownCount >= Math.max(1, Math.ceil(values.length / 3));
+  return knownCount >= 2;
 }
 
 function inferHeaders(columnCount: number): string[] {
@@ -982,3 +1087,266 @@ function inferHeaders(columnCount: number): string[] {
 
   return Array.from({ length: columnCount }, (_, index) => `Column ${index + 1}`);
 }
+
+/**
+ * Generate a downloadable, sample CSV template with all supported columns
+ * and example rows for collectors.
+ */
+export function generateImportTemplateCsv(mediaType: MediaTab): string {
+  if (mediaType === "cds") {
+    const headers = [
+      "Artist",
+      "Title",
+      "Release Year",
+      "Format",
+      "Barcode",
+      "Catalog Number",
+      "Label",
+      "Country",
+      "Discs",
+      "Tracks",
+      "Length",
+      "Genre",
+      "Packaging",
+      "Condition",
+      "Notes",
+      "Purchase Price",
+      "Purchase Date",
+      "Store",
+    ];
+    const sampleRows = [
+      [
+        "Pink Floyd",
+        "The Dark Side of the Moon",
+        "1973",
+        "CD",
+        "077774600125",
+        "CDP 7 46001 2",
+        "Harvest / EMI",
+        "US",
+        "1",
+        "10",
+        "42:50",
+        "Progressive Rock",
+        "Jewel case",
+        "Near Mint",
+        "Includes lyric booklet",
+        "12.99",
+        "2024-05-15",
+        "Amoeba Music",
+      ],
+      [
+        "Miles Davis",
+        "Kind of Blue",
+        "1959",
+        "Vinyl",
+        "886975249219",
+        "CL 1355",
+        "Columbia",
+        "US",
+        "1",
+        "5",
+        "45:10",
+        "Jazz",
+        "Gatefold",
+        "Mint",
+        "180g remaster with obi",
+        "24.99",
+        "2024-06-10",
+        "Local Record Store",
+      ],
+      [
+        "The Beatles",
+        "Abbey Road (Super Deluxe Edition)",
+        "2019",
+        "CD, Blu-ray",
+        "602577921124",
+        "0602577921124",
+        "Apple Records",
+        "UK",
+        "4",
+        "40",
+        "125:30",
+        "Rock",
+        "Hardcover Box",
+        "Mint",
+        "3 CDs + 1 Blu-ray Audio",
+        "89.99",
+        "2024-01-20",
+        "Amazon",
+      ],
+    ];
+    return [headers.join(","), ...sampleRows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+  }
+
+  if (mediaType === "games") {
+    const headers = [
+      "Title",
+      "Platform",
+      "Release Year",
+      "Barcode",
+      "Genre",
+      "Publisher",
+      "Developer",
+      "Condition",
+      "Completed",
+      "Discs",
+      "Notes",
+      "Purchase Price",
+      "Purchase Date",
+      "Store",
+    ];
+    const sampleRows = [
+      [
+        "The Legend of Zelda: Tears of the Kingdom",
+        "Switch",
+        "2023",
+        "045496598990",
+        "Action-Adventure",
+        "Nintendo",
+        "Nintendo EPD",
+        "Mint",
+        "Yes",
+        "1",
+        "Includes map insert",
+        "69.99",
+        "2023-05-12",
+        "Target",
+      ],
+      [
+        "Elden Ring",
+        "PS5",
+        "2022",
+        "722674128032",
+        "Action RPG",
+        "Bandai Namco",
+        "FromSoftware",
+        "Near Mint",
+        "Yes",
+        "1",
+        "Day 1 launch edition",
+        "59.99",
+        "2022-02-25",
+        "Best Buy",
+      ],
+      [
+        "Halo 3",
+        "Xbox 360",
+        "2007",
+        "882224458888",
+        "First-Person Shooter",
+        "Microsoft Game Studios",
+        "Bungie",
+        "Very Good",
+        "Yes",
+        "1",
+        "SteelBook edition",
+        "9.99",
+        "2024-03-01",
+        "Thrift Store",
+      ],
+    ];
+    return [headers.join(","), ...sampleRows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+  }
+
+  // Movies / TV default
+  const headers = [
+    "Title",
+    "Year",
+    "Format",
+    "Barcode",
+    "Edition",
+    "Disc Count",
+    "Case Type",
+    "Slipcover",
+    "Missing Discs / Notes",
+    "Studio / Distributor",
+    "Region",
+    "Rating",
+    "Genre",
+    "Watched",
+    "Purchase Price",
+    "Purchase Location",
+    "Date Added",
+  ];
+  const sampleRows = [
+    [
+      "Inception",
+      "2010",
+      "4K, Blu-ray, Digital",
+      "883929624782",
+      "Collector's Edition",
+      "3",
+      "Standard Blu-ray case",
+      "Yes",
+      "Includes bonus features disc",
+      "Warner Bros.",
+      "Region A",
+      "9.5",
+      "Sci-Fi, Action",
+      "Yes",
+      "19.99",
+      "Best Buy",
+      "2024-01-15",
+    ],
+    [
+      "The Matrix: 4-Film Déjà Vu Collection",
+      "1999",
+      "Blu-ray, Digital",
+      "883929789702",
+      "4-Film Collection",
+      "4",
+      "Standard Blu-ray case",
+      "Yes",
+      "All 4 Matrix movies in one set",
+      "Warner Bros.",
+      "Region Free",
+      "9.0",
+      "Action, Sci-Fi",
+      "Yes",
+      "29.99",
+      "Amazon",
+      "2024-03-10",
+    ],
+    [
+      "Spartacus: War of the Damned",
+      "2013",
+      "Blu-ray",
+      "013132612102",
+      "Best Buy Exclusive",
+      "3",
+      "DigiBook",
+      "No",
+      "The Complete Third Season",
+      "Starz / Anchor Bay",
+      "Region A",
+      "8.5",
+      "Action, Drama",
+      "Yes",
+      "14.99",
+      "Best Buy",
+      "2024-02-20",
+    ],
+    [
+      "Jurassic Park",
+      "1993",
+      "Blu-ray, DVD",
+      "025192128882",
+      "20th Anniversary Edition",
+      "2",
+      "Standard Blu-ray case",
+      "No",
+      "Thrift store pickup - missing DVD disc 2",
+      "Universal Studios",
+      "Region A",
+      "9.0",
+      "Adventure, Sci-Fi",
+      "Yes",
+      "3.99",
+      "Goodwill",
+      "2024-04-05",
+    ],
+  ];
+  return [headers.join(","), ...sampleRows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+}
+

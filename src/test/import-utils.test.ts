@@ -404,5 +404,46 @@ describe("import-utils", () => {
         tags: ["Sci-Fi", "Cyberpunk", "Denis Villeneuve"],
       });
     });
+
+    it("parses 19-column Blu-ray.com CSV exports with disc counts and release dates", () => {
+      const csvText = [
+        'Title, Studio, Country code, UPC, EAN, ASIN, Release date, Slipcover, Casing, Memorabilia, Blu-ray discs, DVD discs, Digital copy, Date added, Watched, Comment, Retailer, Price, Price comment',
+        '"$5 a Day","Image Entertainment",US,014381600353,0014381600353,B002TZS5QA,August 24 2010,0,Standard Blu-ray case,0,1,0,0,August 14 2025,1,,,,',
+        '"10 Cloverfield Lane","Paramount Pictures",US,032429244482,0032429244482,B01BLH8R50,June 14 2016,1,Standard Blu-ray case,0,1,1,1,August 16 2025,1,"Great condition",Best Buy,14.99,Sale',
+        '"Back to the Future: 30th Anniversary Trilogy","Universal Studios",US,025192275753,0025192275753,B011Q0FSC2,October 20 2015,1,DigiBook,0,4,0,1,March 16 2026,1,,,,',
+      ].join("\n");
+
+      const parsedRows = parseCsv(csvText);
+      expect(parsedRows.length).toBe(3);
+
+      const row1 = mapClzRow(parsedRows[0], "movies");
+      expect(row1.title).toBe("$5 a Day");
+      expect(row1.year).toBe(2010);
+      expect(row1.barcode).toBe("014381600353");
+      expect(row1.formats).toEqual(["Blu-ray"]);
+      expect(row1.metadata.disc_count).toBe("1");
+      expect(row1.metadata.slipcover).toBe("no_slip");
+      expect(row1.metadata.case_type).toBe("Standard Blu-ray case");
+      expect(row1.metadata.country).toBe("US");
+
+      const row2 = mapClzRow(parsedRows[1], "movies");
+      expect(row2.title).toBe("10 Cloverfield Lane");
+      expect(row2.year).toBe(2016);
+      expect(row2.barcode).toBe("032429244482");
+      expect(row2.formats).toEqual(["Blu-ray", "DVD", "Digital"]);
+      expect(row2.metadata.disc_count).toBe("2");
+      expect(row2.metadata.slipcover).toBe("has_slip");
+      expect(row2.notes).toBe("Great condition");
+      expect(row2.metadata.purchase_location).toBe("Best Buy");
+      expect(row2.metadata.purchase_price).toBe("14.99");
+
+      const row3 = mapClzRow(parsedRows[2], "movies");
+      expect(row3.title).toBe("Back to the Future: 30th Anniversary Trilogy");
+      expect(row3.year).toBe(2015);
+      expect(row3.barcode).toBe("025192275753");
+      expect(row3.formats).toEqual(["Blu-ray", "Digital"]);
+      expect(row3.metadata.disc_count).toBe("4");
+      expect(row3.metadata.case_type).toBe("DigiBook");
+    });
   });
 });
