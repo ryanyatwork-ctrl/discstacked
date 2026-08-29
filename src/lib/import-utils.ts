@@ -129,6 +129,10 @@ const COLUMN_MAP: Record<string, string> = {
   "redemption service": "_digital_code_platform",
   "redeemed where": "_digital_code_platform",
   "redeemed at": "_digital_code_platform",
+  "digital-on-disc": "_digital_copy_type",
+  "digital on disc": "_digital_copy_type",
+  "digital copy disc": "_digital_copy_type",
+  "digital disc": "_digital_copy_type",
   "date added": "_date_added",
   added: "_date_added",
   watched: "_watched",
@@ -305,6 +309,13 @@ export function detectFormats(value: string): string[] {
     found.push("DVD");
   }
   if (
+    v.includes("digital copy disc") ||
+    v.includes("digital-on-disc") ||
+    v.includes("digital on disc") ||
+    v.includes("digital disc")
+  ) {
+    found.push("Digital Copy Disc", "Digital");
+  } else if (
     v.includes("digital copy") ||
     v.includes("digital code") ||
     v.includes("digital hd") ||
@@ -632,7 +643,17 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
   }
 
   // Digital code status normalization
-  if (metadata.digital_code_status) {
+  if (metadata.digital_copy_type) {
+    const dct = String(metadata.digital_copy_type).toLowerCase().trim();
+    if (dct === "no" || dct === "0" || dct === "false" || dct === "none") {
+      metadata.digital_code_status = "Not Included";
+    } else {
+      metadata.digital_code_status = "Digital Copy Disc";
+      if (!detectedFormats.includes("Digital Copy Disc")) detectedFormats.push("Digital Copy Disc");
+      if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
+      mapped.digital_copy = true;
+    }
+  } else if (metadata.digital_code_status) {
     const st = String(metadata.digital_code_status).toLowerCase().trim();
     if (st.includes("not included") || st === "no" || st === "0" || st === "none") {
       metadata.digital_code_status = "Not Included";
@@ -640,6 +661,16 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       metadata.digital_code_status = "Expired";
     } else if (st.includes("missing")) {
       metadata.digital_code_status = "Missing";
+    } else if (
+      st.includes("digital copy disc") ||
+      st.includes("digital-on-disc") ||
+      st.includes("digital on disc") ||
+      (st.includes("disc") && (st.includes("digital") || st.includes("copy")))
+    ) {
+      metadata.digital_code_status = "Digital Copy Disc";
+      if (!detectedFormats.includes("Digital Copy Disc")) detectedFormats.push("Digital Copy Disc");
+      if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
+      mapped.digital_copy = true;
     } else if (st.includes("unused")) {
       metadata.digital_code_status = "Included (Unused)";
       if (!detectedFormats.includes("Digital")) detectedFormats.push("Digital");
@@ -1434,15 +1465,37 @@ export function generateImportTemplateCsv(mediaType: MediaTab): string {
       "Best Buy",
       "2024-06-12",
     ],
+    [
+      "The Dark Knight",
+      "2008",
+      "2008",
+      "Blu-ray, Digital Copy Disc",
+      "085391179429",
+      "Special Edition",
+      "3",
+      "Standard",
+      "Yes",
+      "Digital Copy Disc",
+      "Apple TV / iTunes",
+      "Includes Disc 3: Physical Digital Copy Disc for PC/Mac transfer",
+      "Warner Bros.",
+      "Region Free",
+      "9.8",
+      "Action, Crime, Drama",
+      "Yes",
+      "14.99",
+      "Target",
+      "2024-02-15",
+    ],
   ];
 
   const guideComments = [
     "#",
     "# === DISCSTACKED FIELD KEY & ALLOWED VALUES GUIDE ===",
-    '# FORMAT: Any combination of "4K", "Blu-ray", "3D", "DVD", "Digital", "CD", "Vinyl", "Cassette", "VHS". Case-insensitive and lenient ("bluray", "Blu-Ray", "4k uhd", "dvd" are all recognized).',
+    '# FORMAT: Any combination of "4K", "Blu-ray", "3D", "DVD", "Digital", "Digital Copy Disc", "CD", "Vinyl", "Cassette", "VHS". Case-insensitive and lenient ("bluray", "Blu-Ray", "4k uhd", "dvd", "digital copy disc" are all recognized).',
     '# CASE TYPE: Standard, SteelBook, Box Set, DigiPack, DigiBook, Slipcase, Collection, Multi Pack, Metal Tin, Clamshell, Snap Case, Unique/Custom (all case-insensitive).',
     '# SLIPCOVER: Yes, No, Included, Missing, Damaged, Embossed, Lenticular (or 1 / 0).',
-    '# DIGITAL CODE STATUS: Included (Unused), Used / Redeemed, Missing, Expired, Not Included (or Yes / No / 1 / 0).',
+    '# DIGITAL CODE STATUS: Included (Unused), Used / Redeemed, Digital Copy Disc (Digital-on-Disc), Missing, Expired, Not Included (or Yes / No / 1 / 0).',
     '# DIGITAL PLATFORM: Movies Anywhere, Apple TV / iTunes, Vudu / Fandango at Home, Google Play, Prime Video, Paramount Digital, Lionsgate VIP, Sony Pictures Core, UltraViolet.',
     '# YEARS: "Movie Release Year" is the film\'s original premiere year (e.g. 1982). "Blu-Ray Release Year" is the physical disc edition year (e.g. 2017).',
     '# MISSING DISCS / NOTES: Any collector notes, e.g. "Missing bonus disc", "Case cracked", "Includes obi strip".',

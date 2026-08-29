@@ -6,6 +6,8 @@ export type DigitalCodeStatus =
   | "Unknown"
   | "Included (Unused)"
   | "Used / Redeemed"
+  | "Digital Copy Disc"
+  | "Digital-on-Disc"
   | "Missing"
   | "Expired"
   | "Not Included";
@@ -78,6 +80,8 @@ export const DIGITAL_CODE_STATUSES: DigitalCodeStatus[] = [
   "Unknown",
   "Included (Unused)",
   "Used / Redeemed",
+  "Digital Copy Disc",
+  "Digital-on-Disc",
   "Missing",
   "Expired",
   "Not Included",

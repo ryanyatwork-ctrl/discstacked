@@ -250,7 +250,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                     <strong className="text-foreground">Release Years:</strong> <code>Movie Release Year</code> (theatrical premiere, e.g. 1982) vs <code>Blu-Ray Release Year</code> (physical disc edition, e.g. 2017).
                   </div>
                   <div>
-                    <strong className="text-foreground">Digital Code Status:</strong> <code>Included (Unused)</code>, <code>Used / Redeemed</code>, <code>Missing</code>, <code>Expired</code>, <code>Not Included</code>.
+                    <strong className="text-foreground">Digital Code Status:</strong> <code>Included (Unused)</code>, <code>Used / Redeemed</code>, <code>Digital Copy Disc (Digital-on-Disc)</code>, <code>Missing</code>, <code>Expired</code>, <code>Not Included</code>.
                   </div>
                   <div>
                     <strong className="text-foreground">Digital Platforms:</strong> <code>Movies Anywhere</code>, <code>Apple TV / iTunes</code>, <code>Vudu / Fandango</code>, <code>Google Play</code>, <code>Prime Video</code>, <code>UltraViolet</code>.

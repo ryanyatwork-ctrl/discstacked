@@ -497,5 +497,35 @@ describe("import-utils", () => {
       expect(r6.metadata.case_type).toBe("Multi Pack");
       expect(r6.metadata.digital_code_status).toBe("Used / Redeemed");
     });
+
+    it("parses digital-on-disc and physical digital copy discs", () => {
+      const row1 = mapClzRow({
+        Title: "The Dark Knight",
+        Year: "2008",
+        Format: "Blu-ray + Digital Copy Disc",
+        "Disc Count": "2",
+        "Digital Code Status": "Digital-on-Disc",
+        "Digital Platform": "Apple TV / iTunes",
+      }, "movies");
+
+      expect(row1.formats).toEqual(["Blu-ray", "Digital Copy Disc", "Digital"]);
+      expect(row1.digital_copy).toBe(true);
+      expect(row1.metadata.digital_code_status).toBe("Digital Copy Disc");
+      expect(row1.metadata.digital_code_platform).toBe("Apple TV / iTunes");
+      expect(row1.metadata.discs).toEqual([
+        expect.objectContaining({ label: "Disc 1", format: "Blu-ray" }),
+        expect.objectContaining({ label: "Disc 2", format: "Digital Copy Disc" }),
+      ]);
+
+      const row2 = mapClzRow({
+        Title: "Iron Man",
+        Year: "2008",
+        Format: "Blu-ray",
+        "Digital-on-Disc": "Yes",
+      }, "movies");
+
+      expect(row2.metadata.digital_code_status).toBe("Digital Copy Disc");
+      expect(row2.formats).toContain("Digital Copy Disc");
+    });
   });
 });

@@ -7,7 +7,7 @@ import { Plus, X, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DISC_CONDITIONS, DiscEntry } from "@/lib/collector-utils";
 
-const DISC_FORMATS = ["4K", "Blu-ray", "3D", "DVD", "CD", "Digital"];
+const DISC_FORMATS = ["4K", "Blu-ray", "3D", "DVD", "CD", "Digital Copy Disc", "Digital"];
 const ASPECT_RATIOS = [
   "16:9 (Widescreen)",
   "4:3 (Fullscreen)",
@@ -30,7 +30,7 @@ const getFormatVariant = (f: string) =>
   f === "4K" ? "4k" as const
   : f === "Blu-ray" ? "bluray" as const
   : f === "DVD" ? "dvd" as const
-  : f === "Digital" ? "digital" as const
+  : f === "Digital" || f === "Digital Copy Disc" || f === "Digital-on-Disc" ? "digital" as const
   : "secondary" as const;
 
 export function DiscEditor({ discs, onChange, readOnly }: DiscEditorProps) {
