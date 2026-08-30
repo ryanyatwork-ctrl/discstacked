@@ -15,7 +15,8 @@ import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { BulkScanDialog } from "@/components/BulkScanDialog";
-import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers, X } from "lucide-react";
+import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers, X, Columns3 } from "lucide-react";
+import { CollectorSplitView } from "@/components/CollectorView/CollectorSplitView";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -462,6 +463,16 @@ export default function Index() {
           </Select>
           <div className="flex items-center gap-1 rounded-md border border-border bg-card p-1">
           <Button
+            variant={viewMode === "collector" ? "secondary" : "ghost"}
+            size="sm"
+            className={cn(viewMode === "collector" ? "text-foreground font-semibold bg-secondary" : "text-muted-foreground hover:text-foreground", "gap-1")}
+            onClick={() => handleViewModeChange("collector")}
+            title="Collector Pro 3-Panel Split View"
+          >
+            <Columns3 className="h-4 w-4 text-primary" />
+            <span className="hidden sm:inline">Pro Split</span>
+          </Button>
+          <Button
             variant={viewMode === "vertical-cards" ? "secondary" : "ghost"}
             size="sm"
             className={viewMode === "vertical-cards" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
@@ -495,81 +506,93 @@ export default function Index() {
         </div>
       </div>
 
-      {/* Grid / Cards / List */}
-      <main className="max-w-7xl mx-auto w-full px-4 pb-8" ref={gridRef}>
-        {/* Active search / artist banner */}
-        {searchQuery.trim() && (
-          <div
-            className={cn(
-              "mb-4 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20",
-              viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"
+      {/* Grid / Cards / List / Pro Split View */}
+      <main className={cn(viewMode === "collector" ? "w-full px-2 sm:px-4 pb-4" : "max-w-7xl mx-auto w-full px-4 pb-8")} ref={gridRef}>
+        {viewMode === "collector" ? (
+          <CollectorSplitView
+            items={filteredItems}
+            activeTab={activeTab}
+            activeLetter={activeLetter}
+            onLetterSelect={handleLetterClick}
+            onEditItem={(i) => setSelectedItemId(i.id)}
+          />
+        ) : (
+          <>
+            {/* Active search / artist banner */}
+            {searchQuery.trim() && (
+              <div
+                className={cn(
+                  "mb-4 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20",
+                  viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"
+                )}
+              >
+                <div className="flex items-center gap-2 text-xs truncate">
+                  <span className="text-muted-foreground">Showing:</span>
+                  <span className="font-semibold text-primary truncate">"{searchQuery.trim()}"</span>
+                  <span className="text-muted-foreground shrink-0">
+                    ({filteredItems.length} {filteredItems.length === 1 ? "item" : "items"})
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-primary hover:bg-primary/20 gap-1 shrink-0 font-medium"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Back to full list</span>
+                </Button>
+              </div>
             )}
-          >
-            <div className="flex items-center gap-2 text-xs truncate">
-              <span className="text-muted-foreground">Showing:</span>
-              <span className="font-semibold text-primary truncate">"{searchQuery.trim()}"</span>
-              <span className="text-muted-foreground shrink-0">
-                ({filteredItems.length} {filteredItems.length === 1 ? "item" : "items"})
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs text-primary hover:bg-primary/20 gap-1 shrink-0 font-medium"
-              onClick={() => setSearchQuery("")}
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Back to full list</span>
-            </Button>
-          </div>
+            {sortedLetters.map((letter) => (
+              <div key={letter} id={`letter-${letter}`} className="mb-6">
+                {(sortMode === "title" || sortMode === "artist") && (
+                  <div className={viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"}>
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
+                      {letter}
+                    </h2>
+                  </div>
+                )}
+                {viewMode === "vertical-cards" ? (
+                  <div className="poster-grid">
+                    {(groupedItems[letter] ?? []).map((item) => (
+                      <PosterCard
+                        key={item.id}
+                        item={item}
+                        onClick={(i) => setSelectedItemId(i.id)}
+                        onArtistClick={handleArtistClick}
+                        variant="vertical"
+                      />
+                    ))}
+                  </div>
+                ) : viewMode === "horizontal-cards" ? (
+                  <div className="max-w-4xl mx-auto flex flex-col gap-3">
+                    {(groupedItems[letter] ?? []).map((item) => (
+                      <PosterCard
+                        key={item.id}
+                        item={item}
+                        onClick={(i) => setSelectedItemId(i.id)}
+                        onArtistClick={handleArtistClick}
+                        variant="horizontal"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="max-w-4xl mx-auto bg-card/25 rounded-lg border border-border/40 p-1 sm:p-1.5 shadow-sm divide-y divide-border/30">
+                    {(groupedItems[letter] ?? []).map((item) => (
+                      <ListRow
+                        key={item.id}
+                        item={item}
+                        onClick={(i) => setSelectedItemId(i.id)}
+                        onArtistClick={handleArtistClick}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
         )}
-        {sortedLetters.map((letter) => (
-          <div key={letter} id={`letter-${letter}`} className="mb-6">
-            {(sortMode === "title" || sortMode === "artist") && (
-              <div className={viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"}>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
-                  {letter}
-                </h2>
-              </div>
-            )}
-            {viewMode === "vertical-cards" ? (
-              <div className="poster-grid">
-                {(groupedItems[letter] ?? []).map((item) => (
-                  <PosterCard
-                    key={item.id}
-                    item={item}
-                    onClick={(i) => setSelectedItemId(i.id)}
-                    onArtistClick={handleArtistClick}
-                    variant="vertical"
-                  />
-                ))}
-              </div>
-            ) : viewMode === "horizontal-cards" ? (
-              <div className="max-w-4xl mx-auto flex flex-col gap-3">
-                {(groupedItems[letter] ?? []).map((item) => (
-                  <PosterCard
-                    key={item.id}
-                    item={item}
-                    onClick={(i) => setSelectedItemId(i.id)}
-                    onArtistClick={handleArtistClick}
-                    variant="horizontal"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="max-w-4xl mx-auto flex flex-col divide-y divide-border/20 bg-card/25 rounded-lg border border-border/40 p-1 sm:p-1.5 shadow-sm">
-                {(groupedItems[letter] ?? []).map((item) => (
-                  <ListRow
-                    key={item.id}
-                    item={item}
-                    onClick={(i) => setSelectedItemId(i.id)}
-                    onArtistClick={handleArtistClick}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
         {!isLoading && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
             <p className="text-sm">Your collection is empty</p>
