@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { MediaItem, MediaTab } from "@/lib/types";
-import { Folder, FolderOpen, Search, Disc, Film, Tv, Gamepad2, Layers, Music } from "lucide-react";
+import { Folder, FolderOpen, Search, Disc, Film, Tv, Gamepad2, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FolderSidebarProps {
@@ -53,15 +53,15 @@ export function FolderSidebar({
     switch (activeTab) {
       case "cds":
       case "music":
-        return <Disc className="w-3.5 h-3.5 text-primary" />;
+        return <Disc className="w-4 h-4 text-primary" />;
       case "movies":
-        return <Film className="w-3.5 h-3.5 text-primary" />;
+        return <Film className="w-4 h-4 text-primary" />;
       case "tv":
-        return <Tv className="w-3.5 h-3.5 text-primary" />;
+        return <Tv className="w-4 h-4 text-primary" />;
       case "games":
-        return <Gamepad2 className="w-3.5 h-3.5 text-primary" />;
+        return <Gamepad2 className="w-4 h-4 text-primary" />;
       default:
-        return <Layers className="w-3.5 h-3.5 text-primary" />;
+        return <Layers className="w-4 h-4 text-primary" />;
     }
   };
 
@@ -73,53 +73,53 @@ export function FolderSidebar({
   };
 
   return (
-    <aside className="w-60 md:w-64 shrink-0 flex flex-col bg-card/60 border-r border-border/60 select-none h-full overflow-hidden">
+    <aside className="w-60 lg:w-64 shrink-0 flex flex-col bg-card/70 border-r border-border/70 select-none h-full overflow-hidden">
       {/* Folder Header */}
-      <div className="p-2 border-b border-border/50 bg-secondary/30 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+      <div className="p-2.5 border-b border-border/60 bg-secondary/40 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-foreground">
           {getTabFolderIcon()}
           <span>{getFolderTypeLabel()}</span>
-          <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono">
+          <span className="text-[11px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono font-medium">
             {folderGroups.length}
           </span>
         </div>
       </div>
 
       {/* Filter inside folders */}
-      <div className="p-2 border-b border-border/40">
+      <div className="p-2 border-b border-border/50">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             placeholder={`Filter ${getFolderTypeLabel().toLowerCase()}...`}
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="w-full h-7 pl-7 pr-2 text-xs rounded bg-secondary/80 border border-border/40 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 pl-8 pr-2 text-xs rounded bg-secondary/90 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
       {/* Folder Tree List */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-0.5 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-0.5 scrollbar-thin">
         {/* All Items Folder */}
         <button
           onClick={() => onSelectFolder(null)}
           className={cn(
-            "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-colors text-left",
+            "w-full flex items-center justify-between px-2.5 py-2 rounded text-xs transition-colors text-left font-medium",
             selectedFolder === null
-              ? "bg-primary/20 text-primary font-semibold border-l-2 border-primary"
-              : "text-foreground/90 hover:bg-secondary/60"
+              ? "bg-primary/20 text-primary font-bold border-l-2 border-primary"
+              : "text-foreground/90 hover:bg-secondary/70"
           )}
         >
           <div className="flex items-center gap-2 truncate">
             {selectedFolder === null ? (
-              <FolderOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+              <FolderOpen className="w-4 h-4 text-primary shrink-0" />
             ) : (
-              <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <Folder className="w-4 h-4 text-muted-foreground shrink-0" />
             )}
             <span className="truncate">All {activeTab.toUpperCase()}</span>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground shrink-0 ml-1">
+          <span className="text-[11px] font-mono text-muted-foreground shrink-0 ml-1">
             {items.length}
           </span>
         </button>
@@ -132,22 +132,22 @@ export function FolderSidebar({
               key={name}
               onClick={() => onSelectFolder(isSelected ? null : name)}
               className={cn(
-                "w-full flex items-center justify-between px-2 py-1 rounded text-xs transition-colors text-left group",
+                "w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors text-left group",
                 isSelected
-                  ? "bg-primary/20 text-primary font-semibold border-l-2 border-primary"
-                  : "text-foreground/80 hover:bg-secondary/60 hover:text-foreground"
+                  ? "bg-primary/20 text-primary font-bold border-l-2 border-primary"
+                  : "text-foreground/80 hover:bg-secondary/70 hover:text-foreground"
               )}
               title={`${name} (${count})`}
             >
-              <div className="flex items-center gap-1.5 truncate">
+              <div className="flex items-center gap-2 truncate">
                 {isSelected ? (
-                  <FolderOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <FolderOpen className="w-4 h-4 text-primary shrink-0" />
                 ) : (
-                  <Folder className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary/70 shrink-0" />
+                  <Folder className="w-4 h-4 text-muted-foreground group-hover:text-primary/70 shrink-0" />
                 )}
                 <span className="truncate">{name}</span>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground shrink-0 ml-1">
+              <span className="text-[11px] font-mono text-muted-foreground shrink-0 ml-1">
                 {count}
               </span>
             </button>

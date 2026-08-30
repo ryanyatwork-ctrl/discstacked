@@ -3,7 +3,7 @@ import { MediaItem, MediaTab } from "@/lib/types";
 import { FolderSidebar } from "./FolderSidebar";
 import { CollectorDataGrid } from "./CollectorDataGrid";
 import { CollectorDetailPanel } from "./CollectorDetailPanel";
-import { AlphabetRail } from "@/components/AlphabetRail";
+import { Folder, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CollectorSplitViewProps {
@@ -27,29 +27,32 @@ export function CollectorSplitView({
 }: CollectorSplitViewProps) {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [mobileFolderOpen, setMobileFolderOpen] = useState(false);
 
-  // Available alphabet letters
-  const availableLetters = useMemo(() => {
-    const letters = new Set<string>();
+  // Folder groups for mobile dropdown
+  const folderGroups = useMemo(() => {
+    const map = new Map<string, number>();
     for (const item of items) {
-      let firstChar = "";
+      let key = "";
       if (activeTab === "cds" || activeTab === "music") {
-        firstChar = (item.artist || item.title || "").trim().charAt(0).toUpperCase();
+        key = (item.artist || (item.metadata as any)?.artist || "Unknown Artist").trim();
+      } else if (activeTab === "games") {
+        key = item.format || (item.formats && item.formats[0]) || "Unknown Platform";
+      } else if (activeTab === "movies" || activeTab === "tv") {
+        key = item.format || (item.formats && item.formats[0]) || "Unknown Format";
       } else {
-        firstChar = item.title.trim().charAt(0).toUpperCase();
+        key = item.genre || "Other";
       }
-      if (/[A-Z]/.test(firstChar)) {
-        letters.add(firstChar);
-      } else if (/[0-9#]/.test(firstChar)) {
-        letters.add("#");
-      }
+      map.set(key, (map.get(key) || 0) + 1);
     }
-    return letters;
+    return Array.from(map.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0], undefined, { sensitivity: "base", numeric: true })
+    );
   }, [items, activeTab]);
 
   // Filter items based on selected folder and letter
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
+    return items.filter((item) => {
       // 1. Folder match
       if (selectedFolder !== null) {
         let folderKey = "";
@@ -89,7 +92,7 @@ export function CollectorSplitView({
   // Automatically select the first item when items change if nothing selected
   useEffect(() => {
     if (filteredItems.length > 0) {
-      if (!selectedItem || !filteredItems.some(i => i.id === selectedItem.id)) {
+      if (!selectedItem || !filteredItems.some((i) => i.id === selectedItem.id)) {
         setSelectedItem(filteredItems[0]);
       }
     } else {
@@ -97,44 +100,113 @@ export function CollectorSplitView({
     }
   }, [filteredItems]);
 
+  const handleItemSelect = (item: MediaItem) => {
+    setSelectedItem(item);
+    // On small screens, tapping opens the full detail drawer
+    if (window.innerWidth < 1024 && onEditItem) {
+      onEditItem(item);
+    }
+  };
+
+  const getFolderTypeLabel = () => {
+    if (activeTab === "cds" || activeTab === "music") return "Artists";
+    if (activeTab === "games") return "Platforms";
+    if (activeTab === "movies" || activeTab === "tv") return "Formats";
+    return "Categories";
+  };
+
   return (
-    <div className="w-full h-[calc(100vh-140px)] min-h-[560px] flex flex-col bg-background rounded-lg border border-border/80 shadow-md overflow-hidden">
-      {/* Top Alphabet Jump Strip */}
-      <div className="px-3 py-1 bg-secondary/50 border-b border-border/60 flex items-center justify-center shrink-0">
-        <AlphabetRail
-          activeLetter={activeLetter}
-          onSelectLetter={onLetterSelect}
-          availableLetters={availableLetters}
-          isPinned={false}
-        />
+    <div className="w-full h-[calc(100vh-160px)] min-h-[500px] flex flex-col bg-background rounded-lg border border-border/80 shadow-md overflow-hidden">
+      {/* Mobile Folder Selector Bar (< md) */}
+      <div className="md:hidden p-2 bg-secondary/60 border-b border-border/60 flex items-center justify-between gap-2">
+        <button
+          onClick={() => setMobileFolderOpen((prev) => !prev)}
+          className="flex-1 flex items-center justify-between px-3 py-1.5 rounded bg-card border border-border/60 text-xs font-semibold text-foreground"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <Folder className="w-3.5 h-3.5 text-primary" />
+            <span className="truncate">
+              {selectedFolder ? `${getFolderTypeLabel()}: ${selectedFolder}` : `All ${getFolderTypeLabel()}`}
+            </span>
+          </div>
+          <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", mobileFolderOpen ? "rotate-180" : "")} />
+        </button>
+
+        {selectedFolder && (
+          <button
+            onClick={() => setSelectedFolder(null)}
+            className="px-2 py-1.5 rounded bg-secondary text-[11px] text-primary font-medium hover:bg-secondary/80 shrink-0"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
-      {/* 3-Panel Split Area */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left: Folder Tree Sidebar */}
-        <FolderSidebar
-          items={items}
-          activeTab={activeTab}
-          selectedFolder={selectedFolder}
-          onSelectFolder={setSelectedFolder}
-        />
+      {/* Mobile Folder Dropdown Drawer */}
+      {mobileFolderOpen && (
+        <div className="md:hidden max-h-48 overflow-y-auto p-2 bg-card border-b border-border/80 divide-y divide-border/20 scrollbar-thin">
+          <button
+            onClick={() => {
+              setSelectedFolder(null);
+              setMobileFolderOpen(false);
+            }}
+            className={cn(
+              "w-full text-left py-2 px-2 text-xs font-medium rounded flex justify-between",
+              selectedFolder === null ? "text-primary font-bold bg-primary/10" : "text-foreground"
+            )}
+          >
+            <span>All {activeTab.toUpperCase()}</span>
+            <span className="font-mono text-muted-foreground text-[10px]">{items.length}</span>
+          </button>
+          {folderGroups.map(([name, count]) => (
+            <button
+              key={name}
+              onClick={() => {
+                setSelectedFolder(name);
+                setMobileFolderOpen(false);
+              }}
+              className={cn(
+                "w-full text-left py-2 px-2 text-xs font-medium rounded flex justify-between",
+                selectedFolder === name ? "text-primary font-bold bg-primary/10" : "text-foreground/90"
+              )}
+            >
+              <span className="truncate pr-2">{name}</span>
+              <span className="font-mono text-muted-foreground text-[10px] shrink-0">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {/* Middle: Interactive Multi-Column Tabular Data Grid */}
+      {/* 3-Panel Responsive Split Area */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Left: Folder Tree Sidebar (Visible on tablet & desktop >= md) */}
+        <div className="hidden md:flex shrink-0">
+          <FolderSidebar
+            items={items}
+            activeTab={activeTab}
+            selectedFolder={selectedFolder}
+            onSelectFolder={setSelectedFolder}
+          />
+        </div>
+
+        {/* Middle: Interactive Tabular Data Grid (Full width on mobile, middle column on desktop) */}
         <CollectorDataGrid
           items={filteredItems}
           activeTab={activeTab}
           selectedId={selectedItem?.id || null}
-          onSelectItem={setSelectedItem}
+          onSelectItem={handleItemSelect}
         />
 
-        {/* Right: Rich Detail & Media Showcase */}
-        <CollectorDetailPanel
-          item={selectedItem}
-          activeTab={activeTab}
-          onEdit={onEditItem}
-          onToggleStatus={onToggleStatus}
-          onSearchArtwork={onSearchArtwork}
-        />
+        {/* Right: Rich Detail & Media Showcase (Visible on desktop >= lg) */}
+        <div className="hidden lg:flex shrink-0">
+          <CollectorDetailPanel
+            item={selectedItem}
+            activeTab={activeTab}
+            onEdit={onEditItem}
+            onToggleStatus={onToggleStatus}
+            onSearchArtwork={onSearchArtwork}
+          />
+        </div>
       </div>
     </div>
   );
