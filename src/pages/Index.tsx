@@ -15,7 +15,7 @@ import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { BulkScanDialog } from "@/components/BulkScanDialog";
-import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers } from "lucide-react";
+import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers, X } from "lucide-react";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +26,7 @@ import logo from "@/assets/DiscStacked_16x9.png";
 import { buildCollectionSearchText } from "@/lib/media-item-utils";
 import { CollectionViewMode, coerceCollectionViewMode, DEFAULT_COLLECTION_VIEW } from "@/lib/view-mode";
 import { useFetchArtwork } from "@/hooks/useFetchArtwork";
-import { getCollectorSortKey, getCollectorGroupLetter, getArtistSortKey, getArtistGroupLetter } from "@/lib/utils";
+import { getCollectorSortKey, getCollectorGroupLetter, getArtistSortKey, getArtistGroupLetter, cn } from "@/lib/utils";
 import { SortMode, coerceSortMode, DEFAULT_SORT_MODE } from "@/lib/sort-mode";
 
 function dbToMediaItem(db: DbMediaItem): MediaItem {
@@ -424,11 +424,30 @@ export default function Index() {
       }
 
       {/* Item count + view toggle */}
-      <div className="max-w-7xl mx-auto w-full px-4 py-3 flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          {isLoading ? "Loading..." : `${filteredItems.length} items`}
-          {(activeFormats.length > 0 || activeTags.length > 0 || searchQuery.trim()) && ` · Filtered`}
-        </p>
+      <div className="max-w-7xl mx-auto w-full px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {isLoading ? "Loading..." : `${filteredItems.length} items`}
+            {(activeFormats.length > 0 || activeTags.length > 0 || searchQuery.trim() || statusFilter || activeLetter) && ` · Filtered`}
+          </p>
+          {(activeFormats.length > 0 || activeTags.length > 0 || searchQuery.trim() || statusFilter || activeLetter) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1"
+              onClick={() => {
+                setSearchQuery("");
+                setActiveFormats([]);
+                setActiveTags([]);
+                setStatusFilter(null);
+                setActiveLetter(null);
+              }}
+            >
+              <X className="w-3 h-3" />
+              <span>Clear Filter</span>
+            </Button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Select value={sortMode} onValueChange={(value: SortMode) => handleSortChange(value)}>
             <SelectTrigger className="h-8 w-[140px] text-xs">
@@ -478,6 +497,32 @@ export default function Index() {
 
       {/* Grid / Cards / List */}
       <main className="max-w-7xl mx-auto w-full px-4 pb-8" ref={gridRef}>
+        {/* Active search / artist banner */}
+        {searchQuery.trim() && (
+          <div
+            className={cn(
+              "mb-4 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20",
+              viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"
+            )}
+          >
+            <div className="flex items-center gap-2 text-xs truncate">
+              <span className="text-muted-foreground">Showing:</span>
+              <span className="font-semibold text-primary truncate">"{searchQuery.trim()}"</span>
+              <span className="text-muted-foreground shrink-0">
+                ({filteredItems.length} {filteredItems.length === 1 ? "item" : "items"})
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-primary hover:bg-primary/20 gap-1 shrink-0 font-medium"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Back to full list</span>
+            </Button>
+          </div>
+        )}
         {sortedLetters.map((letter) => (
           <div key={letter} id={`letter-${letter}`} className="mb-6">
             {(sortMode === "title" || sortMode === "artist") && (
