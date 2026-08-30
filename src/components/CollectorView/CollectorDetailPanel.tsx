@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { MediaItem, MediaTab } from "@/lib/types";
-import { Disc, Film, Tv, Gamepad2, Star, Check, Edit3, Image, Sparkles, ExternalLink, MapPin, Box, Info } from "lucide-react";
+import { Disc, Film, Gamepad2, Star, Check, Edit3, Image, MapPin, Box } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -49,8 +49,19 @@ export function CollectorDetailPanel({
     (item.metadata as any)?.tracks_data ||
     [];
 
+  const overview = (item.metadata as any)?.overview || (item.metadata as any)?.plot || "";
+  const runtime = (item.metadata as any)?.runtime || (item.metadata as any)?.duration || "";
+  const castList: Array<{ name: string; character?: string; profile_url?: string }> =
+    (item.metadata as any)?.cast || [];
+  const crewObj: { director?: string[]; writer?: string[]; producer?: string[] } =
+    (item.metadata as any)?.crew || {};
+  const discsList: Array<{ label?: string; format?: string; condition?: string }> =
+    (item.metadata as any)?.discs || [];
+  const developer = (item.metadata as any)?.developer || "";
+  const publisher = (item.metadata as any)?.publisher || "";
+
   return (
-    <aside className="w-80 md:w-96 lg:w-[420px] shrink-0 bg-card/50 border-l border-border/60 flex flex-col h-full overflow-hidden select-none">
+    <aside className="w-80 md:w-96 lg:w-[440px] shrink-0 bg-card/50 border-l border-border/60 flex flex-col h-full overflow-hidden select-none">
       {/* Top Header / Action Ribbon */}
       <div className="p-3 border-b border-border/50 bg-secondary/40 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 truncate">
@@ -108,7 +119,13 @@ export function CollectorDetailPanel({
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-2 text-center">
-                  <Disc className="w-8 h-8 opacity-30 mb-1" />
+                  {isMusic ? (
+                    <Disc className="w-8 h-8 opacity-30 mb-1" />
+                  ) : isGame ? (
+                    <Gamepad2 className="w-8 h-8 opacity-30 mb-1" />
+                  ) : (
+                    <Film className="w-8 h-8 opacity-30 mb-1" />
+                  )}
                   <span className="text-[10px]">No Artwork</span>
                 </div>
               )}
@@ -127,7 +144,7 @@ export function CollectorDetailPanel({
             </h2>
 
             {/* Tags Row */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
               {item.year && (
                 <span className="font-mono bg-secondary/80 px-1.5 py-0.5 rounded text-foreground">
                   {item.year}
@@ -136,6 +153,11 @@ export function CollectorDetailPanel({
               {format && (
                 <span className="font-mono font-medium bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30">
                   {format}
+                </span>
+              )}
+              {runtime && (
+                <span className="font-mono bg-secondary/60 px-1.5 py-0.5 rounded">
+                  {runtime} mins
                 </span>
               )}
               {genre && (
@@ -169,6 +191,21 @@ export function CollectorDetailPanel({
           </div>
         </div>
 
+        {/* Game Collector Condition Bar */}
+        {isGame && (
+          <div className="grid grid-cols-3 gap-1 bg-secondary/30 p-1 rounded-lg border border-border/40 text-center text-xs font-semibold">
+            <div className="py-1 px-2 rounded bg-secondary/60 text-muted-foreground">
+              Loose
+            </div>
+            <div className="py-1 px-2 rounded bg-primary/20 text-primary border border-primary/40 font-bold">
+              CIB (Complete)
+            </div>
+            <div className="py-1 px-2 rounded bg-secondary/60 text-muted-foreground">
+              New / Sealed
+            </div>
+          </div>
+        )}
+
         {/* Navigation Sub-Tabs */}
         <div className="flex border-b border-border/60">
           <button
@@ -180,7 +217,7 @@ export function CollectorDetailPanel({
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            Details
+            {isVideo ? "Plot & Details" : "Details"}
           </button>
           {isMusic && (
             <button
@@ -211,12 +248,111 @@ export function CollectorDetailPanel({
         {/* Tab Content: Details */}
         {activeSubTab === "details" && (
           <div className="space-y-3 text-xs">
+            {/* Movie Plot */}
+            {isVideo && overview && (
+              <div className="space-y-1 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                  Plot Synopsis
+                </span>
+                <p className="text-foreground/90 leading-relaxed text-[11px]">
+                  {overview}
+                </p>
+              </div>
+            )}
+
+            {/* Movie Cast */}
+            {isVideo && castList.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                  Cast ({castList.length})
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                  {castList.slice(0, 12).map((actor, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 p-1.5 rounded bg-secondary/20 border border-border/30"
+                    >
+                      {actor.profile_url ? (
+                        <img
+                          src={actor.profile_url}
+                          alt=""
+                          className="w-7 h-9 object-cover rounded shrink-0 bg-secondary"
+                        />
+                      ) : (
+                        <div className="w-7 h-9 bg-secondary rounded flex items-center justify-center text-[9px] text-muted-foreground shrink-0">
+                          Actor
+                        </div>
+                      )}
+                      <div className="truncate min-w-0">
+                        <span className="font-semibold text-foreground truncate block text-[11px]">
+                          {actor.name}
+                        </span>
+                        {actor.character && (
+                          <span className="text-[10px] text-muted-foreground truncate block">
+                            {actor.character}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Crew (Director / Writer) */}
+            {isVideo && (crewObj.director || crewObj.writer) && (
+              <div className="grid grid-cols-2 gap-2 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                {crewObj.director && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                      Director
+                    </span>
+                    <span className="text-foreground font-medium truncate block">
+                      {crewObj.director.join(", ")}
+                    </span>
+                  </div>
+                )}
+                {crewObj.writer && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                      Writer
+                    </span>
+                    <span className="text-foreground font-medium truncate block">
+                      {crewObj.writer.join(", ")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Game Developer / Publisher */}
+            {isGame && (developer || publisher) && (
+              <div className="grid grid-cols-2 gap-2 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                {developer && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                      Developer
+                    </span>
+                    <span className="text-foreground font-medium truncate block">{developer}</span>
+                  </div>
+                )}
+                {publisher && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
+                      Publisher
+                    </span>
+                    <span className="text-foreground font-medium truncate block">{publisher}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Metadata Grid */}
             <div className="grid grid-cols-2 gap-2 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
               {label && (
                 <div>
                   <span className="text-[10px] uppercase text-muted-foreground font-semibold block">
-                    Record Label
+                    Record Label / Studio
                   </span>
                   <span className="text-foreground truncate block font-medium">{label}</span>
                 </div>
@@ -246,6 +382,23 @@ export function CollectorDetailPanel({
                 </div>
               )}
             </div>
+
+            {/* Discs Breakdown */}
+            {discsList.length > 0 && (
+              <div className="space-y-1 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold block mb-1">
+                  Discs in Edition ({discsList.length})
+                </span>
+                <div className="space-y-1">
+                  {discsList.map((disc, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-[11px]">
+                      <span className="text-foreground font-medium">{disc.label || `Disc ${idx + 1}`}</span>
+                      <span className="text-muted-foreground font-mono text-[10px] bg-secondary px-1 rounded">{disc.format || "Disc"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Notes / Description */}
             {item.notes && (
