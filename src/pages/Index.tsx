@@ -293,6 +293,17 @@ export default function Index() {
     setActiveFormats([]);
   }, []);
 
+  const handleArtistClick = useCallback((artist: string) => {
+    setSearchQuery(artist);
+    setActiveLetter(null);
+    setSelectedItemId(null);
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    toast({
+      title: "Filtered by Artist",
+      description: `Showing all items in collection by "${artist}".`,
+    });
+  }, []);
+
   const sortedLetters = (sortMode === "title" || sortMode === "artist") ? Object.keys(groupedItems).sort() : ["All"];
 
   if (!user) {
@@ -303,85 +314,87 @@ export default function Index() {
     <div className="h-screen flex flex-col bg-background">
       {/* Header — always visible, no scroll */}
       <header className="flex-none z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <MobileMenu
-              isLoggedIn={!!user}
-              onSignOut={signOut}
-              onFetchArtwork={handleManualFetchArtwork}
-              allItems={dbItems ?? []}
-            />
-            <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
-          </div>
-          {/* Desktop tabs */}
-          <div className="hidden md:flex items-center gap-2">
-            <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            {user ? (
-              <>
-                <AddMovieDialog activeTab={activeTab} />
-                <BulkScanDialog activeTab={activeTab} />
-                <RandomizerDialog items={filteredItems} />
-                <ImportDialog activeTab={activeTab} />
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <MobileMenu
+                isLoggedIn={!!user}
+                onSignOut={signOut}
+                onFetchArtwork={handleManualFetchArtwork}
+                allItems={dbItems ?? []}
+              />
+              <img src={logo} alt="DiscStacked" className="h-8 sm:h-10 w-auto rounded object-contain" />
+            </div>
+            {/* Desktop tabs */}
+            <div className="hidden md:flex items-center gap-2">
+              <TabSwitcher activeTab={activeTab} onTabChange={handleTabChange} />
+            </div>
+            <div className="flex items-center gap-1 sm:gap-2">
+              {user ? (
+                <>
+                  <AddMovieDialog activeTab={activeTab} />
+                  <BulkScanDialog activeTab={activeTab} />
+                  <RandomizerDialog items={filteredItems} />
+                  <ImportDialog activeTab={activeTab} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
+                    onClick={() => signOut()}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
-                  onClick={() => signOut()}
+                  size="sm"
+                  className="text-primary hover:text-primary/80 gap-1.5"
+                  onClick={() => navigate("/auth")}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sign In</span>
                 </Button>
-              </>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary hover:text-primary/80 gap-1.5"
-                onClick={() => navigate("/auth")}
-              >
-                <LogIn className="h-4 w-4" />
-                <span className="hidden sm:inline">Sign In</span>
-              </Button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-        <div className="px-3 pb-1 sm:px-4 sm:pb-2 flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <FilterBar
-              activeTab={activeTab}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              activeFormats={activeFormats}
-              onFormatToggle={handleFormatToggle}
-              availableTags={availableTags}
-              activeTags={activeTags}
-              onTagToggle={handleTagToggle}
-            />
+          <div className="px-3 pb-1 sm:px-4 sm:pb-2 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <FilterBar
+                activeTab={activeTab}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeFormats={activeFormats}
+                onFormatToggle={handleFormatToggle}
+                availableTags={availableTags}
+                activeTags={activeTags}
+                onTagToggle={handleTagToggle}
+              />
+            </div>
+            {/* Mobile: dropdown sits next to search */}
+            <div className="md:hidden shrink-0">
+              {(sortMode === "title" || sortMode === "artist") && (
+                <AlphabetRail
+                  activeLetter={activeLetter}
+                  onLetterClick={handleLetterClick}
+                  availableLetters={availableLetters}
+                  onClearLetter={() => setActiveLetter(null)}
+                />
+              )}
+            </div>
           </div>
-          {/* Mobile: dropdown sits next to search */}
-          <div className="md:hidden shrink-0">
-            {(sortMode === "title" || sortMode === "artist") && (
+          {/* Desktop: horizontal rail */}
+          {(sortMode === "title" || sortMode === "artist") && (
+            <div className="hidden md:block px-2 sm:px-3 pb-2 border-b border-border/50">
               <AlphabetRail
                 activeLetter={activeLetter}
                 onLetterClick={handleLetterClick}
                 availableLetters={availableLetters}
                 onClearLetter={() => setActiveLetter(null)}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
-        {/* Desktop: horizontal rail */}
-        {(sortMode === "title" || sortMode === "artist") && (
-          <div className="hidden md:block px-2 sm:px-3 pb-2 border-b border-border/50">
-            <AlphabetRail
-              activeLetter={activeLetter}
-              onLetterClick={handleLetterClick}
-              availableLetters={availableLetters}
-              onClearLetter={() => setActiveLetter(null)}
-            />
-          </div>
-        )}
       </header>
 
       {/* Scrollable content area */}
@@ -397,7 +410,7 @@ export default function Index() {
                 : "max-h-0 opacity-0 overflow-hidden"
           }`}
         >
-          <div className="relative">
+          <div className="max-w-7xl mx-auto w-full relative">
             <CollectionStats items={dbItems ?? []} isLoading={isLoading} activeTab={activeTab} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
             <button
               onClick={(e) => { e.stopPropagation(); toggleHeaderPin(); }}
@@ -411,10 +424,10 @@ export default function Index() {
       }
 
       {/* Item count + view toggle */}
-      <div className="px-4 py-3 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto w-full px-4 py-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Loading..." : `${filteredItems.length} items`}
-          {(activeFormats.length > 0 || activeTags.length > 0) && ` · Filtered`}
+          {(activeFormats.length > 0 || activeTags.length > 0 || searchQuery.trim()) && ` · Filtered`}
         </p>
         <div className="flex items-center gap-2">
           <Select value={sortMode} onValueChange={(value: SortMode) => handleSortChange(value)}>
@@ -464,30 +477,49 @@ export default function Index() {
       </div>
 
       {/* Grid / Cards / List */}
-      <main className="px-4 pb-8" ref={gridRef}>
+      <main className="max-w-7xl mx-auto w-full px-4 pb-8" ref={gridRef}>
         {sortedLetters.map((letter) => (
           <div key={letter} id={`letter-${letter}`} className="mb-6">
-            {sortMode === "title" && (
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
-                {letter}
-              </h2>
+            {(sortMode === "title" || sortMode === "artist") && (
+              <div className={viewMode === "vertical-cards" ? "" : "max-w-4xl mx-auto"}>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 py-1">
+                  {letter}
+                </h2>
+              </div>
             )}
             {viewMode === "vertical-cards" ? (
               <div className="poster-grid">
                 {(groupedItems[letter] ?? []).map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="vertical" />
+                  <PosterCard
+                    key={item.id}
+                    item={item}
+                    onClick={(i) => setSelectedItemId(i.id)}
+                    onArtistClick={handleArtistClick}
+                    variant="vertical"
+                  />
                 ))}
               </div>
             ) : viewMode === "horizontal-cards" ? (
-              <div className="flex flex-col gap-3">
+              <div className="max-w-4xl mx-auto flex flex-col gap-3">
                 {(groupedItems[letter] ?? []).map((item) => (
-                  <PosterCard key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} variant="horizontal" />
+                  <PosterCard
+                    key={item.id}
+                    item={item}
+                    onClick={(i) => setSelectedItemId(i.id)}
+                    onArtistClick={handleArtistClick}
+                    variant="horizontal"
+                  />
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col">
+              <div className="max-w-4xl mx-auto flex flex-col divide-y divide-border/20 bg-card/25 rounded-lg border border-border/40 p-1 sm:p-1.5 shadow-sm">
                 {(groupedItems[letter] ?? []).map((item) => (
-                  <ListRow key={item.id} item={item} onClick={(i) => setSelectedItemId(i.id)} />
+                  <ListRow
+                    key={item.id}
+                    item={item}
+                    onClick={(i) => setSelectedItemId(i.id)}
+                    onArtistClick={handleArtistClick}
+                  />
                 ))}
               </div>
             )}
@@ -512,6 +544,7 @@ export default function Index() {
         onClose={() => setSelectedItemId(null)}
         itemList={filteredItems}
         onNavigate={(i) => setSelectedItemId(i.id)}
+        onArtistClick={handleArtistClick}
       />
     </div>
   );

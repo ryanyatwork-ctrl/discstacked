@@ -12,9 +12,10 @@ interface PosterCardProps {
   item: MediaItem;
   onClick: (item: MediaItem) => void;
   variant?: "vertical" | "horizontal";
+  onArtistClick?: (artist: string) => void;
 }
 
-export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardProps) {
+export function PosterCard({ item, onClick, variant = "vertical", onArtistClick }: PosterCardProps) {
   const [loaded, setLoaded] = useState(false);
   const preferredSrc = getDisplayPosterUrl(item);
   const [displaySrc, setDisplaySrc] = useState<string | null>(preferredSrc);
@@ -117,7 +118,17 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {item.artist && (
-                    <p className="text-xs font-semibold text-primary truncate mb-0.5">{item.artist}</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onArtistClick?.(item.artist!);
+                      }}
+                      className="text-xs font-semibold text-primary hover:underline hover:text-primary/80 truncate mb-0.5 block text-left"
+                      title={`Filter all items by ${item.artist}`}
+                    >
+                      {item.artist}
+                    </button>
                   )}
                   <p className="text-sm font-semibold leading-tight text-foreground line-clamp-2">{item.title}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -224,7 +235,17 @@ export function PosterCard({ item, onClick, variant = "vertical" }: PosterCardPr
       <div className="space-y-2 p-2.5">
         <div className="min-w-0">
           {item.artist && (
-            <p className="text-[11px] font-semibold text-primary truncate mb-0.5">{item.artist}</p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArtistClick?.(item.artist!);
+              }}
+              className="text-[11px] font-semibold text-primary hover:underline hover:text-primary/80 truncate mb-0.5 block text-left"
+              title={`Filter all items by ${item.artist}`}
+            >
+              {item.artist}
+            </button>
           )}
           <p className="text-sm font-semibold leading-tight text-foreground line-clamp-2">{item.title}</p>
           <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">

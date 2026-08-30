@@ -49,7 +49,7 @@ export function buildLookupMetadata(result: Partial<MediaLookupResult>): Record<
   return metadata;
 }
 
-export function buildCollectionSearchText(item: { title: string; metadata?: MetadataShape }) {
+export function buildCollectionSearchText(item: { title: string; artist?: string; metadata?: MetadataShape }) {
   const metadata = item.metadata ?? {};
   const includedTitles = Array.isArray(metadata.included_titles)
     ? metadata.included_titles
@@ -61,6 +61,7 @@ export function buildCollectionSearchText(item: { title: string; metadata?: Meta
 
   return [
     item.title,
+    item.artist,
     metadata.artist,
     metadata.label,
     metadata.catalog_number,

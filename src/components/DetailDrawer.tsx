@@ -27,9 +27,10 @@ interface DetailDrawerProps {
   /** Full sorted list for prev/next navigation */
   itemList?: MediaItem[];
   onNavigate?: (item: MediaItem) => void;
+  onArtistClick?: (artist: string) => void;
 }
 
-export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNavigate }: DetailDrawerProps) {
+export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNavigate, onArtistClick }: DetailDrawerProps) {
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -338,6 +339,28 @@ export function DetailDrawer({ item, open, onClose, onDuplicated, itemList, onNa
 
             {/* Info */}
             <div className="space-y-3">
+              {(() => {
+                const artistName = item.artist || (item.metadata as any)?.artist;
+                if (!artistName) return null;
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1 px-2.5"
+                      onClick={() => {
+                        onClose();
+                        onArtistClick?.(artistName);
+                      }}
+                      title={`Filter collection to show all items by ${artistName}`}
+                    >
+                      <Disc className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate max-w-[200px]">{artistName}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal ml-0.5">· View All</span>
+                    </Button>
+                  </div>
+                );
+              })()}
               {editingTitle ? (
                 <div className="flex items-center gap-2">
                   <Input
