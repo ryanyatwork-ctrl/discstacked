@@ -46,12 +46,32 @@ function detectFormats(value: string | null | undefined) {
   return [...new Set(formats)];
 }
 
+function cleanMusicTitle(title: string) {
+  return title
+    .replace(/\s*\((?:cd\s*\d+|digi-?pack|book edition|remaster(?:ed)?|bonus tracks?|special edition|deluxe edition|promo|japan(?:ese)?\s*import|usa|uk)\)/gi, "")
+    .replace(/\s*-\s*(?:cd\s*\d+|digi-?pack|remastered).*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanMusicArtist(artist: string) {
+  if (artist.includes(",")) {
+    const parts = artist.split(",").map(p => p.trim());
+    if (parts.length === 2 && !parts[1].toLowerCase().startsWith("the") && !parts[1].toLowerCase().startsWith("a ")) {
+      return `${parts[1]} ${parts[0]}`.trim();
+    }
+  }
+  return artist.trim();
+}
+
 function buildDiscogsParams(input: MusicSearchInput, key: string, secret: string | null) {
   const params = new URLSearchParams({ per_page: "8", type: "release" });
   const barcode = sanitizeText(input.barcode);
-  const artist = sanitizeText(input.artist);
+  const rawArtist = sanitizeText(input.artist);
+  const artist = cleanMusicArtist(rawArtist);
   const catalogNumber = sanitizeText(input.catalogNumber);
-  const query = sanitizeText(input.query);
+  const rawQuery = sanitizeText(input.query);
+  const query = cleanMusicTitle(rawQuery);
 
   if (barcode) {
     params.set("barcode", barcode);
@@ -62,7 +82,7 @@ function buildDiscogsParams(input: MusicSearchInput, key: string, secret: string
   } else {
     if (artist) params.set("artist", artist);
     if (query) params.set("release_title", query);
-    if (!artist && !query) params.set("q", query);
+    if (!artist && !query) params.set("q", rawQuery || rawArtist);
   }
 
   if (secret) {
