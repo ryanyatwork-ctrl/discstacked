@@ -15,7 +15,7 @@ import { CollectionStats } from "@/components/CollectionStats";
 import { RandomizerDialog } from "@/components/RandomizerDialog";
 import { AddMovieDialog } from "@/components/AddMovieDialog";
 import { BulkScanDialog } from "@/components/BulkScanDialog";
-import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers, X, Columns3 } from "lucide-react";
+import { LogIn, LogOut, LayoutGrid, List, Pin, PinOff, Layers, X, Columns3, BarChart3 } from "lucide-react";
 import { CollectorSplitView } from "@/components/CollectorView/CollectorSplitView";
 import { useAutoHideHeader } from "@/hooks/useAutoHideHeader";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ export default function Index() {
     const fallbackSort = defaultTab === "cds" ? "artist" : DEFAULT_SORT_MODE;
     return coerceSortMode(getStored<unknown>("ds-default-sort", fallbackSort));
   });
+  const [showStats, setShowStats] = useState<boolean>(() => getStored("ds-show-stats", false));
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -87,6 +88,16 @@ export default function Index() {
   const { data: dbItems, isLoading } = useMediaItems(activeTab);
   const { fetchArtwork } = useFetchArtwork();
   const { visible: headerVisible, pinned: headerPinned, togglePin: toggleHeaderPin } = useAutoHideHeader(scrollRef);
+
+  const handleToggleStats = useCallback(() => {
+    setShowStats((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("ds-show-stats", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const handleManualFetchArtwork = useCallback(async () => {
     if (!dbItems || dbItems.length === 0) {
@@ -338,6 +349,18 @@ export default function Index() {
                   <RandomizerDialog items={filteredItems} />
                   <ImportDialog activeTab={activeTab} />
                   <Button
+                    variant={showStats ? "secondary" : "ghost"}
+                    size="icon"
+                    className={cn(
+                      "h-8 w-8",
+                      showStats ? "text-primary bg-primary/15 font-bold" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={handleToggleStats}
+                    title="Toggle Collection Stats"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </Button>
+                  <Button
                     variant="ghost"
                     size="icon"
                     className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
@@ -400,29 +423,21 @@ export default function Index() {
 
       {/* Scrollable content area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-16 md:pb-0">
-      {/* Collapsible Stats Ribbon */}
-      {
-        <div
-          className={`transition-all duration-300 ease-in-out ${
-            headerPinned
-              ? "sticky top-0 z-40 bg-background border-b border-border shadow-sm"
-              : headerVisible
-                ? "max-h-[300px] opacity-100"
-                : "max-h-0 opacity-0 overflow-hidden"
-          }`}
-        >
+      {/* Optional Stats Ribbon (Only visible when user toggles Stats button) */}
+      {showStats && (
+        <div className="bg-background border-b border-border shadow-xs animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="max-w-7xl mx-auto w-full relative">
             <CollectionStats items={dbItems ?? []} isLoading={isLoading} activeTab={activeTab} onStatsClick={handleStatsClick} activeStatusFilter={statusFilter} />
             <button
-              onClick={(e) => { e.stopPropagation(); toggleHeaderPin(); }}
-              className="absolute top-7 right-5 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title={headerPinned ? "Unpin stats ribbon (will auto-hide on scroll)" : "Pin stats ribbon (stays visible on scroll)"}
+              onClick={handleToggleStats}
+              className="absolute top-4 right-4 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Close Stats"
             >
-              {headerPinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
-      }
+      )}
 
       {/* Item count + view toggle */}
       <div className="max-w-7xl mx-auto w-full px-4 py-3 flex items-center justify-between gap-2 flex-wrap">

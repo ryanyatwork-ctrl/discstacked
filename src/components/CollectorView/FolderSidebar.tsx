@@ -8,6 +8,7 @@ interface FolderSidebarProps {
   activeTab: MediaTab;
   selectedFolder: string | null;
   onSelectFolder: (folder: string | null) => void;
+  onCollapse?: () => void;
 }
 
 export function FolderSidebar({
@@ -15,6 +16,7 @@ export function FolderSidebar({
   activeTab,
   selectedFolder,
   onSelectFolder,
+  onCollapse,
 }: FolderSidebarProps) {
   const [filterText, setFilterText] = useState("");
 
@@ -83,6 +85,15 @@ export function FolderSidebar({
             {folderGroups.length}
           </span>
         </div>
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-mono"
+            title="Collapse folders panel"
+          >
+            ◀
+          </button>
+        )}
       </div>
 
       {/* Filter inside folders */}
