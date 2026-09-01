@@ -180,7 +180,64 @@ const COLUMN_MAP: Record<string, string> = {
   links: "_links",
 };
 
-const BOX_SET_KEYWORDS = ["trilogy", "collection", "complete", "pack", "set", "bundle", "quadrilogy", "anthology", "saga"];
+/**
+ * Phrases that identify a title as a multi-film box set.
+ *
+ * Matched with word boundaries against the *normalized* title (lowercase,
+ * punctuation stripped). Bare substrings are deliberately avoided: the previous
+ * keyword list held "set", "pack" and "saga", which matched inside ordinary
+ * words and ordinary titles — "Sunset Boulevard", a "Neo-pack/Digipack"
+ * packaging note, "Furiosa: A Mad Max Saga" — and those discs were then deleted
+ * from the user's imported collection.
+ *
+ * normalizeTitle() strips hyphens without inserting a space, so "3-Movie
+ * Collection" arrives as "3movie collection"; the numeric patterns below match
+ * both spellings.
+ */
+const BOX_SET_PATTERNS: RegExp[] = [
+  /\b(trilogy|quadrilogy|quadrology|pentalogy|anthology)\b/,
+  /\bcollections?\b/,
+  /\bbox\s?sets?\b/,
+  /\b(gift|movie|film|dvd|bluray)\s?sets?\b/,
+  /\bcomplete (series|seasons?|saga|adventures|works|filmography)\b/,
+  /\b\d+\s*-?\s*(film|movie|feature|disc)s?\b/,
+  /\b(double|triple|quadruple)\s+features?\b/,
+  /\bfilm\s+favou?rites\b/,
+  /\bmulti\s?(film|movie|feature)\b/,
+];
+
+/** Packaging words. A "/" between two of these describes a case, not two films. */
+const PACKAGING_WORD_PATTERN =
+  /\b(digipack|digipak|digibook|neopack|steelbook|slipcover|slipcase|slipbox|amaray|keepcase|snapcase|booklet|packaging|mediabook|fold\s?out)\b/;
+
+function matchesBoxSetPhrase(normalizedTitle: string): boolean {
+  return BOX_SET_PATTERNS.some((re) => re.test(normalizedTitle));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whole-phrase containment on normalized titles.
+ *
+ * Substring matching found "her" inside "the shepherd" and "rio" inside
+ * "priority", manufacturing box-set "contents" out of unrelated films.
+ */
+function containsTitlePhrase(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return new RegExp(`(?:^|\\s)${escapeRegExp(needle)}(?:\\s|$)`).test(haystack);
+}
+
+/**
+ * A title short enough to appear coincidentally inside a longer one ("Up",
+ * "Heat", "Rio") is not usable evidence of box-set membership on its own.
+ */
+function isUsableContentTitle(normalizedTitle: string): boolean {
+  if (normalizedTitle.length < 3) return false;
+  const words = normalizedTitle.split(" ").filter(Boolean);
+  return words.length >= 2 || normalizedTitle.length >= 6;
+}
 
 const ALIEN_TITLES = ["alien", "aliens", "alien3", "alien 3", "alien resurrection", "alien³"];
 const ALIEN_EDITIONS = ["special edition", "collector's edition", "collectors edition"];
@@ -907,19 +964,26 @@ function isBoxSet(item: Record<string, any>): boolean {
   // TV seasons/series often contain "complete" or ship on >2 discs; they are
   // not movie box sets and must not be split into individual "movies".
   if (isTvItem(item)) return false;
-  const title = (item.title || "").toLowerCase();
-  if (BOX_SET_KEYWORDS.some(kw => title.includes(kw))) return true;
-  const discCount = parseInt(item.metadata?.disc_count || "0", 10);
-  if (discCount > 2) return true;
-  return false;
+
+  // Disc count is deliberately NOT a signal. A 4K or 3D release routinely ships
+  // 3-5 discs for a single film (UHD + Blu-ray + bonus + digital), and a
+  // documentary or TV set that escaped TV detection ships more. Treating
+  // discCount > 2 as a box set marked "Interstellar 4K", "Dunkirk 4K",
+  // "The Incredibles" and "Rogue One" as box sets, and they were then deleted
+  // from the collection. Only an explicit multi-film phrase counts.
+  return matchesBoxSetPhrase(normalizeTitle(item.title || ""));
 }
 
 /**
  * Detect box sets and expand:
  * 1. Titles with " / " → split into individual movie records
- * 2. Titles with Trilogy/Collection keywords → substring match against other titles
- * 3. Each individual movie gets the box set format added + a box_set metadata entry
- * 4. The box set entry itself is preserved with a contents[] in metadata
+ * 2. Titles carrying an explicit box-set phrase (Trilogy, Collection, 3-Movie…)
+ *    → whole-phrase match against the other titles in the import
+ * 3. Each individual movie gets the box set format added plus a box_sets
+ *    metadata entry recording the set's title, format, barcode and disc count
+ * 4. The box set entry is then hidden — but only when at least two of its films
+ *    are present individually, so nothing the user owns leaves the collection
+ *    without a record of where it went
  */
 export function expandBoxSets(items: Record<string, any>[]): Record<string, any>[] {
   // Build a lookup of normalized title+year → item for existing individual movies
@@ -957,7 +1021,12 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
       }
 
       const movieNames = moviesPart.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
-      if (movieNames.length >= 2) {
+      // "…Fold Out Neo-pack/Digipack with Booklet" is one film in fancy
+      // packaging. Splitting it invented two films and deleted the real one.
+      const isPackagingNote = movieNames.some(name =>
+        PACKAGING_WORD_PATTERN.test(normalizeTitle(name)),
+      );
+      if (movieNames.length >= 2 && !isPackagingNote) {
         // Mark this box set for hiding
         boxSetIndices.add(idx);
 
@@ -968,45 +1037,43 @@ export function expandBoxSets(items: Record<string, any>[]): Record<string, any>
       }
     }
 
-    // --- Strategy 2: Keyword-based box set detection + substring matching ---
+    // --- Strategy 2: Phrase-based box set detection + whole-phrase matching ---
     if (isBoxSet(item)) {
       const normSetTitle = normalizeTitle(title);
       const matchedContents: string[] = [];
+      // Collected but not applied until the set is confirmed. Applying them
+      // during the scan tagged films with box sets that were never confirmed.
+      const pendingLinks: typeof items = [];
 
       for (const [normTitleOnly, candidates] of titleOnlyMap.entries()) {
         if (normTitleOnly === normSetTitle) continue;
-        if (normTitleOnly.length < 3) continue;
+        if (!isUsableContentTitle(normTitleOnly)) continue;
+        if (!containsTitlePhrase(normSetTitle, normTitleOnly)) continue;
 
         for (const existingItem of candidates) {
           // Skip if the candidate is clearly a different movie (colon subtitle + different year)
           if (existingItem.year && item.year && existingItem.year !== item.year) {
             const baseNorm = normalizeTitle(existingItem.title || "");
-            if (
-              normSetTitle.startsWith(baseNorm) &&
-              !BOX_SET_KEYWORDS.some(kw => normSetTitle.includes(kw))
-            ) {
+            if (normSetTitle.startsWith(baseNorm) && !matchesBoxSetPhrase(normSetTitle)) {
               continue;
             }
           }
 
-          if (normSetTitle.includes(normTitleOnly)) {
-            matchedContents.push(existingItem.title);
-            addBoxSetSource(existingItem, item);
-          } else {
-            const movieWords = normTitleOnly.split(" ");
-            if (movieWords.length >= 2) {
-              const moviePrefix = movieWords.join(" ");
-              if (normSetTitle.startsWith(moviePrefix) || normSetTitle.includes(moviePrefix)) {
-                matchedContents.push(existingItem.title);
-                addBoxSetSource(existingItem, item);
-              }
-            }
-          }
+          matchedContents.push(normTitleOnly);
+          pendingLinks.push(existingItem);
         }
       }
 
-      // If we matched contents, this is a confirmed box set → hide it
-      if (matchedContents.length > 0) {
+      // A set is only hidden once at least two of its films are already in the
+      // collection individually. One match is as likely to be a coincidence —
+      // or a sequel sharing the franchise name — as it is to be real, and
+      // hiding on one match deleted the user's disc while leaving the rest of
+      // that set's films unrepresented anywhere.
+      const distinctMatches = new Set(matchedContents).size;
+      if (distinctMatches >= 2) {
+        for (const existingItem of pendingLinks) {
+          addBoxSetSource(existingItem, item);
+        }
         boxSetIndices.add(idx);
       }
     }
@@ -1044,6 +1111,8 @@ function linkOrCreateIndividual(
         box_sets: JSON.stringify([{
           title: setItem.title,
           format: setFormat,
+          ...(setItem.barcode ? { barcode: String(setItem.barcode) } : {}),
+          ...(setItem.metadata?.disc_count ? { disc_count: String(setItem.metadata.disc_count) } : {}),
         }]),
       },
     };
@@ -1065,7 +1134,7 @@ function addBoxSetSource(movie: Record<string, any>, setItem: Record<string, any
   }
 
   // Track which box sets this movie belongs to
-  const existingSets: { title: string; format: string }[] = (() => {
+  const existingSets: { title: string; format: string; barcode?: string; disc_count?: string }[] = (() => {
     try {
       return JSON.parse(movie.metadata?.box_sets || "[]");
     } catch {
@@ -1075,7 +1144,15 @@ function addBoxSetSource(movie: Record<string, any>, setItem: Record<string, any
 
   const alreadyLinked = existingSets.some(s => normalizeTitle(s.title) === normalizeTitle(setItem.title));
   if (!alreadyLinked) {
-    existingSets.push({ title: setItem.title, format: setFormat });
+    // Carry the set's identifiers across. Hiding the set entry otherwise threw
+    // away the barcode and disc count of a physical item the user owns, with
+    // nothing left in the collection recording that the box itself exists.
+    existingSets.push({
+      title: setItem.title,
+      format: setFormat,
+      ...(setItem.barcode ? { barcode: String(setItem.barcode) } : {}),
+      ...(setItem.metadata?.disc_count ? { disc_count: String(setItem.metadata.disc_count) } : {}),
+    });
   }
 
   movie.metadata = {
