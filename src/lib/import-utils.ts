@@ -50,8 +50,24 @@ const COLUMN_MAP: Record<string, string> = {
   director: "_director",
   studio: "_studio",
   studios: "_studio",
+  "studio / distributor": "_studio",
+  "studio/distributor": "_studio",
+  distributor: "_studio",
   country: "_country",
   countries: "_country",
+  // Physical media collection columns
+  "missing discs / notes": "notes",
+  "missing discs/notes": "notes",
+  "case type": "_case_type",
+  slipcover: "_slipcover",
+  "digital code status": "_digital_code_status",
+  "digital platform": "_digital_platform",
+  watched: "_watched",
+  "purchase price": "_purchase_price",
+  "purchase location": "_purchase_location",
+  "date added": "_date_added",
+  "blu-ray release year": "_release_year",
+  "release date (blu-ray)": "_release_year",
   // CLZ Music Collector columns
   artist: "_artist",
   label: "_label",
@@ -124,8 +140,10 @@ export function detectFormats(value: string): string[] {
     v.includes("digital hd") ||
     v.includes("movies anywhere") ||
     v.includes("ultraviolet") ||
-    /\b(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b[^\n]{0,24}(?:\+|\/|&)\s*digital\b/.test(v) ||
-    /\bdigital\b[^\n]{0,24}(?:\+|\/|&)\s*(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b/.test(v)
+    /\b(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b[^\n]{0,24}(?:\+|\/|&|,)\s*digital\b/.test(v) ||
+    /\bdigital\b[^\n]{0,24}(?:\+|\/|&|,)\s*(?:blu-?ray|blu ray|dvd|4k|uhd|ultra hd)\b/.test(v) ||
+    // Simple standalone "DIGITAL" token in a comma-separated format list
+    /(?:^|,)\s*digital\s*(?:$|,)/.test(v)
   ) {
     found.push("Digital");
   }
@@ -342,8 +360,11 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       uniqueFormats.push("Blu-ray");
     }
 
-    mapped.format = uniqueFormats[0] || "DVD";
-    mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : ["DVD"];
+    // For movies, default to Blu-ray rather than DVD when no format is specified,
+    // since this is a physical media catalog app primarily used for Blu-ray collections.
+    const formatFallback = (mediaType === "movies" || mediaType === "music-films") ? "Blu-ray" : "DVD";
+    mapped.format = uniqueFormats[0] || formatFallback;
+    mapped._rowFormats = uniqueFormats.length > 0 ? uniqueFormats : [formatFallback];
   }
 
   if (Object.keys(metadata).length > 0) {
@@ -466,8 +487,8 @@ export function mergeDuplicates(items: Record<string, any>[], mediaType?: MediaT
 function isBoxSet(item: Record<string, any>): boolean {
   const title = (item.title || "").toLowerCase();
   if (BOX_SET_KEYWORDS.some(kw => title.includes(kw))) return true;
-  const discCount = parseInt(item.metadata?.disc_count || "0", 10);
-  if (discCount > 2) return true;
+  // Disc count alone is not a reliable indicator — a regular 4K+BD+Digital combo
+  // is 3 discs but is a single title, not a box set.
   return false;
 }
 
@@ -642,7 +663,7 @@ export function parseCsv(text: string): Record<string, string>[] {
   const rows = parseDelimitedRows(text, detectDelimiter(text));
   if (rows.length === 0) return [];
 
-  const firstRow = rows[0].map((h) => h.trim().replace(/^\uFEFF/, ""));
+  const firstRow = rows[0].map((h) => h.trim().replace(/^﻿/, ""));
   const hasHeaderRow = isLikelyHeaderRow(firstRow);
   const headers = hasHeaderRow ? firstRow : inferHeaders(firstRow.length);
   const dataRows = hasHeaderRow ? rows.slice(1) : rows;
