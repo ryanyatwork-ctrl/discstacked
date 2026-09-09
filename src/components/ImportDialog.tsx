@@ -9,6 +9,8 @@ import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, genera
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { ImportPreflightReport } from "@/components/ImportPreflightReport";
+import { preflightImport, preflightHeadline, type PreflightReport } from "@/lib/import-preflight";
 
 interface ImportDialogProps {
   activeTab: MediaTab;
@@ -22,6 +24,10 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   const [importFileName, setImportFileName] = useState("");
   const [replaceExisting, setReplaceExisting] = useState(defaultReplaceExisting);
   const [previewSearch, setPreviewSearch] = useState("");
+  // Preflight sits between choosing a file and the editable review list: it
+  // reports what WOULD happen, per row, before anything is prepared.
+  const [preflight, setPreflight] = useState<PreflightReport | null>(null);
+  const [pendingRaw, setPendingRaw] = useState<Record<string, string>[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const importMutation = useImportItems();
 
@@ -30,6 +36,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     setRawRowCount(0);
     setImportFileName("");
     setPreviewSearch("");
+    setPreflight(null);
+    setPendingRaw(null);
     setReplaceExisting(defaultReplaceExisting);
   };
 
@@ -112,16 +120,48 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         return;
       }
 
-      const prepared = prepareImportItems(rawItems);
-      setPreviewItems(prepared);
       setRawRowCount(rawItems.length);
       setImportFileName(file.name);
-      toast({ title: "Import ready for review", description: `${prepared.length} items parsed from ${file.name}.` });
+
+      // Preflight only covers disc media today; its guidance (format
+      // defaulting, package-year fallback) is movie-specific, and showing
+      // movie advice on a CD or game import would be worse than none.
+      const canPreflight = activeTab === "movies" || activeTab === "music-films";
+
+      if (canPreflight) {
+        // Rebuild the header/row grid so findings can cite spreadsheet lines.
+        const headers = Array.from(
+          rawItems.reduce((set, r) => {
+            Object.keys(r).forEach((k) => set.add(k));
+            return set;
+          }, new Set<string>()),
+        );
+        const grid = rawItems.map((r) => headers.map((h) => r[h] ?? ""));
+        const report = preflightImport(headers, grid);
+
+        setPendingRaw(rawItems);
+        setPreflight(report);
+        toast({ title: "File checked", description: preflightHeadline(report) });
+      } else {
+        const prepared = prepareImportItems(rawItems);
+        setPreviewItems(prepared);
+        toast({ title: "Import ready for review", description: `${prepared.length} items parsed from ${file.name}.` });
+      }
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     }
 
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleContinueFromPreflight = () => {
+    if (!pendingRaw) return;
+    const prepared = prepareImportItems(pendingRaw);
+    setPreviewItems(prepared);
+    toast({
+      title: "Import ready for review",
+      description: `${prepared.length} items parsed from ${importFileName || "your file"}.`,
+    });
   };
 
   const updatePreviewItem = (previewId: string, patch: Record<string, any>) => {
@@ -204,6 +244,14 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
           <DialogTitle className="text-foreground">Import to {TAB_LABELS[activeTab]}</DialogTitle>
         </DialogHeader>
         {!previewItems ? (
+          preflight ? (
+            <ImportPreflightReport
+              report={preflight}
+              fileName={importFileName}
+              onBack={resetPreview}
+              onContinue={handleContinueFromPreflight}
+            />
+          ) : (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
               Upload a <strong>.csv</strong>, <strong>.txt</strong>, <strong>.xlsx</strong>, or <strong>.json</strong> file. You’ll get a review step before anything is imported.
@@ -318,6 +366,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               </Button>
             </div>
           </div>
+          )
         ) : (
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-between gap-3">
