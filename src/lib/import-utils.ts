@@ -511,15 +511,31 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
           // repair is only accepted when it yields a mathematically valid code.
           const normalized = normalizeBarcode(val);
 
-          // Never let an unverifiable value overwrite one we already trust.
-          const haveTrusted = Boolean(mapped.barcode) && metadata.barcode_valid === "true";
-          if (normalized.barcode && (!haveTrusted || normalized.valid)) {
-            mapped.barcode = normalized.barcode;
-            metadata.barcode = normalized.barcode;
-            metadata.barcode_valid = normalized.valid ? "true" : "false";
-            if (normalized.kind) metadata.barcode_kind = normalized.kind;
-            // Keep the original so a review UI can show what changed.
-            if (normalized.repaired) metadata.barcode_original = normalized.original;
+          if (normalized.ambiguous) {
+            // A 10-digit core lost both its number-system and check digits, so
+            // several readings are checksum-valid and only a lookup can tell
+            // them apart. Store the raw value and park the candidates for
+            // review rather than committing to a guess that would look
+            // authoritative and never be questioned again.
+            mapped.barcode = normalized.original.replace(/\D/g, "");
+            metadata.barcode = mapped.barcode;
+            metadata.barcode_valid = "false";
+            metadata.barcode_ambiguous = "true";
+            metadata.barcode_candidates = normalized.candidates
+              .slice(0, 4)
+              .map((c) => `${c.barcode}${c.prefixOwner ? ` (${c.prefixOwner})` : ""}`)
+              .join(", ");
+          } else {
+            // Never let an unverifiable value overwrite one we already trust.
+            const haveTrusted = Boolean(mapped.barcode) && metadata.barcode_valid === "true";
+            if (normalized.barcode && (!haveTrusted || normalized.valid)) {
+              mapped.barcode = normalized.barcode;
+              metadata.barcode = normalized.barcode;
+              metadata.barcode_valid = normalized.valid ? "true" : "false";
+              if (normalized.kind) metadata.barcode_kind = normalized.kind;
+              // Keep the original so a review UI can show what changed.
+              if (normalized.repaired) metadata.barcode_original = normalized.original;
+            }
           }
         }
       }

@@ -39,7 +39,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeBarcode } from "@/lib/barcode-normalize";
+import { normalizeBarcode, type BarcodeCandidate } from "@/lib/barcode-normalize";
 import { lookupBarcode } from "@/lib/media-lookup";
 import type { MediaTab } from "@/lib/types";
 
@@ -58,6 +58,7 @@ export type VerificationStatus =
   | "confirmed"    // lookup title corroborates the stored title
   | "mismatch"     // lookup succeeded and disagrees — repair withheld
   | "unverified"   // lookup returned nothing; checksum-valid but uncorroborated
+  | "unresolved"   // ambiguous, and no candidate's title corroborated
   | "skipped";     // verification disabled by the caller
 
 interface Row {
@@ -79,6 +80,12 @@ export interface BarcodeRepair {
   /** Title the lookup returned, when there was one. */
   lookupTitle?: string | null;
   titleScore?: number;
+  /**
+   * Set when the stored value was a 10-digit core with several checksum-valid
+   * readings. `to` holds the best guess only until a lookup picks a winner;
+   * an unresolved candidate is never applied.
+   */
+  pending?: BarcodeCandidate[];
 }
 
 export interface BarcodeMismatch {
@@ -306,6 +313,24 @@ export async function repairBarcodesForUser(
         continue;
       }
 
+      // A 10-digit core has several checksum-valid readings; only a lookup
+      // can choose between them. Defer to the verification pass rather than
+      // guessing, and drop it entirely if titles cannot settle it.
+      if (normalized.ambiguous && normalized.candidates.length) {
+        candidates.push({
+          table,
+          id: row.id,
+          title: row.title,
+          mediaType: row.media_type,
+          from: stored,
+          to: normalized.candidates[0].barcode, // provisional only
+          kind: "UPC-A",
+          verification: "skipped",
+          pending: normalized.candidates,
+        });
+        continue;
+      }
+
       if (!normalized.valid || !normalized.barcode) {
         report.unrepairable.push({
           table,
@@ -313,8 +338,8 @@ export async function repairBarcodesForUser(
           title: row.title,
           barcode: stored,
           reason:
-            "No zero-padding produces a valid check digit. Needs the disc " +
-            "checking by hand, or matching on title instead.",
+            "No zero-padding or reconstruction produces a valid check digit. " +
+            "Needs the disc checking by hand, or matching on title instead.",
         });
         continue;
       }
@@ -356,11 +381,39 @@ export async function repairBarcodesForUser(
     let done = 0;
 
     await mapWithConcurrency(candidates, LOOKUP_CONCURRENCY, async (cand) => {
+      const tab = (cand.mediaType as MediaTab) || "movies";
+
+      // --- Ambiguous 10-digit core: try each reading until one's title
+      //     corroborates the row. Best-ranked (known studio prefix) first,
+      //     so the likely answer usually costs a single lookup.
+      if (cand.pending?.length) {
+        for (const option of cand.pending) {
+          try {
+            const result = await lookupBarcode(tab, option.barcode);
+            const lookupTitle = extractLookupTitle(result);
+            if (!lookupTitle) continue;
+
+            const score = titleSimilarity(cand.title, lookupTitle);
+            if (score >= TITLE_MATCH_THRESHOLD) {
+              cand.to = option.barcode;
+              cand.lookupTitle = lookupTitle;
+              cand.titleScore = score;
+              cand.verification = "confirmed";
+              break;
+            }
+          } catch {
+            // Try the next reading.
+          }
+        }
+        // Nothing corroborated: leave the row alone rather than guessing.
+        if (cand.verification !== "confirmed") cand.verification = "unresolved";
+        done++;
+        if (done % 25 === 0) progress(`Verified ${done}/${candidates.length}…`);
+        return;
+      }
+
       try {
-        const result = await lookupBarcode(
-          (cand.mediaType as MediaTab) || "movies",
-          cand.to,
-        );
+        const result = await lookupBarcode(tab, cand.to);
         const lookupTitle = extractLookupTitle(result);
 
         if (!lookupTitle) {
@@ -394,6 +447,25 @@ export async function repairBarcodesForUser(
       });
       continue; // never auto-apply a repair the title contradicts
     }
+
+    // An ambiguous core is only ever applied when a lookup positively
+    // identified which reading is right. Unresolved — or verification turned
+    // off, leaving it "skipped" — means we still don't know, so leave it.
+    if (cand.pending?.length && cand.verification !== "confirmed") {
+      report.unrepairable.push({
+        table: cand.table,
+        id: cand.id,
+        title: cand.title,
+        barcode: cand.from,
+        reason:
+          `Ten-digit code with ${cand.pending.length} checksum-valid readings ` +
+          `(best guess ${cand.pending[0].barcode}` +
+          `${cand.pending[0].prefixOwner ? `, ${cand.pending[0].prefixOwner}` : ""}). ` +
+          `No lookup corroborated the title, so the row was left unchanged.`,
+      });
+      continue;
+    }
+
     if (cand.verification === "unverified" && !applyUnverified) continue;
     report.repairs.push(cand);
   }
