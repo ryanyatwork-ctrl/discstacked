@@ -1096,35 +1096,17 @@ serve(async (req) => {
         return buildJsonResponse(overridePayload, debugLog);
       }
 
-      try {
-        const openLibraryResponse = await fetch(
-          `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(barcode)}&format=json&jscmd=data`,
-        );
-        const openLibraryRaw = openLibraryResponse.ok ? await openLibraryResponse.json() : null;
-        const openLibraryKey = openLibraryRaw ? Object.keys(openLibraryRaw)[0] : null;
-
-        if (openLibraryKey && openLibraryRaw[openLibraryKey]?.title) {
-          const openLibraryTitle = openLibraryRaw[openLibraryKey].title;
-          const openLibraryCleanTitle = cleanProductTitle(openLibraryTitle);
-          const openLibraryFormats = upcFormats.length > 0 ? upcFormats : [];
-          debugLog.push({ source: "OpenLibrary", status: "HIT", raw: { title: openLibraryTitle } });
-
-          if (openLibraryCleanTitle) {
-            const result = await processBarcodeTitle(openLibraryCleanTitle, openLibraryTitle, openLibraryFormats, barcodeYear);
-            const packagedResult = result ? attachPackageContext(result, {
-              ...packageContext,
-              rawTitle: packageContext.rawTitle || openLibraryTitle,
-              productTitle: packageContext.productTitle || openLibraryTitle,
-              detectedFormats: openLibraryFormats,
-            }) : null;
-            if (considerResolved(packagedResult)) return buildJsonResponse(packagedResult!, debugLog);
-          }
-        } else {
-          debugLog.push({ source: "OpenLibrary", status: "MISS", raw: openLibraryRaw });
-        }
-      } catch (error) {
-        debugLog.push({ source: "OpenLibrary", status: "ERROR", raw: String(error) });
-      }
+      // OpenLibrary deliberately NOT queried here.
+      //
+      // This function serves movies and TV only (media_type: movie, box_set,
+      // tv, tv_season, tv_box_set). OpenLibrary is a book database keyed by
+      // ISBN, so asking it about a disc barcode is a category error: it costs
+      // a round trip on every miss and, when a disc UPC happens to collide
+      // with an ISBN-13, returns a book title that then gets fuzzy-matched
+      // against TMDB — a wrong answer arrived at confidently.
+      //
+      // Books are served by the separate book-lookup function, where
+      // OpenLibrary is the correct source and remains in use for BookStacked.
 
       try {
         const findResponse = await fetch(
