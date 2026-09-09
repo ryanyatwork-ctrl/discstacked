@@ -657,7 +657,30 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     const yMatch = metadata.release_date.match(/\b(19\d\d|20\d\d)\b/);
     if (yMatch) {
       mapped.year = parseInt(yMatch[1], 10);
+      metadata.year_source = "release_date";
     }
+  }
+
+  // Package year -> year fallback.
+  //
+  // Box sets and multi-film collections legitimately have no single "movie
+  // year" — exports emit 0 or blank for them. The meaningful year for such a
+  // release is the year THAT EDITION shipped, not the year of any film inside
+  // it: "Back to the Future: 25th Anniversary Trilogy" is a 2010 product
+  // containing a 1985 film, and searching on 1985 finds the wrong thing.
+  //
+  // The package year is already in the row (Blu-ray.com's "Blu-Ray Release
+  // Year"), so prefer it over leaving the record with no year at all.
+  // year_source is recorded because a package year must NOT be matched
+  // against a film's theatrical year downstream — it is an edition year.
+  if (!mapped.year && metadata.package_year) {
+    const py = String(metadata.package_year).match(/\b(19\d\d|20\d\d)\b/);
+    if (py) {
+      mapped.year = parseInt(py[1], 10);
+      metadata.year_source = "package";
+    }
+  } else if (mapped.year && !metadata.year_source) {
+    metadata.year_source = "movie";
   }
 
   // Calculate total disc count if individual disc counts are present
