@@ -1,5 +1,6 @@
 import { MediaTab } from "@/lib/types";
 import { buildDiscEntries, normalizeCaseType } from "@/lib/collector-utils";
+import { normalizeBarcode } from "@/lib/barcode-normalize";
 
 export const TAB_LABELS: Record<string, string> = {
   movies: "Movies",
@@ -504,13 +505,21 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       if (metaKey === "barcode") {
         const val = cleanString(value);
         if (val) {
-          if (mapped.barcode && mapped.barcode.length === 12 && val.length === 13 && val.startsWith("0")) {
-            // Keep existing 12-digit UPC
-          } else if (val.length === 13 && val.startsWith("0")) {
-            // 13-digit EAN starting with 0 is standard 12-digit UPC in North America
-            mapped.barcode = val.slice(1);
-          } else {
-            mapped.barcode = val;
+          // Spreadsheet exports store barcodes as numbers, so leading zeros are
+          // stripped before we ever see them ("025192275708" -> "25192275708").
+          // normalizeBarcode restores them and verifies the check digit, so a
+          // repair is only accepted when it yields a mathematically valid code.
+          const normalized = normalizeBarcode(val);
+
+          // Never let an unverifiable value overwrite one we already trust.
+          const haveTrusted = Boolean(mapped.barcode) && metadata.barcode_valid === "true";
+          if (normalized.barcode && (!haveTrusted || normalized.valid)) {
+            mapped.barcode = normalized.barcode;
+            metadata.barcode = normalized.barcode;
+            metadata.barcode_valid = normalized.valid ? "true" : "false";
+            if (normalized.kind) metadata.barcode_kind = normalized.kind;
+            // Keep the original so a review UI can show what changed.
+            if (normalized.repaired) metadata.barcode_original = normalized.original;
           }
         }
       }
