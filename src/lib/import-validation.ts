@@ -5,6 +5,7 @@ export type ImportCheckSeverity = "blocker" | "warning";
 
 export type ImportCheckIssue = {
   severity: ImportCheckSeverity;
+  sourceRow?: number;
   location: string;
   title: string;
   barcode: string;
@@ -22,6 +23,9 @@ export type ImportCheckResult = {
   importItemCount: number;
   barcodeCount: number;
   missingBarcodeCount: number;
+  blockedSourceRows: number[];
+  validItemCount: number;
+  hasUnskippableBlockers: boolean;
   blockers: ImportCheckIssue[];
   warnings: ImportCheckIssue[];
 };
@@ -50,6 +54,7 @@ export function normalizeImportRowsForInsert(
     const {
       _mediaTypeOverride,
       _previewId,
+      _sourceRow,
       _sourceRows,
       ...rest
     } = item as Record<string, unknown>;
@@ -79,6 +84,8 @@ export function checkImportList(
 ): ImportCheckResult {
   const blockers: ImportCheckIssue[] = [];
   const warnings: ImportCheckIssue[] = [];
+  const blockedSourceRows = new Set<number>();
+  let hasUnskippableBlockers = false;
 
   if (sourceRows.length !== importItems.length) {
     blockers.push({
@@ -88,28 +95,20 @@ export function checkImportList(
       barcode: "",
       message: `${sourceRows.length} source rows produced ${importItems.length} prepared items. Import requires exactly one item per source row.`,
     });
-  }
-
-  for (const row of sourceRows) {
-    if (!cleanText(row.title)) {
-      blockers.push({
-        severity: "blocker",
-        location: `Source row ${row.sourceRow}`,
-        title: "(missing title)",
-        barcode: cleanText(row.barcode),
-        message: "No title was found, so this source row cannot be matched or imported safely.",
-      });
-    }
+    hasUnskippableBlockers = true;
   }
 
   importItems.forEach((item, index) => {
+    const sourceRow = Number(item._sourceRow) || sourceRows[index]?.sourceRow || index + 2;
     const title = cleanText(item.title) || "(missing title)";
     const barcode = cleanText(item.barcode);
-    const location = `Prepared item ${index + 1}`;
+    const location = `Source row ${sourceRow}`;
 
     if (!cleanText(item.title)) {
+      blockedSourceRows.add(sourceRow);
       blockers.push({
         severity: "blocker",
+        sourceRow,
         location,
         title,
         barcode,
@@ -120,6 +119,7 @@ export function checkImportList(
     if (!barcode) {
       warnings.push({
         severity: "warning",
+        sourceRow,
         location,
         title,
         barcode: "",
@@ -130,8 +130,10 @@ export function checkImportList(
     if (item.rating != null && item.rating !== "") {
       const rating = Number(item.rating);
       if (!Number.isFinite(rating) || Math.abs(rating) > 99.9) {
+        blockedSourceRows.add(sourceRow);
         blockers.push({
           severity: "blocker",
+          sourceRow,
           location,
           title,
           barcode,
@@ -142,11 +144,15 @@ export function checkImportList(
   });
 
   const barcodeCount = importItems.filter((item) => Boolean(cleanText(item.barcode))).length;
+  const blockedRows = [...blockedSourceRows].sort((a, b) => a - b);
   return {
     sourceRowCount: sourceRows.length,
     importItemCount: importItems.length,
     barcodeCount,
     missingBarcodeCount: importItems.length - barcodeCount,
+    blockedSourceRows: blockedRows,
+    validItemCount: importItems.length - blockedRows.length,
+    hasUnskippableBlockers,
     blockers,
     warnings,
   };
@@ -158,9 +164,10 @@ function csvCell(value: unknown): string {
 
 export function importCheckToCsv(result: ImportCheckResult): string {
   const rows = [
-    ["Severity", "Location", "Title", "Barcode", "Message"],
+    ["Severity", "Source Row", "Location", "Title", "Barcode", "Message"],
     ...[...result.blockers, ...result.warnings].map((issue) => [
       issue.severity,
+      issue.sourceRow ?? "",
       issue.location,
       issue.title,
       issue.barcode,

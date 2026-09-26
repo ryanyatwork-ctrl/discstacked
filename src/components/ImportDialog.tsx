@@ -119,12 +119,16 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     setPreviewItems((prev) => (prev || []).filter((item) => item._previewId !== previewId));
   };
 
-  const handleImport = async () => {
+  const handleImport = async (skipBlockedRows = false) => {
     if (!previewItems || previewItems.length === 0) return;
 
     try {
-      toast({ title: "Importing…", description: `Saving ${previewItems.length} reviewed items…` });
-      const cleaned = previewItems.map(({ _previewId, ...item }) => item);
+      const blockedRows = new Set(importCheck.blockedSourceRows);
+      const selectedItems = skipBlockedRows
+        ? previewItems.filter((item) => !blockedRows.has(Number(item._sourceRow)))
+        : previewItems;
+      toast({ title: "Importing…", description: `Saving ${selectedItems.length} reviewed items…` });
+      const cleaned = selectedItems.map(({ _previewId, _sourceRow, ...item }) => item);
       await importMutation.mutateAsync({
         items: cleaned,
         mediaType: activeTab,
@@ -133,7 +137,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
 
       toast({
         title: "Import complete",
-        description: `${cleaned.length} items imported from ${importFileName || "your file"}${destinationSummary ? `: ${destinationSummary}` : "."}`,
+        description: `${cleaned.length} items imported from ${importFileName || "your file"}${skipBlockedRows ? `; skipped rows ${importCheck.blockedSourceRows.join(", ")}` : ""}.`,
       });
       resetPreview();
       setOpen(false);
@@ -177,6 +181,9 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     [sourceRows, previewItems],
   );
   const itemDelta = importCheck.importItemCount - importCheck.sourceRowCount;
+  const blockedRowsSummary = importCheck.blockedSourceRows.length > 0
+    ? importCheck.blockedSourceRows.slice(0, 8).join(", ") + (importCheck.blockedSourceRows.length > 8 ? ", …" : "")
+    : "";
 
   const downloadImportCheck = () => {
     const csv = importCheckToCsv(importCheck);
@@ -365,6 +372,11 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                         ? " · one prepared item per source row"
                         : ` · count mismatch: ${Math.abs(itemDelta)} ${itemDelta > 0 ? "extra" : "missing"} prepared item${Math.abs(itemDelta) === 1 ? "" : "s"}`}
                     </p>
+                    {blockedRowsSummary && (
+                      <p className="text-xs font-medium text-destructive">
+                        Rows {blockedRowsSummary} won&apos;t import unless corrected.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowImportCheck((value) => !value)}>
@@ -375,9 +387,11 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
 
               {showImportCheck && (
                 <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
                     <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Parsed source rows</span><strong>{importCheck.sourceRowCount}</strong></div>
                     <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Prepared items</span><strong>{importCheck.importItemCount}</strong></div>
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Valid to import</span><strong>{importCheck.validItemCount}</strong></div>
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Rows blocked</span><strong>{importCheck.blockedSourceRows.length}</strong></div>
                     <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">With barcode</span><strong>{importCheck.barcodeCount}</strong></div>
                     <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Without barcode</span><strong>{importCheck.missingBarcodeCount}</strong></div>
                   </div>
@@ -485,8 +499,17 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               </p>
             )}
 
-            <div className="flex justify-end">
-              <Button onClick={handleImport} disabled={importMutation.isPending || previewItems.length === 0 || importCheck.blockers.length > 0} className="min-w-44">
+            <div className="flex flex-wrap justify-end gap-2">
+              {importCheck.blockedSourceRows.length > 0 && !importCheck.hasUnskippableBlockers && importCheck.validItemCount > 0 && (
+                <Button
+                  onClick={() => handleImport(true)}
+                  disabled={importMutation.isPending}
+                  className="min-w-52"
+                >
+                  {importMutation.isPending ? "Importing..." : `Import ${importCheck.validItemCount} Valid Items`}
+                </Button>
+              )}
+              <Button onClick={() => handleImport(false)} disabled={importMutation.isPending || previewItems.length === 0 || importCheck.blockers.length > 0} className="min-w-44">
                 {importMutation.isPending
                   ? "Importing..."
                   : importCheck.blockers.length > 0

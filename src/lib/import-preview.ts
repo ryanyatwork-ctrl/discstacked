@@ -46,7 +46,12 @@ export function prepareImportItemsOneToOne(
   }
 
   return items.map((item, index) => {
-    const next = { ...item, _previewId: `${index}-${item.barcode || item.title || "item"}` };
+    const sourceRow = index + 2;
+    const next = {
+      ...item,
+      _previewId: `${index}-${item.barcode || item.title || "item"}`,
+      _sourceRow: sourceRow,
+    };
     delete next._rowFormats;
     delete next._quantity;
     delete next._artist;

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("movie import checks the complete list before saving", async ({ page }) => {
+  const insertedMediaRows: Record<string, unknown>[] = [];
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
   const userId = "11111111-1111-4111-8111-111111111111";
@@ -32,6 +33,10 @@ test("movie import checks the complete list before saving", async ({ page }) => 
   }, { accessToken, expiresAt, userId });
 
   await page.route("**/rest/v1/**", async (route) => {
+    if (route.request().method() === "POST" && route.request().url().includes("/media_items")) {
+      const body = route.request().postDataJSON();
+      if (Array.isArray(body)) insertedMediaRows.push(...body);
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -70,6 +75,29 @@ test("movie import checks the complete list before saving", async ({ page }) => 
   await expect(page.locator('input[value="Capote / In Cold Blood"]')).toBeVisible();
   await expect(page.getByText(/No barcode\. The item can still import/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Download full check report/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Choose Different File" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "mark-needs-review.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from([
+      "Title,Format,Barcode,Rating",
+      "Arrival,Blu-ray,032429252957,8",
+      ",Blu-ray,032429252964,7",
+      "Bad rating,4K,883929701056,100",
+      "No barcode,Blu-ray,,9",
+    ].join("\n")),
+  });
+
+  await expect(page.getByText("2 blocking issues")).toBeVisible();
+  await expect(page.getByText("Rows 3, 4 won't import unless corrected.")).toBeVisible();
+  await page.getByRole("button", { name: "Check this list" }).click();
+  await expect(page.getByText("Source row 3")).toBeVisible();
+  await expect(page.getByText("Source row 4")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import 2 Valid Items" })).toBeVisible();
+  await page.getByRole("button", { name: "Import 2 Valid Items" }).click();
+  await expect.poll(() => insertedMediaRows.length).toBe(2);
+  expect(insertedMediaRows.map((row) => row.title)).toEqual(["Arrival", "No barcode"]);
   await expect(page.locator(".vite-error-overlay")).toHaveCount(0);
   const applicationErrors = consoleErrors.filter((message) => !message.startsWith("Failed to load resource:"));
   expect(applicationErrors).toEqual([]);
