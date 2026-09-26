@@ -43,4 +43,18 @@ describe("import validation", () => {
     expect(csv).toContain('"blocker","Source row 2"');
     expect(csv).toContain('"warning","Prepared item 1","A, quoted ""title"""');
   });
+
+  it("blocks import when source and prepared counts are not one-to-one", () => {
+    const result = checkImportList(
+      [
+        { sourceRow: 2, title: "Arrival", barcode: "111" },
+        { sourceRow: 3, title: "Dune", barcode: "222" },
+      ],
+      [{ title: "Arrival", barcode: "111" }],
+    );
+
+    expect(result.blockers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ location: "List totals", title: "(count mismatch)" }),
+    ]));
+  });
 });

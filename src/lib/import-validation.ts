@@ -80,6 +80,16 @@ export function checkImportList(
   const blockers: ImportCheckIssue[] = [];
   const warnings: ImportCheckIssue[] = [];
 
+  if (sourceRows.length !== importItems.length) {
+    blockers.push({
+      severity: "blocker",
+      location: "List totals",
+      title: "(count mismatch)",
+      barcode: "",
+      message: `${sourceRows.length} source rows produced ${importItems.length} prepared items. Import requires exactly one item per source row.`,
+    });
+  }
+
   for (const row of sourceRows) {
     if (!cleanText(row.title)) {
       blockers.push({

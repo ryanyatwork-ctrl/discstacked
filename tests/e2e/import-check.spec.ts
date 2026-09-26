@@ -55,14 +55,18 @@ test("movie import checks the complete list before saving", async ({ page }) => 
       "Arrival,Blu-ray + Digital,032429252957,Yes",
       "Blade Runner 2049,4K + Blu-ray,,No",
       "Dune,Blu-ray,883929701056,No",
+      "Arrival,Blu-ray,032429252964,No",
+      "Capote / In Cold Blood,Blu-ray,043396541436,No",
     ].join("\n")),
   });
 
-  await expect(page.getByText("3 parsed source rows → 3 prepared import items")).toBeVisible();
-  await expect(page.getByText("2 prepared items with barcodes · 1 without barcodes")).toBeVisible();
+  await expect(page.getByText("5 parsed source rows → 5 prepared import items")).toBeVisible();
+  await expect(page.getByText("4 prepared items with barcodes · 1 without barcodes")).toBeVisible();
   await page.getByRole("button", { name: "Check this list" }).click();
   await expect(page.getByText("List is safe to import")).toBeVisible();
+  await expect(page.getByText("one prepared item per source row")).toBeVisible();
   await expect(page.getByText("Blade Runner 2049").last()).toBeVisible();
+  await expect(page.locator('input[value="Capote / In Cold Blood"]')).toBeVisible();
   await expect(page.getByText(/No barcode\. The item can still import/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Download full check report/ })).toBeVisible();
   await expect(page.locator(".vite-error-overlay")).toHaveCount(0);

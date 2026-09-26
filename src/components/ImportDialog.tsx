@@ -5,11 +5,13 @@ import { Upload, ArrowLeft, Trash2, Download, FileSpreadsheet, ClipboardCheck, A
 import { useImportItems } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
-import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, generateImportTemplateCsv, downloadImportTemplateXlsx } from "@/lib/import-utils";
+import { TAB_LABELS, mapClzRow, parseCsv, generateImportTemplateCsv, downloadImportTemplateXlsx } from "@/lib/import-utils";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { checkImportList, importCheckToCsv, ImportSourceRow } from "@/lib/import-validation";
+import { checkImportList, importCheckToCsv } from "@/lib/import-validation";
+import type { ImportSourceRow } from "@/lib/import-validation";
+import { prepareImportItemsOneToOne } from "@/lib/import-preview";
 
 interface ImportDialogProps {
   activeTab: MediaTab;
@@ -36,52 +38,6 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     setSourceRows([]);
     setShowImportCheck(false);
     setReplaceExisting(defaultReplaceExisting);
-  };
-
-  const prepareImportItems = (rawItems: Record<string, string>[]) => {
-    const items = rawItems.map(row => mapClzRow(row, activeTab));
-
-    if (activeTab === "cds") {
-      for (const item of items) {
-        const meta = item.metadata || {};
-        if (item._artist) {
-          meta.artist = item._artist;
-          delete item._artist;
-        }
-        if (meta.tracks) {
-          meta.track_count = meta.tracks;
-          delete meta.tracks;
-        }
-        if (meta.length) {
-          meta.total_length = meta.length;
-          delete meta.length;
-        }
-        item.metadata = meta;
-      }
-    }
-
-    if (activeTab === "games") {
-      for (const item of items) {
-        const meta = item.metadata || {};
-        if (meta.platform) {
-          meta.platforms = [meta.platform];
-          delete meta.platform;
-        }
-        item.metadata = meta;
-      }
-    }
-
-    const merged = activeTab === "cds" ? items : mergeDuplicates(items, activeTab);
-    const expanded = (activeTab === "cds" || activeTab === "games") ? merged : expandBoxSets(merged);
-
-    return expanded.map((item, index) => {
-      const next = { ...item, _previewId: `${index}-${item.barcode || item.title || "item"}` };
-      delete next._rowFormats;
-      delete next._quantity;
-      delete next._artist;
-      delete next._gamePlatform;
-      return next;
-    });
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +73,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
         return;
       }
 
-      const prepared = prepareImportItems(rawItems);
+      const prepared = prepareImportItemsOneToOne(rawItems, activeTab);
       const mappedSourceRows = rawItems.map((row, index) => {
         const mapped = mapClzRow(row, activeTab);
         return {
@@ -251,7 +207,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               ) : activeTab === "games" ? (
                 <>Supports <code className="text-accent">CLZ Game Collector</code> exports and standard files. When <code>Replace existing</code> is off, DiscStacked now merges CLZ games into matching VideoGameGeek items instead of blindly duplicating them.</>
               ) : (
-                <>Supports <code className="text-accent">CLZ</code> and <code className="text-accent">Blu-ray.com</code> exports. Box sets and multi-movie titles are detected before import so you can review them.</>
+                <>Supports <code className="text-accent">CLZ</code> and <code className="text-accent">Blu-ray.com</code> exports. Every parsed source row remains one owned item, including box sets and multi-movie packages.</>
               )}
             </p>
             {activeTab === "games" && (
@@ -391,7 +347,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                       {importCheck.warnings.length} warning{importCheck.warnings.length === 1 ? "" : "s"}
                       {itemDelta === 0
                         ? " · one prepared item per source row"
-                        : ` · ${Math.abs(itemDelta)} ${itemDelta > 0 ? "more" : "fewer"} prepared item${Math.abs(itemDelta) === 1 ? "" : "s"} after merging and box-set expansion`}
+                        : ` · count mismatch: ${Math.abs(itemDelta)} ${itemDelta > 0 ? "extra" : "missing"} prepared item${Math.abs(itemDelta) === 1 ? "" : "s"}`}
                     </p>
                   </div>
                 </div>
