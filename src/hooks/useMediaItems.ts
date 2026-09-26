@@ -5,6 +5,7 @@ import { MediaTab, dbMediaTypesForTab } from "@/lib/types";
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { upsertEditionCatalogSeeds } from "@/lib/edition-catalog";
 import { buildImportIdentityKeys } from "@/lib/import-utils";
+import { normalizeImportRowsForInsert } from "@/lib/import-validation";
 import { buildMusicMediaMirrorRow } from "@/lib/music-media-mirror";
 
 export type DbMediaItem = Tables<"media_items">;
@@ -343,16 +344,7 @@ export function useImportItems() {
       // active tab (e.g. TV seasons detected inside a movie import get
       // "tv-season"). Honor that per-row override and strip the marker so it
       // never reaches the DB insert.
-      const rows = items.map((item) => {
-        const { _mediaTypeOverride, ...rest } = item as Record<string, any>;
-        return {
-          ...rest,
-          user_id: user.id,
-          media_type: (_mediaTypeOverride as string) || mediaType,
-          title: rest.title || "Untitled",
-          formats: rest.formats || (rest.format ? [rest.format] : []),
-        } as Partial<TablesInsert<"media_items">>;
-      });
+      const rows = normalizeImportRowsForInsert(items, mediaType, user.id);
 
       // Every media_type the import writes into — the active tab plus any
       // auto-routed types. Replace mode clears all of them so a re-import is a

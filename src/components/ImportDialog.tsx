@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, ArrowLeft, Trash2, Download, FileSpreadsheet } from "lucide-react";
+import { Upload, ArrowLeft, Trash2, Download, FileSpreadsheet, ClipboardCheck, AlertTriangle, CircleCheck } from "lucide-react";
 import { useImportItems } from "@/hooks/useMediaItems";
 import { MediaTab } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ import { TAB_LABELS, mapClzRow, mergeDuplicates, expandBoxSets, parseCsv, genera
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { checkImportList, importCheckToCsv, ImportSourceRow } from "@/lib/import-validation";
 
 interface ImportDialogProps {
   activeTab: MediaTab;
@@ -22,6 +23,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   const [importFileName, setImportFileName] = useState("");
   const [replaceExisting, setReplaceExisting] = useState(defaultReplaceExisting);
   const [previewSearch, setPreviewSearch] = useState("");
+  const [sourceRows, setSourceRows] = useState<ImportSourceRow[]>([]);
+  const [showImportCheck, setShowImportCheck] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const importMutation = useImportItems();
 
@@ -30,6 +33,8 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
     setRawRowCount(0);
     setImportFileName("");
     setPreviewSearch("");
+    setSourceRows([]);
+    setShowImportCheck(false);
     setReplaceExisting(defaultReplaceExisting);
   };
 
@@ -113,7 +118,16 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
       }
 
       const prepared = prepareImportItems(rawItems);
+      const mappedSourceRows = rawItems.map((row, index) => {
+        const mapped = mapClzRow(row, activeTab);
+        return {
+          sourceRow: index + 2,
+          title: mapped.title,
+          barcode: mapped.barcode,
+        };
+      });
       setPreviewItems(prepared);
+      setSourceRows(mappedSourceRows);
       setRawRowCount(rawItems.length);
       setImportFileName(file.name);
       toast({ title: "Import ready for review", description: `${prepared.length} items parsed from ${file.name}.` });
@@ -191,11 +205,34 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   });
   const previewRows = filteredPreviewItems.slice(0, 75);
   const barcodeCount = (previewItems || []).filter((item) => item.barcode).length;
+  const importCheck = useMemo(
+    () => checkImportList(sourceRows, previewItems || []),
+    [sourceRows, previewItems],
+  );
+  const itemDelta = importCheck.importItemCount - importCheck.sourceRowCount;
+
+  const downloadImportCheck = () => {
+    const csv = importCheckToCsv(importCheck);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(importFileName || "import").replace(/\.[^.]+$/, "")}-discstacked-check.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) resetPreview(); }}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`Import to ${TAB_LABELS[activeTab]}`}
+        >
           <Upload className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -324,13 +361,82 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
               <div>
                 <p className="text-sm font-medium text-foreground">{importFileName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {previewItems.length} import items from {rawRowCount} source rows · {barcodeCount} with barcodes
+                  {rawRowCount} parsed source rows → {previewItems.length} prepared import items
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {barcodeCount} prepared items with barcodes · {previewItems.length - barcodeCount} without barcodes
                 </p>
               </div>
               <Button variant="outline" size="sm" className="gap-2" onClick={resetPreview}>
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Choose Different File
               </Button>
+            </div>
+
+            <div className="rounded-md border border-border/60 bg-secondary/10 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2">
+                  {importCheck.blockers.length > 0 ? (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  ) : (
+                    <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {importCheck.blockers.length > 0
+                        ? `${importCheck.blockers.length} blocking issue${importCheck.blockers.length === 1 ? "" : "s"}`
+                        : "List is safe to import"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {importCheck.warnings.length} warning{importCheck.warnings.length === 1 ? "" : "s"}
+                      {itemDelta === 0
+                        ? " · one prepared item per source row"
+                        : ` · ${Math.abs(itemDelta)} ${itemDelta > 0 ? "more" : "fewer"} prepared item${Math.abs(itemDelta) === 1 ? "" : "s"} after merging and box-set expansion`}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowImportCheck((value) => !value)}>
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  {showImportCheck ? "Hide list check" : "Check this list"}
+                </Button>
+              </div>
+
+              {showImportCheck && (
+                <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Parsed source rows</span><strong>{importCheck.sourceRowCount}</strong></div>
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Prepared items</span><strong>{importCheck.importItemCount}</strong></div>
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">With barcode</span><strong>{importCheck.barcodeCount}</strong></div>
+                    <div className="rounded bg-background/60 p-2"><span className="block text-muted-foreground">Without barcode</span><strong>{importCheck.missingBarcodeCount}</strong></div>
+                  </div>
+
+                  {(importCheck.blockers.length > 0 || importCheck.warnings.length > 0) ? (
+                    <>
+                      <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                        {[...importCheck.blockers, ...importCheck.warnings].map((issue, index) => (
+                          <div key={`${issue.severity}-${issue.location}-${index}`} className="rounded border border-border/50 bg-background/50 p-2 text-xs">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={issue.severity === "blocker" ? "font-medium text-destructive" : "font-medium text-amber-500"}>
+                                {issue.severity === "blocker" ? "BLOCKER" : "WARNING"}
+                              </span>
+                              <span className="text-muted-foreground">{issue.location}</span>
+                              <span className="font-medium text-foreground">{issue.title}</span>
+                              {issue.barcode && <code className="text-muted-foreground">{issue.barcode}</code>}
+                            </div>
+                            <p className="mt-1 text-muted-foreground">{issue.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <Button variant="ghost" size="sm" className="gap-2" onClick={downloadImportCheck}>
+                        <Download className="h-3.5 w-3.5" />
+                        Download full check report (.csv)
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No row-level problems were found.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-secondary/10 p-3 md:flex-row md:items-center md:justify-between">
@@ -408,8 +514,12 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
             )}
 
             <div className="flex justify-end">
-              <Button onClick={handleImport} disabled={importMutation.isPending || previewItems.length === 0} className="min-w-44">
-                {importMutation.isPending ? "Importing..." : `Import ${previewItems.length} Items`}
+              <Button onClick={handleImport} disabled={importMutation.isPending || previewItems.length === 0 || importCheck.blockers.length > 0} className="min-w-44">
+                {importMutation.isPending
+                  ? "Importing..."
+                  : importCheck.blockers.length > 0
+                    ? `Fix ${importCheck.blockers.length} Blocker${importCheck.blockers.length === 1 ? "" : "s"}`
+                    : `Import ${previewItems.length} Items`}
               </Button>
             </div>
           </div>

@@ -9,6 +9,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4173",
     trace: "on-first-retry",
+    channel: process.env.PLAYWRIGHT_CHANNEL as "chrome" | "msedge" | undefined,
   },
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
