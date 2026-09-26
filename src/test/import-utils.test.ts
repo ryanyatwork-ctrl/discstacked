@@ -423,6 +423,7 @@ describe("import-utils", () => {
       expect(row1.formats).toEqual(["Blu-ray"]);
       expect(row1.metadata.disc_count).toBe("1");
       expect(row1.metadata.slipcover).toBe("no_slip");
+      expect(row1.metadata.slipcover_status).toBe("missing");
       expect(row1.metadata.case_type).toBe("Standard");
       expect(row1.metadata.country).toBe("US");
 
@@ -433,6 +434,7 @@ describe("import-utils", () => {
       expect(row2.formats).toEqual(["Blu-ray", "DVD", "Digital"]);
       expect(row2.metadata.disc_count).toBe("2");
       expect(row2.metadata.slipcover).toBe("has_slip");
+      expect(row2.metadata.slipcover_status).toBe("included");
       expect(row2.notes).toBe("Great condition");
       expect(row2.metadata.purchase_location).toBe("Best Buy");
       expect(row2.metadata.purchase_price).toBe("14.99");
@@ -464,6 +466,7 @@ describe("import-utils", () => {
       expect(r1.title).toBe("Blade Runner");
       expect(r1.year).toBe(1982);
       expect(r1.metadata.package_year).toBe("2017");
+      expect(r1.metadata.package_release_date).toBe("2017");
       expect(r1.formats).toEqual(["Blu-ray", "Digital"]);
       expect(r1.metadata.case_type).toBe("Standard");
       expect(r1.metadata.digital_code_status).toBe("Included (Unused)");
@@ -473,6 +476,7 @@ describe("import-utils", () => {
       expect(r2.title).toBe("The Matrix Trilogy");
       expect(r2.year).toBe(1999);
       expect(r2.metadata.package_year).toBe("2020");
+      expect(r2.metadata.package_release_date).toBe("2020");
       expect(r2.formats).toEqual(["4K", "Blu-ray", "Digital"]);
       expect(r2.metadata.case_type).toBe("Box Set");
       expect(r2.metadata.digital_code_status).toBe("Used / Redeemed");
@@ -496,6 +500,25 @@ describe("import-utils", () => {
       const r6 = mapClzRow(rows[5], "movies");
       expect(r6.metadata.case_type).toBe("Multi Pack");
       expect(r6.metadata.digital_code_status).toBe("Used / Redeemed");
+    });
+
+    it("restores Excel-dropped UPC zeros and preserves package dates from Blu-ray spreadsheets", () => {
+      const row = mapClzRow({
+        Title: "20,000 Days on Earth",
+        Barcode: "25192275708",
+        "Blu-Ray Release Year": "November 18 2014",
+        Slipcover: "Yes",
+        "Purchase Location": "Local shop",
+      }, "movies");
+
+      expect(row.barcode).toBe("025192275708");
+      expect(row.metadata.barcode).toBe("025192275708");
+      expect(row.metadata.barcode_raw).toBe("25192275708");
+      expect(row.metadata.package_year).toBe("2014");
+      expect(row.metadata.package_release_date).toBe("November 18 2014");
+      expect(row.metadata.slipcover).toBe("Yes");
+      expect(row.metadata.slipcover_status).toBe("included");
+      expect(row.metadata.purchase_location).toBe("Local shop");
     });
 
     it("parses digital-on-disc and physical digital copy discs", () => {

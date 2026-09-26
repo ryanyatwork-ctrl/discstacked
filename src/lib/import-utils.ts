@@ -3,6 +3,8 @@ import { buildDiscEntries, normalizeCaseType } from "@/lib/collector-utils";
 
 export const TAB_LABELS: Record<string, string> = {
   movies: "Movies",
+  tv: "TV",
+  "tv-season": "TV Seasons",
   "music-films": "Music Media",
   cds: "CDs",
   games: "Games",
@@ -138,6 +140,7 @@ const COLUMN_MAP: Record<string, string> = {
   watched: "_watched",
   comment: "notes",
   retailer: "_purchase_location",
+  "purchase location": "_purchase_location",
   "price comment": "_price_comment",
   "price comments": "_price_comment",
   "missing discs": "_missing_discs",
@@ -502,8 +505,15 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
       const metaKey = dbCol.slice(1);
       metadata[metaKey] = cleanString(value);
       if (metaKey === "barcode") {
-        const val = cleanString(value);
+        const rawBarcode = cleanString(value);
+        let val = rawBarcode;
         if (val) {
+          // Excel commonly stores UPC-A values as numbers and permanently drops
+          // their leading zero. Eleven digits is not a complete UPC/EAN format;
+          // restoring the zero is lossless and makes the check digit valid again.
+          if (/^\d{11}$/.test(val)) val = `0${val}`;
+          if (val !== rawBarcode) metadata.barcode_raw = rawBarcode;
+          metadata.barcode = val;
           if (mapped.barcode && mapped.barcode.length === 12 && val.length === 13 && val.startsWith("0")) {
             // Keep existing 12-digit UPC
           } else if (val.length === 13 && val.startsWith("0")) {
@@ -621,8 +631,10 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
 
   // Physical / Package Release year extraction
   if (metadata.package_year) {
-    const pyMatch = String(metadata.package_year).match(/\b(19\d\d|20\d\d)\b/);
+    const packageReleaseDate = String(metadata.package_year);
+    const pyMatch = packageReleaseDate.match(/\b(19\d\d|20\d\d)\b/);
     if (pyMatch) {
+      metadata.package_release_date = packageReleaseDate;
       metadata.package_year = pyMatch[1];
     }
   }
@@ -649,6 +661,11 @@ export function mapClzRow(raw: Record<string, string>, mediaType?: string) {
     metadata.slipcover = "has_slip";
   } else if (metadata.slipcover === "0" || metadata.slipcover === "false") {
     metadata.slipcover = "no_slip";
+  }
+  if (["yes", "true", "1", "has_slip"].includes(String(metadata.slipcover || "").toLowerCase())) {
+    metadata.slipcover_status = "included";
+  } else if (["no", "false", "0", "no_slip"].includes(String(metadata.slipcover || "").toLowerCase())) {
+    metadata.slipcover_status = "missing";
   }
 
   // Digital code status normalization

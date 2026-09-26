@@ -62,6 +62,7 @@ test("movie import checks the complete list before saving", async ({ page }) => 
 
   await expect(page.getByText("5 parsed source rows → 5 prepared import items")).toBeVisible();
   await expect(page.getByText("4 prepared items with barcodes · 1 without barcodes")).toBeVisible();
+  await expect(page.getByText("Destination: 5 Movies")).toBeVisible();
   await page.getByRole("button", { name: "Check this list" }).click();
   await expect(page.getByText("List is safe to import")).toBeVisible();
   await expect(page.getByText("one prepared item per source row")).toBeVisible();

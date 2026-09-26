@@ -133,7 +133,7 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
 
       toast({
         title: "Import complete",
-        description: `${cleaned.length} items imported from ${importFileName || "your file"} into ${TAB_LABELS[activeTab]}.`,
+        description: `${cleaned.length} items imported from ${importFileName || "your file"}${destinationSummary ? `: ${destinationSummary}` : "."}`,
       });
       resetPreview();
       setOpen(false);
@@ -161,6 +161,17 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
   });
   const previewRows = filteredPreviewItems.slice(0, 75);
   const barcodeCount = (previewItems || []).filter((item) => item.barcode).length;
+  const destinationCounts = useMemo(
+    () => (previewItems || []).reduce<Record<string, number>>((counts, item) => {
+      const destination = item._mediaTypeOverride || activeTab;
+      counts[destination] = (counts[destination] || 0) + 1;
+      return counts;
+    }, {}),
+    [activeTab, previewItems],
+  );
+  const destinationSummary = Object.entries(destinationCounts)
+    .map(([destination, count]) => `${count} ${TAB_LABELS[destination] || destination}`)
+    .join(" · ");
   const importCheck = useMemo(
     () => checkImportList(sourceRows, previewItems || []),
     [sourceRows, previewItems],
@@ -322,6 +333,11 @@ export function ImportDialog({ activeTab }: ImportDialogProps) {
                 <p className="text-[11px] text-muted-foreground">
                   {barcodeCount} prepared items with barcodes · {previewItems.length - barcodeCount} without barcodes
                 </p>
+                {destinationSummary && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Destination: {destinationSummary}
+                  </p>
+                )}
               </div>
               <Button variant="outline" size="sm" className="gap-2" onClick={resetPreview}>
                 <ArrowLeft className="h-3.5 w-3.5" />
