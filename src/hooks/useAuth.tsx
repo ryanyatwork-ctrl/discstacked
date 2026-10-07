@@ -1,3 +1,4 @@
+import posthog from "posthog-js";
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        posthog.identify(session.user.id, { email: session.user.email });
+      } else if (_event === "SIGNED_OUT") {
+        posthog.reset();
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
