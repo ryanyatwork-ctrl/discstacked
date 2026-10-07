@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import posthog from "posthog-js";
+import { scrubPostHogEvent } from "./lib/posthogScrub";
 import { PostHogProvider } from "posthog-js/react";
 import App from "./App.tsx";
 import "./index.css";
@@ -11,6 +12,7 @@ if (typeof window !== "undefined") {
     ui_host: "https://us.posthog.com",
     defaults: "2025-05-24",
     person_profiles: "identified_only",
+    before_send: scrubPostHogEvent,
   });
 }
 
