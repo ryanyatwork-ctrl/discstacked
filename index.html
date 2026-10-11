@@ -28,11 +28,41 @@
 
     <link rel="manifest" href="/manifest.json" />
 
+    <link rel="canonical" href="https://discstacked.app/" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "DiscStacked",
+      "url": "https://discstacked.app/",
+      "applicationCategory": "LifestyleApplication",
+      "operatingSystem": "Web, iOS, Android (PWA)",
+      "description": "Catalog and organize a physical media collection: movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games, plus a dedicated tab for concert videos and music media.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "publisher": { "@type": "Organization", "name": "Belleville Systems", "url": "https://bellevillesystems.com" }
+    }
+    </script>
+
     <script defer src="/analytics.js"></script>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static content for crawlers and AI answer engines; React replaces it on load. -->
+      <main style="max-width:760px;margin:0 auto;padding:48px 20px;font-family:system-ui,sans-serif;color:#e5e5e5;background:#0A0A0A">
+        <h1>DiscStacked – catalog your physical media</h1>
+        <p>DiscStacked is a free app for cataloging and organizing a physical media collection. It covers movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games on all platforms, plus a dedicated tab for concert videos and other music media.</p>
+        <h2>What can you do with DiscStacked?</h2>
+        <ul>
+          <li>Catalog movies, music and games in one place.</li>
+          <li>Add items by barcode lookup or import an existing CLZ collection.</li>
+          <li>See what you own at a glance and stay organized as your collection grows.</li>
+        </ul>
+        <h2>Who is it for?</h2>
+        <p>Collectors of physical movies, music and games who want a clean, accurate catalog of what they own. DiscStacked runs in the browser and installs as an app on phones and desktops.</p>
+        <p>DiscStacked is built by <a href="https://bellevillesystems.com" style="color:#e5e5e5">Belleville Systems</a>.</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

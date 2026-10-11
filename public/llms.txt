@@ -16,6 +16,7 @@
 Collectors of physical movies, music, and games who want a clean, accurate catalog of what they own.
 
 ## Notes
-- Product name: DiscStacked. URL: https://discstacked.app.
+- Product name: DiscStacked. URL: https://discstacked.app. Free to use.
+- Items can be added by barcode lookup or imported from a CLZ export.
 - Voice: collector-friendly, organized, detail-oriented; no hype.
 - Publisher: Belleville Systems.
