@@ -32,14 +32,63 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "DiscStacked",
-      "url": "https://discstacked.app/",
-      "applicationCategory": "LifestyleApplication",
-      "operatingSystem": "Web, iOS, Android (PWA)",
-      "description": "Catalog and organize a physical media collection: movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games, plus a dedicated tab for concert videos and music media.",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "publisher": { "@type": "Organization", "name": "Belleville Systems", "url": "https://bellevillesystems.com" }
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://bellevillesystems.com/#organization",
+          "name": "Belleville Systems",
+          "url": "https://bellevillesystems.com"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://discstacked.app/#website",
+          "name": "DiscStacked",
+          "url": "https://discstacked.app/",
+          "publisher": { "@id": "https://bellevillesystems.com/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://discstacked.app/#app",
+          "name": "DiscStacked",
+          "url": "https://discstacked.app/",
+          "applicationCategory": "LifestyleApplication",
+          "operatingSystem": "Web, iOS, Android (PWA)",
+          "description": "Catalog and organize a physical media collection: movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games, plus a dedicated tab for concert videos and music media.",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          "publisher": { "@id": "https://bellevillesystems.com/#organization" }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://discstacked.app/#webpage",
+          "url": "https://discstacked.app/",
+          "name": "DiscStacked — Catalog Your Physical Media",
+          "isPartOf": { "@id": "https://discstacked.app/#website" },
+          "about": { "@id": "https://discstacked.app/#app" },
+          "speakable": { "@type": "SpeakableSpecification", "cssSelector": ["#geo-title", "#geo-summary"] }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://discstacked.app/#faq",
+          "isPartOf": { "@id": "https://discstacked.app/#webpage" },
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What can you do with DiscStacked?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Catalog movies, music and games in one place. Add items by barcode lookup or import an existing CLZ collection. See what you own at a glance and stay organized as your collection grows." }
+            },
+            {
+              "@type": "Question",
+              "name": "Who is it for?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Collectors of physical movies, music and games who want a clean, accurate catalog of what they own. DiscStacked runs in the browser and installs as an app on phones and desktops." }
+            },
+            {
+              "@type": "Question",
+              "name": "Is DiscStacked free?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. DiscStacked is free to use. Open it in any browser, or install it as an app on your phone or desktop." }
+            }
+          ]
+        }
+      ]
     }
     </script>
 
@@ -50,8 +99,8 @@
     <div id="root">
       <!-- Static content for crawlers and AI answer engines; React replaces it on load. -->
       <main style="max-width:760px;margin:0 auto;padding:48px 20px;font-family:system-ui,sans-serif;color:#e5e5e5;background:#0A0A0A">
-        <h1>DiscStacked – catalog your physical media</h1>
-        <p>DiscStacked is a free app for cataloging and organizing a physical media collection. It covers movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games on all platforms, plus a dedicated tab for concert videos and other music media.</p>
+        <h1 id="geo-title">DiscStacked – catalog your physical media</h1>
+        <p id="geo-summary">DiscStacked is a free app for cataloging and organizing a physical media collection. It covers movies (DVD, Blu-ray, 4K), music (CD, vinyl) and games on all platforms, plus a dedicated tab for concert videos and other music media.</p>
         <h2>What can you do with DiscStacked?</h2>
         <ul>
           <li>Catalog movies, music and games in one place.</li>
@@ -60,6 +109,8 @@
         </ul>
         <h2>Who is it for?</h2>
         <p>Collectors of physical movies, music and games who want a clean, accurate catalog of what they own. DiscStacked runs in the browser and installs as an app on phones and desktops.</p>
+        <h2>Is DiscStacked free?</h2>
+        <p>Yes. DiscStacked is free to use. Open it in any browser, or install it as an app on your phone or desktop.</p>
         <p>DiscStacked is built by <a href="https://bellevillesystems.com" style="color:#e5e5e5">Belleville Systems</a>.</p>
       </main>
     </div>
