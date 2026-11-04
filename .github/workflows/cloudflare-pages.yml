@@ -17,7 +17,7 @@ permissions:
 jobs:
   verify:
     if: github.event.inputs.skip_tests != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       VITE_SUPABASE_URL: https://ykyneinxsgcdjejmlxkg.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_MEfAwZY-IqPSvGtrARNOCw_7N793vNp
@@ -47,7 +47,7 @@ jobs:
         run: npm run build:cloudflare
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify
     if: |
       always() &&
