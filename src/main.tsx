@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import posthog from "posthog-js";
 import { scrubPostHogEvent } from "./lib/posthogScrub";
 import { PostHogProvider } from "posthog-js/react";
+import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -13,6 +14,13 @@ if (typeof window !== "undefined") {
     defaults: "2025-05-24",
     person_profiles: "identified_only",
     before_send: scrubPostHogEvent,
+  });
+}
+
+if ("serviceWorker" in navigator) {
+  registerSW({
+    immediate: true,
+    onRegisterError: (error) => console.warn("Service worker registration skipped:", error),
   });
 }
 
